@@ -9,7 +9,8 @@
     { "path": "../../packages/wire-contracts" },
     { "path": "../../packages/canonical" },
     { "path": "../../packages/temporal" },
-    { "path": "../../packages/core" }
+    { "path": "../../packages/core" },
+    { "path": "../../packages/exchange" }
   ],
   "include": ["src/**/*.ts"]
 }

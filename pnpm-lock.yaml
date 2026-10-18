@@ -27,6 +27,9 @@ importers:
       '@wmm/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@wmm/exchange':
+        specifier: workspace:*
+        version: link:../../packages/exchange
       '@wmm/temporal':
         specifier: workspace:*
         version: link:../../packages/temporal
@@ -48,6 +51,18 @@ importers:
       '@wmm/schema':
         specifier: workspace:*
         version: link:../schema
+      '@wmm/wire-contracts':
+        specifier: workspace:*
+        version: link:../wire-contracts
+
+  packages/exchange:
+    dependencies:
+      '@wmm/canonical':
+        specifier: workspace:*
+        version: link:../canonical
+      '@wmm/core':
+        specifier: workspace:*
+        version: link:../core
       '@wmm/wire-contracts':
         specifier: workspace:*
         version: link:../wire-contracts

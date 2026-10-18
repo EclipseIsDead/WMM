@@ -8,12 +8,13 @@
     "node": ">=24.3.0"
   },
   "scripts": {
-    "build": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core apps/cli",
-    "typecheck": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core apps/cli --pretty false",
+    "build": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core packages/exchange apps/cli",
+    "typecheck": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core packages/exchange apps/cli --pretty false",
     "test": "vitest run",
     "verify:kit": "node wmm-v0.3-contract-kit/verify-vectors.mjs",
     "verify:contracts": "pnpm build && node apps/cli/dist/main.js contract-kit verify wmm-v0.3-contract-kit",
     "verify:v0": "pnpm build && node apps/cli/dist/main.js v0 verify wmm-v0.3-contract-kit fixtures/v0/semantic-contract-cases.json",
+    "verify:seed": "pnpm build && node apps/cli/dist/main.js seed validate wmm-v0.3-contract-kit",
     "check": "pnpm verify:kit && pnpm typecheck && pnpm test"
   },
   "devDependencies": {

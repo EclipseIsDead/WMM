@@ -10,7 +10,8 @@ The current code is an executable V0 contract baseline, not yet a complete world
 - `packages/temporal`: exact and uncertain local applicability over integer chronons, including correlated interval endpoints.
 - `packages/schema`: the bounded first-release semantic-definition/profile vocabulary and structural checks.
 - `packages/core`: scope comparison, evidence/family aggregation, and trusted semantic-profile admission.
-- `apps/cli`: development commands that verify the supplied identity kit and all executable V0 fixtures.
+- `packages/exchange`: fixture-scoped snapshot byte verification, loading, inspection, and deterministic JSON export.
+- `apps/cli`: development commands that verify the supplied identity kit, executable V0 fixtures, and the initial seed-world read path.
 - `fixtures/v0`: golden scope, evidence, temporal, and result-algebra cases.
 - `wmm-v0.3-contract-kit`: immutable seed vectors and independent Node/Python verifiers supplied with the RFC.
 
@@ -30,9 +31,10 @@ pnpm install
 pnpm check
 pnpm verify:contracts
 pnpm verify:v0
+pnpm verify:seed
 ```
 
-`pnpm check` runs the original Node verifier, TypeScript project-reference checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` additionally executes the scope, evidence, temporal, result-algebra, and trusted-definition fixtures.
+`pnpm check` runs the original Node verifier, TypeScript project-reference checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` additionally executes the scope, evidence, temporal, result-algebra, and trusted-definition fixtures. `pnpm verify:seed` verifies and loads every byte in the supplied snapshot payload.
 
 The independent Python verifier additionally requires `jsonschema`. It is intentionally not a runtime dependency of WMM.
 
@@ -48,6 +50,7 @@ The current checks cover:
 - tri-state scope comparison, documentary evidence status, and explicit-polarity family support;
 - the closed response/validation result algebra;
 - exact, bounded-unknown, unknown, and unbounded temporal applicability against exact point/interval queries;
-- trusted allowlist admission for the bounded semantic operation vocabulary, including default rejection of fixture-only definitions.
+- trusted allowlist admission for the bounded semantic operation vocabulary, including default rejection of fixture-only definitions;
+- fixture-scoped manifest verification, canonical JSON enforcement, assertion identity checks, record inspection, deterministic export, and tamper/undeclared-file rejection.
 
-They do not yet implement portable world loading, descriptor/source records, interval-wide coverage inference, authoring authorization, Git transactions, or backups. Those retain their RFC milestone gates.
+The seed loader deliberately reports unresolved reference integrity because the v0.3 identity kit contains no descriptor or source records. A production portable-world loader, interval-wide coverage inference, authoring authorization, Git transactions, and backups remain behind their RFC milestone gates.
