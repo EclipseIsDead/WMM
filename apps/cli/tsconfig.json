@@ -7,6 +7,7 @@
   },
   "references": [
     { "path": "../../packages/wire-contracts" },
+    { "path": "../../packages/application" },
     { "path": "../../packages/canonical" },
     { "path": "../../packages/temporal" },
     { "path": "../../packages/core" },

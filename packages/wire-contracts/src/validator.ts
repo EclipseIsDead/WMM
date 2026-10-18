@@ -7,6 +7,9 @@ import type {
 } from "ajv/dist/2020.js";
 
 import type {
+  ApiContractV1,
+  ApiRequestV1,
+  ApiResponseV1,
   CoreContractV1,
   SemanticContractV1,
   WorldRecordV1,
@@ -26,9 +29,11 @@ const worldSchemaUrl = new URL(
   "../schemas/world-records.schema.json",
   import.meta.url,
 );
+const apiSchemaUrl = new URL("../schemas/api-v1.schema.json", import.meta.url);
 const coreSchema = JSON.parse(readFileSync(coreSchemaUrl, "utf8")) as AnySchema;
 const semanticSchema = JSON.parse(readFileSync(semanticSchemaUrl, "utf8")) as AnySchema;
 const worldSchema = JSON.parse(readFileSync(worldSchemaUrl, "utf8")) as AnySchema;
+const apiSchema = JSON.parse(readFileSync(apiSchemaUrl, "utf8")) as AnySchema;
 
 interface AjvLike {
   compile<T>(schema: AnySchema): ValidateFunction<T>;
@@ -55,6 +60,13 @@ const validateCore: ValidateFunction<CoreContractV1> = ajv.compile(coreSchema);
 const validateSemantic: ValidateFunction<SemanticContractV1> =
   ajv.compile(semanticSchema);
 const validateWorld: ValidateFunction<WorldRecordV1> = ajv.compile(worldSchema);
+const validateApi: ValidateFunction<ApiContractV1> = ajv.compile(apiSchema);
+const validateRequest: ValidateFunction<ApiRequestV1> = ajv.compile({
+  $ref: "urn:wmm:api:v1#/$defs/Request",
+});
+const validateResponse: ValidateFunction<ApiResponseV1> = ajv.compile({
+  $ref: "urn:wmm:api:v1#/$defs/Response",
+});
 
 function validationResult(
   valid: boolean,
@@ -78,6 +90,18 @@ export function validateWorldRecord(input: unknown): CoreContractValidationResul
   return validationResult(validateWorld(input), validateWorld.errors);
 }
 
+export function validateApiContract(input: unknown): CoreContractValidationResult {
+  return validationResult(validateApi(input), validateApi.errors);
+}
+
+export function validateApiRequest(input: unknown): CoreContractValidationResult {
+  return validationResult(validateRequest(input), validateRequest.errors);
+}
+
+export function validateApiResponse(input: unknown): CoreContractValidationResult {
+  return validationResult(validateResponse(input), validateResponse.errors);
+}
+
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;
 }
@@ -85,3 +109,4 @@ export function isCoreContract(input: unknown): input is CoreContractV1 {
 export const coreContractsSchema = coreSchema;
 export const semanticContractsSchema = semanticSchema;
 export const worldRecordsSchema = worldSchema;
+export const apiV1Schema = apiSchema;

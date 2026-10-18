@@ -1,0 +1,71 @@
+{
+  "format": "wmm.api-fixtures/1",
+  "requests": [
+    {
+      "format": "wmm.request/1",
+      "apiVersion": "wmm/1",
+      "requestId": "validate-1",
+      "operation": "world.validate",
+      "payload": {
+        "bundlePath": "fixtures/v1/complete-world"
+      }
+    },
+    {
+      "format": "wmm.request/1",
+      "apiVersion": "wmm/1",
+      "requestId": "inspect-1",
+      "operation": "record.inspect",
+      "payload": {
+        "bundlePath": "fixtures/v1/complete-world",
+        "recordId": "person:alys"
+      }
+    },
+    {
+      "format": "wmm.request/1",
+      "apiVersion": "wmm/1",
+      "requestId": "export-1",
+      "operation": "world.export",
+      "payload": {
+        "bundlePath": "fixtures/v1/complete-world"
+      }
+    }
+  ],
+  "invalidRequests": [
+    {
+      "name": "missing request ID",
+      "payload": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "operation": "world.validate",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world"
+        }
+      }
+    },
+    {
+      "name": "inspect without a record ID",
+      "payload": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "bad-inspect",
+        "operation": "record.inspect",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world"
+        }
+      }
+    },
+    {
+      "name": "unknown request field",
+      "payload": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "bad-extra",
+        "operation": "world.validate",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world"
+        },
+        "approved": true
+      }
+    }
+  ]
+}

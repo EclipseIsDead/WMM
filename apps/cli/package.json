@@ -11,10 +11,12 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@wmm/application": "workspace:*",
     "@wmm/canonical": "workspace:*",
     "@wmm/core": "workspace:*",
     "@wmm/exchange": "workspace:*",
     "@wmm/temporal": "workspace:*",
-    "@wmm/wire-contracts": "workspace:*"
+    "@wmm/wire-contracts": "workspace:*",
+    "jsonc-parser": "3.3.1"
   }
 }

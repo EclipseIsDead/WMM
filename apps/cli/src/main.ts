@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+
+import { canonicalJson } from "@wmm/canonical";
+import type { JsonValue } from "@wmm/wire-contracts";
 import {
   exportSeedFixture,
   exportWorldBundle,
@@ -10,6 +14,7 @@ import {
   validateWorldBundle,
 } from "@wmm/exchange";
 
+import { runJsonTransport } from "./json-transport.js";
 import { verifyContractKit } from "./verify-contract-kit.js";
 import { verifyV0Contracts } from "./verify-v0.js";
 
@@ -17,6 +22,7 @@ function usage(): never {
   throw new Error(
     [
       "Usage:",
+      "  wmm json < request.json",
       "  wmm contract-kit verify <kit-directory>",
       "  wmm v0 verify <kit-directory> <semantic-cases-file>",
       "  wmm seed validate <kit-directory>",
@@ -65,31 +71,39 @@ function execute(args: readonly string[]): unknown {
   return usage();
 }
 
+function writeJson(value: unknown): void {
+  process.stdout.write(`${canonicalJson(value as JsonValue)}\n`);
+}
+
 function main(): void {
-  const data = execute(process.argv.slice(2));
-  process.stdout.write(
-    `${JSON.stringify({
-      apiVersion: "wmm/dev/1",
-      outcome: "success",
-      execution: "completed",
-      data,
-    })}\n`,
-  );
+  const args = process.argv.slice(2);
+  if (args.length === 1 && args[0] === "json") {
+    const result = runJsonTransport(readFileSync(0));
+    writeJson(result.response);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
+  const data = execute(args);
+  writeJson({
+    apiVersion: "wmm/dev/1",
+    outcome: "success",
+    execution: "completed",
+    data,
+  });
 }
 
 try {
   main();
 } catch (error) {
-  process.stdout.write(
-    `${JSON.stringify({
-      apiVersion: "wmm/dev/1",
-      outcome: "error",
-      execution: "completed",
-      error: {
-        code: "DEVELOPMENT_COMMAND_FAILED",
-        message: error instanceof Error ? error.message : String(error),
-      },
-    })}\n`,
-  );
+  writeJson({
+    apiVersion: "wmm/dev/1",
+    outcome: "error",
+    execution: "completed",
+    error: {
+      code: "DEVELOPMENT_COMMAND_FAILED",
+      message: error instanceof Error ? error.message : String(error),
+    },
+  });
   process.exitCode = 1;
 }

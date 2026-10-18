@@ -1,0 +1,9 @@
+{
+  "format": "wmm.request/1",
+  "apiVersion": "wmm/1",
+  "requestId": "verify-v1",
+  "operation": "world.validate",
+  "payload": {
+    "bundlePath": "fixtures/v1/complete-world"
+  }
+}

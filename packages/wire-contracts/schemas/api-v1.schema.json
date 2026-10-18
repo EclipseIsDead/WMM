@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:api:v1",
+  "$defs": {
+    "BundlePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "RequestBase": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": ["format", "apiVersion", "requestId"]
+    },
+    "ValidateRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "const": "world.validate"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": {
+              "$ref": "#/$defs/BundlePath"
+            }
+          },
+          "required": ["bundlePath"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "InspectRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "const": "record.inspect"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": {
+              "$ref": "#/$defs/BundlePath"
+            },
+            "recordId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": ["bundlePath", "recordId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "ExportRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "const": "world.export"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": {
+              "$ref": "#/$defs/BundlePath"
+            }
+          },
+          "required": ["bundlePath"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "Request": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ValidateRequest"
+        },
+        {
+          "$ref": "#/$defs/InspectRequest"
+        },
+        {
+          "$ref": "#/$defs/ExportRequest"
+        }
+      ]
+    },
+    "ResolvedSnapshot": {
+      "type": "object",
+      "properties": {
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "snapshotDigest": {
+          "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+        }
+      },
+      "required": ["worldId", "snapshotDigest"],
+      "additionalProperties": false
+    },
+    "SuccessResponse": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.response/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": ["world.validate", "record.inspect", "world.export"]
+        },
+        "outcome": {
+          "const": "success"
+        },
+        "execution": {
+          "const": "completed"
+        },
+        "resolved": {
+          "$ref": "#/$defs/ResolvedSnapshot"
+        },
+        "data": true,
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Diagnostic"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "apiVersion",
+        "requestId",
+        "operation",
+        "outcome",
+        "execution",
+        "resolved",
+        "data",
+        "diagnostics"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.response/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": ["string", "null"]
+        },
+        "operation": {
+          "type": ["string", "null"]
+        },
+        "outcome": {
+          "const": "error"
+        },
+        "execution": {
+          "enum": ["completed", "incomplete"]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "UNSUPPORTED_API_VERSION",
+                "UNSUPPORTED_FEATURE",
+                "INVALID_REQUEST",
+                "INVALID_WORLD",
+                "UNKNOWN_RECORD",
+                "STORAGE_FAILURE",
+                "INTERNAL_ERROR"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Diagnostic"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "apiVersion",
+        "requestId",
+        "operation",
+        "outcome",
+        "execution",
+        "error",
+        "diagnostics"
+      ],
+      "additionalProperties": false
+    },
+    "Response": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SuccessResponse"
+        },
+        {
+          "$ref": "#/$defs/ErrorResponse"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Request"
+    },
+    {
+      "$ref": "#/$defs/Response"
+    }
+  ]
+}

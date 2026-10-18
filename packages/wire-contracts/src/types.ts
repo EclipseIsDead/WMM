@@ -362,6 +362,76 @@ export type WorldRecordV1 =
   | WorldCatalogV1
   | SnapshotRecordV1;
 
+export type ApiOperationV1 =
+  | "world.validate"
+  | "record.inspect"
+  | "world.export";
+
+interface ApiRequestBaseV1 {
+  readonly format: "wmm.request/1";
+  readonly apiVersion: "wmm/1";
+  readonly requestId: string;
+}
+
+export type ApiRequestV1 =
+  | (ApiRequestBaseV1 & {
+      readonly operation: "world.validate";
+      readonly payload: { readonly bundlePath: string };
+    })
+  | (ApiRequestBaseV1 & {
+      readonly operation: "record.inspect";
+      readonly payload: {
+        readonly bundlePath: string;
+        readonly recordId: string;
+      };
+    })
+  | (ApiRequestBaseV1 & {
+      readonly operation: "world.export";
+      readonly payload: { readonly bundlePath: string };
+    });
+
+export type ApiErrorCodeV1 =
+  | "UNSUPPORTED_API_VERSION"
+  | "UNSUPPORTED_FEATURE"
+  | "INVALID_REQUEST"
+  | "INVALID_WORLD"
+  | "UNKNOWN_RECORD"
+  | "STORAGE_FAILURE"
+  | "INTERNAL_ERROR";
+
+export interface ResolvedSnapshotV1 {
+  readonly worldId: WorldId;
+  readonly snapshotDigest: DigestHex;
+}
+
+export type ApiResponseV1 =
+  | {
+      readonly format: "wmm.response/1";
+      readonly apiVersion: "wmm/1";
+      readonly requestId: string;
+      readonly operation: ApiOperationV1;
+      readonly outcome: "success";
+      readonly execution: "completed";
+      readonly resolved: ResolvedSnapshotV1;
+      readonly data: JsonValue;
+      readonly diagnostics: readonly DiagnosticV1[];
+    }
+  | {
+      readonly format: "wmm.response/1";
+      readonly apiVersion: "wmm/1";
+      readonly requestId: string | null;
+      readonly operation: string | null;
+      readonly outcome: "error";
+      readonly execution: "completed" | "incomplete";
+      readonly error: {
+        readonly code: ApiErrorCodeV1;
+        readonly message: string;
+      };
+      readonly diagnostics: readonly DiagnosticV1[];
+    };
+
+export type ApiContractV1 = ApiRequestV1 | ApiResponseV1;
+
 export type CoreContractV1 = ClaimBodyV1 | SnapshotManifestV1 | RevisionEnvelopeV1;
 
 export type SemanticContractV1 =
