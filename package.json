@@ -1,0 +1,24 @@
+{
+  "name": "world-master-manual",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=24.3.0"
+  },
+  "scripts": {
+    "build": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core apps/cli",
+    "typecheck": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core apps/cli --pretty false",
+    "test": "vitest run",
+    "verify:kit": "node wmm-v0.3-contract-kit/verify-vectors.mjs",
+    "verify:contracts": "pnpm build && node apps/cli/dist/main.js contract-kit verify wmm-v0.3-contract-kit",
+    "verify:v0": "pnpm build && node apps/cli/dist/main.js v0 verify wmm-v0.3-contract-kit fixtures/v0/semantic-contract-cases.json",
+    "check": "pnpm verify:kit && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,584 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:contract-kit:core-v1-draft-03",
+  "$comment": "Draft hash-input SHAPES only. Not semantic validation, admission, untrusted parsing, scope comparison, safe literal checks, temporal ordering, or authorization. The pinned value definition must validate literal data.",
+  "$defs": {
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "WorldId": {
+      "type": "string",
+      "pattern": "^world:[a-z0-9_-]+$"
+    },
+    "RecordId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*:[a-z0-9_-]+$"
+    },
+    "AssertionId": {
+      "type": "string",
+      "pattern": "^asrt:[0-9a-f]{64}$"
+    },
+    "RevisionId": {
+      "type": "string",
+      "pattern": "^rev:[0-9a-f]{64}$"
+    },
+    "IntegerPosition": {
+      "type": "string",
+      "pattern": "^(0|-?[1-9][0-9]*)$"
+    },
+    "Exact": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "exact"
+        },
+        "position": {
+          "$ref": "#/$defs/IntegerPosition"
+        }
+      },
+      "required": [
+        "kind",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "BoundedUnknown": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "boundedUnknown"
+        },
+        "lowerInclusive": {
+          "$ref": "#/$defs/IntegerPosition"
+        },
+        "upperExclusive": {
+          "$ref": "#/$defs/IntegerPosition"
+        }
+      },
+      "required": [
+        "kind",
+        "lowerInclusive",
+        "upperExclusive"
+      ],
+      "additionalProperties": false
+    },
+    "Unknown": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unknown"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "InstantPosition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Exact"
+        },
+        {
+          "$ref": "#/$defs/BoundedUnknown"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "StartEndpoint": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Exact"
+        },
+        {
+          "$ref": "#/$defs/BoundedUnknown"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unboundedPast"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "EndEndpoint": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Exact"
+        },
+        {
+          "$ref": "#/$defs/BoundedUnknown"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unboundedFuture"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Applicability": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "invariant"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "axisDefinitionDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "position": {
+              "$ref": "#/$defs/InstantPosition"
+            }
+          },
+          "required": [
+            "kind",
+            "axisDefinitionDigest",
+            "position"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "interval"
+            },
+            "axisDefinitionDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "start": {
+              "$ref": "#/$defs/StartEndpoint"
+            },
+            "endExclusive": {
+              "$ref": "#/$defs/EndEndpoint"
+            }
+          },
+          "required": [
+            "kind",
+            "axisDefinitionDigest",
+            "start",
+            "endExclusive"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ScopeValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ref"
+            },
+            "id": {
+              "$ref": "#/$defs/RecordId"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "notApplicable"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unresolved"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/ScopeValue"
+        },
+        "jurisdiction": {
+          "$ref": "#/$defs/ScopeValue"
+        },
+        "recognitionFrame": {
+          "$ref": "#/$defs/ScopeValue"
+        }
+      },
+      "required": [
+        "account",
+        "jurisdiction",
+        "recognitionFrame"
+      ],
+      "additionalProperties": false
+    },
+    "TypedValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ref"
+            },
+            "id": {
+              "$ref": "#/$defs/RecordId"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "literal"
+            },
+            "valueDefinitionDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "data": {}
+          },
+          "required": [
+            "kind",
+            "valueDefinitionDigest",
+            "data"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Atom": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "atom"
+        },
+        "subjectId": {
+          "$ref": "#/$defs/RecordId"
+        },
+        "predicateDefinitionDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "value": {
+          "$ref": "#/$defs/TypedValue"
+        }
+      },
+      "required": [
+        "kind",
+        "subjectId",
+        "predicateDefinitionDigest",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "Exists": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "exists"
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "descriptorId": {
+              "$ref": "#/$defs/RecordId"
+            },
+            "definitionDigest": {
+              "$ref": "#/$defs/Digest"
+            }
+          },
+          "required": [
+            "descriptorId",
+            "definitionDigest"
+          ],
+          "additionalProperties": false
+        },
+        "criterion": {
+          "type": "object",
+          "properties": {
+            "definitionDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "arguments": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/TypedValue"
+              }
+            }
+          },
+          "required": [
+            "definitionDigest",
+            "arguments"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "population",
+        "criterion"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimBody": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.claim/1"
+        },
+        "worldId": {
+          "$ref": "#/$defs/WorldId"
+        },
+        "semanticProfileDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "proposition": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Atom"
+            },
+            {
+              "$ref": "#/$defs/Exists"
+            }
+          ]
+        },
+        "polarity": {
+          "enum": [
+            "positive",
+            "negative"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "applicability": {
+          "$ref": "#/$defs/Applicability"
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "semanticProfileDigest",
+        "proposition",
+        "polarity",
+        "scope",
+        "applicability"
+      ],
+      "additionalProperties": false
+    },
+    "FileEntry": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9_-]+/)*[a-z0-9_-]+\\.(json|md|bin)$"
+        },
+        "mediaType": {
+          "enum": [
+            "application/json",
+            "text/markdown",
+            "application/octet-stream"
+          ]
+        },
+        "byteLength": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "path",
+        "mediaType",
+        "byteLength",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotManifest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.snapshot-manifest/1"
+        },
+        "worldId": {
+          "$ref": "#/$defs/WorldId"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "RevisionEnvelope": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.revision/1"
+        },
+        "worldId": {
+          "$ref": "#/$defs/WorldId"
+        },
+        "kind": {
+          "enum": [
+            "genesis",
+            "commit"
+          ]
+        },
+        "snapshotDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "parents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RevisionId"
+          },
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "operationsDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "actorId": {
+          "$ref": "#/$defs/RecordId"
+        },
+        "recordedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "format": "date-time"
+        },
+        "approvalReceiptDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "idempotencyIntentDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "semanticProfileDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "validationReceiptDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "kind",
+        "snapshotDigest",
+        "parents",
+        "operationsDigest",
+        "rationale",
+        "actorId",
+        "recordedAt",
+        "approvalReceiptDigest",
+        "idempotencyIntentDigest",
+        "semanticProfileDigest",
+        "validationReceiptDigest"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "genesis"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parents": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "parents": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ClaimBody"
+    },
+    {
+      "$ref": "#/$defs/SnapshotManifest"
+    },
+    {
+      "$ref": "#/$defs/RevisionEnvelope"
+    }
+  ]
+}

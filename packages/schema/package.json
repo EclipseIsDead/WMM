@@ -1,0 +1,22 @@
+{
+  "name": "@wmm/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/semantic-definitions.schema.json": "./schemas/semantic-definitions.schema.json"
+  },
+  "files": ["dist", "schemas"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@wmm/wire-contracts": "workspace:*",
+    "ajv": "8.20.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../../packages/wire-contracts" },
+    { "path": "../../packages/canonical" },
+    { "path": "../../packages/temporal" },
+    { "path": "../../packages/core" }
+  ],
+  "include": ["src/**/*.ts"]
+}

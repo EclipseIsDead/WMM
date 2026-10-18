@@ -1,0 +1,371 @@
+{
+  "format": "wmm.v0-semantic-cases/1",
+  "digests": {
+    "axisA": "1111111111111111111111111111111111111111111111111111111111111111",
+    "axisB": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "scopeCases": [
+    {
+      "name": "same resolved scope",
+      "left": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "ref", "id": "polity:valen"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "right": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "ref", "id": "polity:valen"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "expected": {
+        "format": "wmm.scope-comparison/1",
+        "result": "same",
+        "components": {"account": "same", "jurisdiction": "same", "recognitionFrame": "same"}
+      }
+    },
+    {
+      "name": "two unresolved markers are not a definite match",
+      "left": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "unresolved"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "right": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "unresolved"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "expected": {
+        "format": "wmm.scope-comparison/1",
+        "result": "unresolved",
+        "components": {"account": "same", "jurisdiction": "unresolved", "recognitionFrame": "same"}
+      }
+    },
+    {
+      "name": "a definite difference dominates another unresolved component",
+      "left": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "unresolved"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "right": {
+        "account": {"kind": "ref", "id": "account:chronicle"},
+        "jurisdiction": {"kind": "ref", "id": "polity:valen"},
+        "recognitionFrame": {"kind": "ref", "id": "frame:court"}
+      },
+      "expected": {
+        "format": "wmm.scope-comparison/1",
+        "result": "different",
+        "components": {"account": "different", "jurisdiction": "unresolved", "recognitionFrame": "same"}
+      }
+    },
+    {
+      "name": "notApplicable is an explicit sentinel",
+      "left": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "notApplicable"},
+        "recognitionFrame": {"kind": "notApplicable"}
+      },
+      "right": {
+        "account": {"kind": "ref", "id": "account:canonical"},
+        "jurisdiction": {"kind": "notApplicable"},
+        "recognitionFrame": {"kind": "notApplicable"}
+      },
+      "expected": {
+        "format": "wmm.scope-comparison/1",
+        "result": "same",
+        "components": {"account": "same", "jurisdiction": "same", "recognitionFrame": "same"}
+      }
+    }
+  ],
+  "evidenceCases": [
+    {
+      "name": "unsupported",
+      "contributions": [],
+      "expected": {
+        "format": "wmm.evidence-status/1",
+        "status": "unsupported",
+        "supportingIds": [],
+        "challengingIds": []
+      }
+    },
+    {
+      "name": "support IDs are deterministically ordered",
+      "contributions": [
+        {"supportId": "support:z", "stance": "supports"},
+        {"supportId": "support:a", "stance": "supports"}
+      ],
+      "expected": {
+        "format": "wmm.evidence-status/1",
+        "status": "supported",
+        "supportingIds": ["support:a", "support:z"],
+        "challengingIds": []
+      }
+    },
+    {
+      "name": "challenge is not logical negation",
+      "contributions": [
+        {"supportId": "support:challenge", "stance": "challenges"}
+      ],
+      "expected": {
+        "format": "wmm.evidence-status/1",
+        "status": "challenged",
+        "supportingIds": [],
+        "challengingIds": ["support:challenge"]
+      }
+    },
+    {
+      "name": "support and challenge remain visible",
+      "contributions": [
+        {"supportId": "support:yes", "stance": "supports"},
+        {"supportId": "support:no", "stance": "challenges"}
+      ],
+      "expected": {
+        "format": "wmm.evidence-status/1",
+        "status": "supported-and-challenged",
+        "supportingIds": ["support:yes"],
+        "challengingIds": ["support:no"]
+      }
+    }
+  ],
+  "familyCases": [
+    {
+      "name": "neither",
+      "contributions": [],
+      "expected": {
+        "format": "wmm.family-support/1",
+        "status": "neither",
+        "positiveIds": [],
+        "negativeIds": []
+      }
+    },
+    {
+      "name": "positive only",
+      "contributions": [{"contributorId": "asrt:positive", "polarity": "positive"}],
+      "expected": {
+        "format": "wmm.family-support/1",
+        "status": "positive-only",
+        "positiveIds": ["asrt:positive"],
+        "negativeIds": []
+      }
+    },
+    {
+      "name": "negative only",
+      "contributions": [{"contributorId": "asrt:negative", "polarity": "negative"}],
+      "expected": {
+        "format": "wmm.family-support/1",
+        "status": "negative-only",
+        "positiveIds": [],
+        "negativeIds": ["asrt:negative"]
+      }
+    },
+    {
+      "name": "both polarities",
+      "contributions": [
+        {"contributorId": "asrt:positive", "polarity": "positive"},
+        {"contributorId": "derive:negative", "polarity": "negative"}
+      ],
+      "expected": {
+        "format": "wmm.family-support/1",
+        "status": "both",
+        "positiveIds": ["asrt:positive"],
+        "negativeIds": ["derive:negative"]
+      }
+    }
+  ],
+  "temporalCases": [
+    {
+      "name": "invariant applies at every valid query",
+      "applicability": {"kind": "invariant"},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "exact point equals query",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "exact", "position": "12"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "12"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "exact point differs from query",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "exact", "position": "12"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "13"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "never"}
+    },
+    {
+      "name": "bounded point may equal query",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "boundedUnknown", "lowerInclusive": "10", "upperExclusive": "13"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "11"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "sometimes"}
+    },
+    {
+      "name": "one-chronon bounded point is exact in meaning",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "boundedUnknown", "lowerInclusive": "10", "upperExclusive": "11"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "unknown point remains uncertain",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "unknown"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "sometimes"}
+    },
+    {
+      "name": "point at exclusive interval end does not intersect",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "intersects", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": "10", "endExclusive": "20"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "never"}
+    },
+    {
+      "name": "point claim cannot hold throughout an interval",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "exact", "position": "12"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "throughout", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": "10", "endExclusive": "20"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "excluded", "reason": "applicabilityType"}
+    },
+    {
+      "name": "unmapped point axes are incomparable",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "2222222222222222222222222222222222222222222222222222222222222222", "position": {"kind": "exact", "position": "12"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "12"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "incomparable", "reason": "unmappedAxis"}
+    },
+    {
+      "name": "exact interval holds at included start",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "exact interval does not hold at exclusive end",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "20"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "never"}
+    },
+    {
+      "name": "touching intervals do not intersect",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "intersects", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": "20", "endExclusive": "30"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "never"}
+    },
+    {
+      "name": "unknown end may or may not include a later point",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "unknown"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "50"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "sometimes"}
+    },
+    {
+      "name": "unbounded future definitely includes later point",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "unboundedFuture"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "50"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "endpoint correlation makes 19 definitely included",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "unknown"}, "endExclusive": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "19"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    },
+    {
+      "name": "endpoint correlation leaves 18 uncertain",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "unknown"}, "endExclusive": {"kind": "exact", "position": "20"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "18"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "sometimes"}
+    },
+    {
+      "name": "fully unbounded interval holds throughout finite query",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "unboundedPast"}, "endExclusive": {"kind": "unboundedFuture"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "throughout", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": "100", "endExclusive": "200"},
+      "expected": {"format": "wmm.temporal-comparison/1", "kind": "comparable", "truth": "always"}
+    }
+  ],
+  "temporalInvalidCases": [
+    {
+      "name": "empty bounded unknown",
+      "applicability": {"kind": "point", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": {"kind": "boundedUnknown", "lowerInclusive": "10", "upperExclusive": "10"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "errorCode": "EMPTY_BOUNDED_UNKNOWN"
+    },
+    {
+      "name": "empty exact duration",
+      "applicability": {"kind": "interval", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": {"kind": "exact", "position": "10"}, "endExclusive": {"kind": "exact", "position": "10"}},
+      "query": {"format": "wmm.temporal-query/1", "mode": "at", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "position": "10"},
+      "errorCode": "EMPTY_ADMISSIBLE_EXTENT"
+    },
+    {
+      "name": "empty query interval",
+      "applicability": {"kind": "invariant"},
+      "query": {"format": "wmm.temporal-query/1", "mode": "intersects", "axisDefinitionDigest": "1111111111111111111111111111111111111111111111111111111111111111", "start": "20", "endExclusive": "20"},
+      "errorCode": "EMPTY_QUERY_INTERVAL"
+    }
+  ],
+  "semanticSchemaPositiveCases": [
+    {
+      "format": "wmm.support/1",
+      "worldId": "world:valen",
+      "claimId": "asrt:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceId": "source:chronicle",
+      "stance": "supports",
+      "locator": {
+        "definitionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "data": {"page": "12"}
+      },
+      "interpretationMethodDefinitionDigest": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "format": "wmm.response/1",
+      "apiVersion": "wmm/1",
+      "requestId": "request-1",
+      "outcome": "success",
+      "execution": "completed",
+      "data": {"knowledge": "unestablished"},
+      "diagnostics": []
+    },
+    {
+      "format": "wmm.response/1",
+      "apiVersion": "wmm/1",
+      "requestId": "request-2",
+      "outcome": "partial",
+      "execution": "incomplete",
+      "data": {"records": []},
+      "diagnostics": [{"code": "BUDGET_EXCEEDED", "severity": "warning", "message": "Budget exhausted"}]
+    },
+    {
+      "format": "wmm.response/1",
+      "apiVersion": "wmm/1",
+      "requestId": "request-3",
+      "outcome": "error",
+      "execution": "completed",
+      "error": {"code": "INVALID_REQUEST", "message": "Request is invalid"},
+      "diagnostics": []
+    },
+    {"format": "wmm.validation-status/1", "execution": "completed", "validity": "valid"},
+    {"format": "wmm.validation-status/1", "execution": "completed", "validity": "invalid"},
+    {"format": "wmm.validation-status/1", "execution": "incomplete", "validity": "invalid"},
+    {"format": "wmm.validation-status/1", "execution": "incomplete", "validity": "undetermined"}
+  ],
+  "semanticSchemaNegativeCases": [
+    {
+      "name": "success cannot be incomplete",
+      "payload": {"format": "wmm.response/1", "apiVersion": "wmm/1", "requestId": "r", "outcome": "success", "execution": "incomplete", "data": {}, "diagnostics": []}
+    },
+    {
+      "name": "partial cannot be completed",
+      "payload": {"format": "wmm.response/1", "apiVersion": "wmm/1", "requestId": "r", "outcome": "partial", "execution": "completed", "data": {}, "diagnostics": [{"code": "CANCELLED", "severity": "warning", "message": "Cancelled"}]}
+    },
+    {
+      "name": "partial requires a diagnostic",
+      "payload": {"format": "wmm.response/1", "apiVersion": "wmm/1", "requestId": "r", "outcome": "partial", "execution": "incomplete", "data": {}, "diagnostics": []}
+    },
+    {
+      "name": "incomplete validation cannot be valid",
+      "payload": {"format": "wmm.validation-status/1", "execution": "incomplete", "validity": "valid"}
+    },
+    {
+      "name": "completed validation cannot be undetermined",
+      "payload": {"format": "wmm.validation-status/1", "execution": "completed", "validity": "undetermined"}
+    },
+    {
+      "name": "missing scope component is invalid",
+      "payload": {"format": "wmm.scope-comparison/1", "result": "same", "components": {"account": "same", "jurisdiction": "same"}}
+    }
+  ]
+}

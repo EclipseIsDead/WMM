@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:semantic-definitions:v1",
+  "$defs": {
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "SemanticDefinition": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.semantic-definition/1"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "kind": {
+          "enum": ["predicate", "literal", "population", "criterion", "axis"]
+        },
+        "operation": {
+          "enum": [
+            "exact-tuple-multivalue-v1",
+            "text-value-v1",
+            "population-coverage-atom-v1",
+            "retained-unicode-v1",
+            "bundled-candidate-membership-v1",
+            "bundled-eligibility-v1",
+            "integer-chronon-half-open-v1"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Digest"
+          },
+          "uniqueItems": true
+        },
+        "fixtureOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": ["format", "key", "kind", "operation", "version", "dependencies"],
+      "additionalProperties": false
+    },
+    "SemanticProfile": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.semantic-profile/1"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "definitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Digest"
+          },
+          "uniqueItems": true
+        },
+        "numericProfile": {
+          "const": "safe-integer-json-v1"
+        },
+        "propositionGrammar": {
+          "const": "explicit-polarity-atom-exists-v1"
+        },
+        "fixtureOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "definitions",
+        "numericProfile",
+        "propositionGrammar"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SemanticDefinition"
+    },
+    {
+      "$ref": "#/$defs/SemanticProfile"
+    }
+  ]
+}

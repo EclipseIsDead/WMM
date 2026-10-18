@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:semantic-contracts:v1-draft-01",
+  "$comment": "V0 scope, evidence, temporal-query, and result-algebra wire contracts.",
+  "$defs": {
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "RecordId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*:[a-z0-9_-]+$"
+    },
+    "AssertionId": {
+      "type": "string",
+      "pattern": "^asrt:[0-9a-f]{64}$"
+    },
+    "IntegerPosition": {
+      "type": "string",
+      "pattern": "^(0|-?[1-9][0-9]*)$"
+    },
+    "IdSet": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RecordId"
+      },
+      "uniqueItems": true
+    },
+    "Diagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "severity": {
+          "enum": ["info", "warning", "error", "blocker"]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["code", "severity", "message"],
+      "additionalProperties": false
+    },
+    "SupportBody": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.support/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "claimId": {
+          "$ref": "#/$defs/AssertionId"
+        },
+        "sourceId": {
+          "$ref": "#/$defs/RecordId"
+        },
+        "stance": {
+          "enum": ["supports", "challenges"]
+        },
+        "locator": {
+          "type": "object",
+          "properties": {
+            "definitionDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "data": true
+          },
+          "required": ["definitionDigest", "data"],
+          "additionalProperties": false
+        },
+        "interpretationMethodDefinitionDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "sourceContentDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "claimId",
+        "sourceId",
+        "stance",
+        "locator",
+        "interpretationMethodDefinitionDigest"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeComparison": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.scope-comparison/1"
+        },
+        "result": {
+          "enum": ["same", "different", "unresolved"]
+        },
+        "components": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "enum": ["same", "different", "unresolved"]
+            },
+            "jurisdiction": {
+              "enum": ["same", "different", "unresolved"]
+            },
+            "recognitionFrame": {
+              "enum": ["same", "different", "unresolved"]
+            }
+          },
+          "required": ["account", "jurisdiction", "recognitionFrame"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "result", "components"],
+      "additionalProperties": false
+    },
+    "EvidenceStatus": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.evidence-status/1"
+        },
+        "status": {
+          "enum": ["supported", "challenged", "supported-and-challenged", "unsupported"]
+        },
+        "supportingIds": {
+          "$ref": "#/$defs/IdSet"
+        },
+        "challengingIds": {
+          "$ref": "#/$defs/IdSet"
+        }
+      },
+      "required": ["format", "status", "supportingIds", "challengingIds"],
+      "additionalProperties": false
+    },
+    "FamilySupport": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.family-support/1"
+        },
+        "status": {
+          "enum": ["positive-only", "negative-only", "both", "neither"]
+        },
+        "positiveIds": {
+          "$ref": "#/$defs/IdSet"
+        },
+        "negativeIds": {
+          "$ref": "#/$defs/IdSet"
+        }
+      },
+      "required": ["format", "status", "positiveIds", "negativeIds"],
+      "additionalProperties": false
+    },
+    "PointQuery": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.temporal-query/1"
+        },
+        "mode": {
+          "const": "at"
+        },
+        "axisDefinitionDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "position": {
+          "$ref": "#/$defs/IntegerPosition"
+        }
+      },
+      "required": ["format", "mode", "axisDefinitionDigest", "position"],
+      "additionalProperties": false
+    },
+    "IntervalQuery": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.temporal-query/1"
+        },
+        "mode": {
+          "enum": ["intersects", "throughout"]
+        },
+        "axisDefinitionDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "start": {
+          "$ref": "#/$defs/IntegerPosition"
+        },
+        "endExclusive": {
+          "$ref": "#/$defs/IntegerPosition"
+        }
+      },
+      "required": ["format", "mode", "axisDefinitionDigest", "start", "endExclusive"],
+      "additionalProperties": false
+    },
+    "TemporalQuery": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PointQuery"
+        },
+        {
+          "$ref": "#/$defs/IntervalQuery"
+        }
+      ]
+    },
+    "TemporalComparison": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.temporal-comparison/1"
+            },
+            "kind": {
+              "const": "comparable"
+            },
+            "truth": {
+              "enum": ["always", "never", "sometimes"]
+            }
+          },
+          "required": ["format", "kind", "truth"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.temporal-comparison/1"
+            },
+            "kind": {
+              "const": "incomparable"
+            },
+            "reason": {
+              "enum": ["unmappedAxis", "missingBounds", "unsupportedRelation"]
+            }
+          },
+          "required": ["format", "kind", "reason"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.temporal-comparison/1"
+            },
+            "kind": {
+              "const": "excluded"
+            },
+            "reason": {
+              "const": "applicabilityType"
+            }
+          },
+          "required": ["format", "kind", "reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CommonResponse": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.response/1"
+            },
+            "apiVersion": {
+              "const": "wmm/1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outcome": {
+              "const": "success"
+            },
+            "execution": {
+              "const": "completed"
+            },
+            "data": true,
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Diagnostic"
+              }
+            }
+          },
+          "required": ["format", "apiVersion", "requestId", "outcome", "execution", "data", "diagnostics"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.response/1"
+            },
+            "apiVersion": {
+              "const": "wmm/1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outcome": {
+              "const": "partial"
+            },
+            "execution": {
+              "const": "incomplete"
+            },
+            "data": true,
+            "diagnostics": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/Diagnostic"
+              }
+            }
+          },
+          "required": ["format", "apiVersion", "requestId", "outcome", "execution", "data", "diagnostics"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.response/1"
+            },
+            "apiVersion": {
+              "const": "wmm/1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outcome": {
+              "const": "error"
+            },
+            "execution": {
+              "enum": ["completed", "incomplete"]
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]*$"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            },
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Diagnostic"
+              }
+            }
+          },
+          "required": ["format", "apiVersion", "requestId", "outcome", "execution", "error", "diagnostics"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ValidationStatus": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.validation-status/1"
+            },
+            "execution": {
+              "const": "completed"
+            },
+            "validity": {
+              "enum": ["valid", "invalid"]
+            }
+          },
+          "required": ["format", "execution", "validity"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "const": "wmm.validation-status/1"
+            },
+            "execution": {
+              "const": "incomplete"
+            },
+            "validity": {
+              "enum": ["invalid", "undetermined"]
+            }
+          },
+          "required": ["format", "execution", "validity"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SupportBody"
+    },
+    {
+      "$ref": "#/$defs/ScopeComparison"
+    },
+    {
+      "$ref": "#/$defs/EvidenceStatus"
+    },
+    {
+      "$ref": "#/$defs/FamilySupport"
+    },
+    {
+      "$ref": "#/$defs/TemporalQuery"
+    },
+    {
+      "$ref": "#/$defs/TemporalComparison"
+    },
+    {
+      "$ref": "#/$defs/CommonResponse"
+    },
+    {
+      "$ref": "#/$defs/ValidationStatus"
+    }
+  ]
+}

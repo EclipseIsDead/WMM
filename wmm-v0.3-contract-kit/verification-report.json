@@ -1,0 +1,36 @@
+{
+  "status": "passed for the bounded identity fixture set",
+  "pythonVersion": "3.13.5",
+  "jsonSchemaDialect": "2020-12",
+  "schemaDefinitionCheck": "passed",
+  "vectorCount": 31,
+  "coreShapePositiveCount": 15,
+  "coreShapeNegativeCount": 7,
+  "crossVectorIdentityRelations": 8,
+  "limitations": [
+    "No WMM engine or temporal/rule evaluator executed.",
+    "No schema-admission, approval, idempotency, Git crash, or backup implementation tested.",
+    "Synthetic semantic profiles and receipt digests are fixtures, not trusted authorizations.",
+    "The vector-only canonicalizers are not untrusted-input parsers or a complete numeric JCS conformance suite."
+  ],
+  "independentNodeVerification": {
+    "status": "passed",
+    "runtime": "v22.16.0",
+    "vectors": 31,
+    "identityRelations": 8,
+    "manifestFilesChecked": 12,
+    "extraCanonicalizationChecks": 5,
+    "scope": "Byte/digest identity fixtures only. This script does not perform JSON Schema or historical/authorization validation."
+  },
+  "independentPythonVerification": {
+    "status": "passed",
+    "runtime": "Python 3.13.5",
+    "vectors": 31,
+    "schemaPositiveCases": 15,
+    "schemaNegativeCases": 7,
+    "identityRelations": 8,
+    "scope": "Independent byte/hash and core-shape verification only."
+  },
+  "worldEngineImplemented": false,
+  "fullV0ContractFrozen": false
+}

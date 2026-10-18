@@ -1,0 +1,19 @@
+{
+  "name": "@wmm/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wmm": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@wmm/canonical": "workspace:*",
+    "@wmm/core": "workspace:*",
+    "@wmm/temporal": "workspace:*",
+    "@wmm/wire-contracts": "workspace:*"
+  }
+}
