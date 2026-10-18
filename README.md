@@ -1,18 +1,19 @@
 # World Master's Manual
 
 Implementation follows `WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md`.
-The current code is an executable V0 contract baseline, not yet a complete world engine.
+The current code includes the executable V0 contracts and a production V1 read-only portable-world path. It is not yet an authoring or revision-storage engine.
 
 ## Current packages
 
-- `packages/wire-contracts`: closed core and semantic wire shapes with Draft 2020-12 validators.
+- `packages/wire-contracts`: closed core, semantic, and production world-record shapes with Draft 2020-12 validators.
 - `packages/canonical`: restricted safe-integer canonical JSON, domain-separated SHA-256, and domain identity helpers.
 - `packages/temporal`: exact and uncertain local applicability over integer chronons, including correlated interval endpoints.
 - `packages/schema`: the bounded first-release semantic-definition/profile vocabulary and structural checks.
-- `packages/core`: scope comparison, evidence/family aggregation, and trusted semantic-profile admission.
-- `packages/exchange`: fixture-scoped snapshot byte verification, loading, inspection, and deterministic JSON export.
-- `apps/cli`: development commands that verify the supplied identity kit, executable V0 fixtures, and the initial seed-world read path.
+- `packages/core`: scope comparison, evidence/family aggregation, trusted semantic-profile admission, bundled V1 semantics, and complete world-reference validation.
+- `packages/exchange`: fixture-scoped compatibility loading plus production bundle verification, loading, inspection, and deterministic JSON export.
+- `apps/cli`: development commands for contract verification and read-only world validation/inspection/export.
 - `fixtures/v0`: golden scope, evidence, temporal, and result-algebra cases.
+- `fixtures/v1/complete-world`: a fully referenced portable world with descriptors, source, assertions, supports, profile, definitions, manifest, and prose.
 - `wmm-v0.3-contract-kit`: immutable seed vectors and independent Node/Python verifiers supplied with the RFC.
 
 ## Toolchain
@@ -32,9 +33,11 @@ pnpm check
 pnpm verify:contracts
 pnpm verify:v0
 pnpm verify:seed
+pnpm generate:v1-fixture
+pnpm verify:v1
 ```
 
-`pnpm check` runs the original Node verifier, TypeScript project-reference checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` additionally executes the scope, evidence, temporal, result-algebra, and trusted-definition fixtures. `pnpm verify:seed` verifies and loads every byte in the supplied snapshot payload.
+`pnpm check` runs the original Node verifier, TypeScript project-reference checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` executes the bounded semantic fixtures. `pnpm verify:seed` verifies the intentionally incomplete v0.3 seed payload. `pnpm generate:v1-fixture` deterministically regenerates the complete V1 world, and `pnpm verify:v1` validates it through the production loader.
 
 The independent Python verifier additionally requires `jsonschema`. It is intentionally not a runtime dependency of WMM.
 
@@ -51,6 +54,10 @@ The current checks cover:
 - the closed response/validation result algebra;
 - exact, bounded-unknown, unknown, and unbounded temporal applicability against exact point/interval queries;
 - trusted allowlist admission for the bounded semantic operation vocabulary, including default rejection of fixture-only definitions;
-- fixture-scoped manifest verification, canonical JSON enforcement, assertion identity checks, record inspection, deterministic export, and tamper/undeclared-file rejection.
+- fixture-scoped compatibility verification for the intentionally incomplete v0.3 identity kit;
+- production descriptor/source/assertion/support/world/snapshot records;
+- release-owned bundled semantic trust rather than trust derived from imported bytes;
+- complete catalog, identity, definition-role, temporal-input, source, and historical-reference validation;
+- production manifest closure, canonical JSON, size/path/symlink/case-collision controls, deterministic inspection/export, and integrity-preserving semantic corruption tests.
 
-The seed loader deliberately reports unresolved reference integrity because the v0.3 identity kit contains no descriptor or source records. A production portable-world loader, interval-wide coverage inference, authoring authorization, Git transactions, and backups remain behind their RFC milestone gates.
+The read-only V1 path does not yet implement interval-wide population-coverage inference, the versioned stdin JSON request API, proposal workspaces, host authorization, Git-backed revisions, branches, or backups. Those retain their RFC milestone gates.

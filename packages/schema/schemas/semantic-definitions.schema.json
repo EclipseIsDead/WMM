@@ -17,7 +17,16 @@
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "kind": {
-          "enum": ["predicate", "literal", "population", "criterion", "axis"]
+          "enum": [
+            "predicate",
+            "literal",
+            "population",
+            "criterion",
+            "axis",
+            "descriptorType",
+            "locator",
+            "interpretation"
+          ]
         },
         "operation": {
           "enum": [
@@ -27,7 +36,10 @@
             "retained-unicode-v1",
             "bundled-candidate-membership-v1",
             "bundled-eligibility-v1",
-            "integer-chronon-half-open-v1"
+            "integer-chronon-half-open-v1",
+            "descriptor-type-v1",
+            "author-stipulation-locator-v1",
+            "author-stipulation-interpretation-v1"
           ]
         },
         "version": {

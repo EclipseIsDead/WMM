@@ -8,7 +8,8 @@
   "references": [
     { "path": "../wire-contracts" },
     { "path": "../canonical" },
-    { "path": "../schema" }
+    { "path": "../schema" },
+    { "path": "../temporal" }
   ],
   "include": ["src/**/*.ts"]
 }

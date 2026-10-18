@@ -6,7 +6,11 @@ import type {
   ValidateFunction,
 } from "ajv/dist/2020.js";
 
-import type { CoreContractV1, SemanticContractV1 } from "./types.js";
+import type {
+  CoreContractV1,
+  SemanticContractV1,
+  WorldRecordV1,
+} from "./types.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -18,8 +22,13 @@ const semanticSchemaUrl = new URL(
   "../schemas/semantic-contracts.schema.json",
   import.meta.url,
 );
+const worldSchemaUrl = new URL(
+  "../schemas/world-records.schema.json",
+  import.meta.url,
+);
 const coreSchema = JSON.parse(readFileSync(coreSchemaUrl, "utf8")) as AnySchema;
 const semanticSchema = JSON.parse(readFileSync(semanticSchemaUrl, "utf8")) as AnySchema;
+const worldSchema = JSON.parse(readFileSync(worldSchemaUrl, "utf8")) as AnySchema;
 
 interface AjvLike {
   compile<T>(schema: AnySchema): ValidateFunction<T>;
@@ -45,6 +54,7 @@ addFormats(ajv);
 const validateCore: ValidateFunction<CoreContractV1> = ajv.compile(coreSchema);
 const validateSemantic: ValidateFunction<SemanticContractV1> =
   ajv.compile(semanticSchema);
+const validateWorld: ValidateFunction<WorldRecordV1> = ajv.compile(worldSchema);
 
 function validationResult(
   valid: boolean,
@@ -64,9 +74,14 @@ export function validateSemanticContract(input: unknown): CoreContractValidation
   return validationResult(validateSemantic(input), validateSemantic.errors);
 }
 
+export function validateWorldRecord(input: unknown): CoreContractValidationResult {
+  return validationResult(validateWorld(input), validateWorld.errors);
+}
+
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;
 }
 
 export const coreContractsSchema = coreSchema;
 export const semanticContractsSchema = semanticSchema;
+export const worldRecordsSchema = worldSchema;

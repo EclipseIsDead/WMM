@@ -1,3 +1,5 @@
+export * from "./world-bundle.js";
+
 import {
   lstatSync,
   readdirSync,

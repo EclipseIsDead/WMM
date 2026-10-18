@@ -15,6 +15,8 @@
     "verify:contracts": "pnpm build && node apps/cli/dist/main.js contract-kit verify wmm-v0.3-contract-kit",
     "verify:v0": "pnpm build && node apps/cli/dist/main.js v0 verify wmm-v0.3-contract-kit fixtures/v0/semantic-contract-cases.json",
     "verify:seed": "pnpm build && node apps/cli/dist/main.js seed validate wmm-v0.3-contract-kit",
+    "generate:v1-fixture": "pnpm build && node tools/generate-v1-fixture.mjs",
+    "verify:v1": "pnpm build && node apps/cli/dist/main.js world validate fixtures/v1/complete-world",
     "check": "pnpm verify:kit && pnpm typecheck && pnpm test"
   },
   "devDependencies": {

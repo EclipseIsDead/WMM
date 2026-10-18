@@ -17,6 +17,7 @@
   "dependencies": {
     "@wmm/canonical": "workspace:*",
     "@wmm/schema": "workspace:*",
+    "@wmm/temporal": "workspace:*",
     "@wmm/wire-contracts": "workspace:*"
   }
 }

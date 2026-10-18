@@ -221,6 +221,10 @@ export function supportDigest(support: SupportBodyV1): string {
   return framedJsonDigest("wmm.support/v1", support as unknown as JsonValue);
 }
 
+export function supportId(support: SupportBodyV1): string {
+  return `sup:${supportDigest(support)}`;
+}
+
 export function propositionFamilyDigest(body: ClaimBodyV1): string {
   const { polarity: _polarity, ...familyBody } = body;
   return framedJsonDigest(

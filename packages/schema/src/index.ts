@@ -46,6 +46,9 @@ const allowedOperations: Readonly<
   population: new Set(["bundled-candidate-membership-v1"]),
   criterion: new Set(["bundled-eligibility-v1"]),
   axis: new Set(["integer-chronon-half-open-v1"]),
+  descriptorType: new Set(["descriptor-type-v1"]),
+  locator: new Set(["author-stipulation-locator-v1"]),
+  interpretation: new Set(["author-stipulation-interpretation-v1"]),
 };
 
 const schemaUrl = new URL(

@@ -321,6 +321,18 @@ function evaluateInterval(
   );
 }
 
+export function assertValidApplicability(applicability: ApplicabilityV1): void {
+  if (applicability.kind === "invariant") return;
+  if (applicability.kind === "point") {
+    instantRange(applicability.position);
+    return;
+  }
+  ensureValidDuration(
+    startDomain(applicability.start),
+    endDomain(applicability.endExclusive),
+  );
+}
+
 export function evaluateApplicability(
   applicability: ApplicabilityV1,
   query: TemporalQueryV1,

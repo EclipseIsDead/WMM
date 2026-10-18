@@ -2,6 +2,7 @@ export type DigestHex = string;
 export type WorldId = string;
 export type RecordId = string;
 export type AssertionId = string;
+export type SupportId = string;
 export type RevisionId = string;
 
 export type JsonPrimitive = null | boolean | number | string;
@@ -258,7 +259,10 @@ export type SemanticDefinitionKindV1 =
   | "literal"
   | "population"
   | "criterion"
-  | "axis";
+  | "axis"
+  | "descriptorType"
+  | "locator"
+  | "interpretation";
 
 export type SemanticOperationV1 =
   | "exact-tuple-multivalue-v1"
@@ -267,7 +271,10 @@ export type SemanticOperationV1 =
   | "retained-unicode-v1"
   | "bundled-candidate-membership-v1"
   | "bundled-eligibility-v1"
-  | "integer-chronon-half-open-v1";
+  | "integer-chronon-half-open-v1"
+  | "descriptor-type-v1"
+  | "author-stipulation-locator-v1"
+  | "author-stipulation-interpretation-v1";
 
 export interface SemanticDefinitionV1 {
   readonly format: "wmm.semantic-definition/1";
@@ -287,6 +294,73 @@ export interface SemanticProfileV1 {
   readonly propositionGrammar: "explicit-polarity-atom-exists-v1";
   readonly fixtureOnly?: boolean;
 }
+
+export interface DescriptorRecordV1 {
+  readonly format: "wmm.descriptor/1";
+  readonly worldId: WorldId;
+  readonly id: RecordId;
+  readonly birthTypeDefinitionDigest: DigestHex;
+}
+
+export type SourceContentV1 =
+  | {
+      readonly availability: "bundled";
+      readonly path: string;
+      readonly sha256: DigestHex;
+    }
+  | {
+      readonly availability: "unavailable";
+      readonly sha256: DigestHex;
+    }
+  | {
+      readonly availability: "none";
+    };
+
+export interface SourceRecordV1 {
+  readonly format: "wmm.source/1";
+  readonly worldId: WorldId;
+  readonly id: RecordId;
+  readonly sourceType: "document" | "authorStipulation";
+  readonly content: SourceContentV1;
+}
+
+export interface AssertionRecordV1 {
+  readonly format: "wmm.assertion-record/1";
+  readonly id: AssertionId;
+  readonly body: ClaimBodyV1;
+}
+
+export interface SupportRecordV1 {
+  readonly format: "wmm.support-record/1";
+  readonly id: SupportId;
+  readonly body: SupportBodyV1;
+}
+
+export interface WorldCatalogV1 {
+  readonly format: "wmm.world/1";
+  readonly worldId: WorldId;
+  readonly semanticProfileDigest: DigestHex;
+  readonly descriptorIds: readonly RecordId[];
+  readonly sourceIds: readonly RecordId[];
+  readonly assertionIds: readonly AssertionId[];
+  readonly activeAssertionIds: readonly AssertionId[];
+  readonly supportIds: readonly SupportId[];
+  readonly activeSupportIds: readonly SupportId[];
+}
+
+export interface SnapshotRecordV1 {
+  readonly format: "wmm.snapshot-record/1";
+  readonly snapshotDigest: DigestHex;
+  readonly manifest: SnapshotManifestV1;
+}
+
+export type WorldRecordV1 =
+  | DescriptorRecordV1
+  | SourceRecordV1
+  | AssertionRecordV1
+  | SupportRecordV1
+  | WorldCatalogV1
+  | SnapshotRecordV1;
 
 export type CoreContractV1 = ClaimBodyV1 | SnapshotManifestV1 | RevisionEnvelopeV1;
 

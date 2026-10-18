@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:world-records:v1",
+  "$defs": {
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "DescriptorId": {
+      "type": "string",
+      "pattern": "^(?!world:|asrt:|sup:|rev:|source:)[a-z][a-z0-9_-]*:[a-z0-9_-]+$"
+    },
+    "SourceId": {
+      "type": "string",
+      "pattern": "^source:[a-z0-9_-]+$"
+    },
+    "AssertionId": {
+      "type": "string",
+      "pattern": "^asrt:[0-9a-f]{64}$"
+    },
+    "SupportId": {
+      "type": "string",
+      "pattern": "^sup:[0-9a-f]{64}$"
+    },
+    "DescriptorRecord": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.descriptor/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "id": {
+          "$ref": "#/$defs/DescriptorId"
+        },
+        "birthTypeDefinitionDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": ["format", "worldId", "id", "birthTypeDefinitionDigest"],
+      "additionalProperties": false
+    },
+    "SourceContent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "bundled"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9_-]+/)*[a-z0-9_-]+\\.(json|md|bin)$"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Digest"
+            }
+          },
+          "required": ["availability", "path", "sha256"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "unavailable"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Digest"
+            }
+          },
+          "required": ["availability", "sha256"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "availability": {
+              "const": "none"
+            }
+          },
+          "required": ["availability"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SourceRecord": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.source/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "id": {
+          "$ref": "#/$defs/SourceId"
+        },
+        "sourceType": {
+          "enum": ["document", "authorStipulation"]
+        },
+        "content": {
+          "$ref": "#/$defs/SourceContent"
+        }
+      },
+      "required": ["format", "worldId", "id", "sourceType", "content"],
+      "additionalProperties": false
+    },
+    "AssertionRecord": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.assertion-record/1"
+        },
+        "id": {
+          "$ref": "#/$defs/AssertionId"
+        },
+        "body": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/ClaimBody"
+        }
+      },
+      "required": ["format", "id", "body"],
+      "additionalProperties": false
+    },
+    "SupportRecord": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.support-record/1"
+        },
+        "id": {
+          "$ref": "#/$defs/SupportId"
+        },
+        "body": {
+          "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/SupportBody"
+        }
+      },
+      "required": ["format", "id", "body"],
+      "additionalProperties": false
+    },
+    "WorldCatalog": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.world/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "semanticProfileDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "descriptorIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DescriptorId"
+          },
+          "uniqueItems": true
+        },
+        "sourceIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceId"
+          },
+          "uniqueItems": true
+        },
+        "assertionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssertionId"
+          },
+          "uniqueItems": true
+        },
+        "activeAssertionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssertionId"
+          },
+          "uniqueItems": true
+        },
+        "supportIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SupportId"
+          },
+          "uniqueItems": true
+        },
+        "activeSupportIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SupportId"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "semanticProfileDigest",
+        "descriptorIds",
+        "sourceIds",
+        "assertionIds",
+        "activeAssertionIds",
+        "supportIds",
+        "activeSupportIds"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotRecord": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.snapshot-record/1"
+        },
+        "snapshotDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "manifest": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/SnapshotManifest"
+        }
+      },
+      "required": ["format", "snapshotDigest", "manifest"],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/DescriptorRecord"
+    },
+    {
+      "$ref": "#/$defs/SourceRecord"
+    },
+    {
+      "$ref": "#/$defs/AssertionRecord"
+    },
+    {
+      "$ref": "#/$defs/SupportRecord"
+    },
+    {
+      "$ref": "#/$defs/WorldCatalog"
+    },
+    {
+      "$ref": "#/$defs/SnapshotRecord"
+    }
+  ]
+}

@@ -51,6 +51,9 @@ importers:
       '@wmm/schema':
         specifier: workspace:*
         version: link:../schema
+      '@wmm/temporal':
+        specifier: workspace:*
+        version: link:../temporal
       '@wmm/wire-contracts':
         specifier: workspace:*
         version: link:../wire-contracts
