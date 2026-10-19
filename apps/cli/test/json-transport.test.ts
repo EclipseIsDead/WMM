@@ -31,6 +31,47 @@ describe("JSON stdin transport", () => {
     });
   });
 
+  it("executes claim queries through the strict JSON transport", () => {
+    const result = runJsonTransport(
+      bytes({
+        format: "wmm.request/1",
+        apiVersion: "wmm/1",
+        requestId: "claims-transport-1",
+        operation: "claims.query",
+        payload: {
+          bundlePath,
+          scope: {
+            account: { kind: "ref", id: "account:canonical" },
+            jurisdiction: { kind: "ref", id: "polity:valen" },
+            recognitionFrame: { kind: "ref", id: "frame:royal-court" },
+          },
+          temporal: {
+            format: "wmm.temporal-query/1",
+            mode: "at",
+            axisDefinitionDigest:
+              "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            position: "1005",
+          },
+        },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(validateApiResponse(result.response).valid).toBe(true);
+    expect(result.response).toMatchObject({
+      requestId: "claims-transport-1",
+      operation: "claims.query",
+      outcome: "success",
+      data: {
+        format: "wmm.claim-query-result/1",
+        definite: [{ polarity: "negative" }, { polarity: "positive" }],
+        possible: [],
+        unresolved: [],
+        excluded: [],
+        scopeCoverage: "exhaustive",
+      },
+    });
+  });
+
   it("rejects duplicate keys before schema validation", () => {
     const result = runJsonTransport(
       Buffer.from(

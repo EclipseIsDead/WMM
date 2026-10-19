@@ -45,6 +45,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@wmm/core':
+        specifier: workspace:*
+        version: link:../core
       '@wmm/exchange':
         specifier: workspace:*
         version: link:../exchange

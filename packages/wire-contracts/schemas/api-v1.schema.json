@@ -122,6 +122,43 @@
       "required": ["format", "apiVersion", "requestId", "operation", "payload"],
       "additionalProperties": false
     },
+    "ClaimsQueryRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "const": "claims.query"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": {
+              "$ref": "#/$defs/BundlePath"
+            },
+            "scope": {
+              "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+            },
+            "temporal": {
+              "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/TemporalQuery"
+            }
+          },
+          "required": ["bundlePath", "scope", "temporal"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
     "Request": {
       "oneOf": [
         {
@@ -132,6 +169,9 @@
         },
         {
           "$ref": "#/$defs/ExportRequest"
+        },
+        {
+          "$ref": "#/$defs/ClaimsQueryRequest"
         }
       ]
     },
@@ -162,7 +202,7 @@
           "minLength": 1
         },
         "operation": {
-          "enum": ["world.validate", "record.inspect", "world.export"]
+          "enum": ["world.validate", "record.inspect", "world.export", "claims.query"]
         },
         "outcome": {
           "const": "success"

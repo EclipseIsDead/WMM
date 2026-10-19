@@ -1,3 +1,4 @@
+import { ClaimQueryInputError, queryActiveClaims } from "@wmm/core";
 import {
   exportWorldBundle,
   inspectWorldBundle,
@@ -91,6 +92,18 @@ export function executeApiRequest(request: ApiRequestV1): ApiResponseV1 {
       case "world.export":
         data = exportWorldBundle(world);
         break;
+      case "claims.query":
+        data = queryActiveClaims(
+          {
+            activeAssertionIds: world.world.activeAssertionIds,
+            activeSupportIds: world.world.activeSupportIds,
+            assertions: world.assertions,
+            supports: world.supports,
+          },
+          request.payload.scope,
+          request.payload.temporal,
+        ) as unknown as JsonValue;
+        break;
     }
 
     return successResponse(
@@ -100,7 +113,11 @@ export function executeApiRequest(request: ApiRequestV1): ApiResponseV1 {
       data,
     );
   } catch (error) {
-    const code: ApiErrorCodeV1 = isStorageError(error) ? "STORAGE_FAILURE" : "INVALID_WORLD";
+    const code: ApiErrorCodeV1 = isStorageError(error)
+      ? "STORAGE_FAILURE"
+      : error instanceof ClaimQueryInputError
+        ? "INVALID_REQUEST"
+        : "INVALID_WORLD";
     return apiErrorResponse(
       code,
       errorMessage(error),

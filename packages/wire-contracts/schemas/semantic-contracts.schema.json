@@ -260,6 +260,84 @@
         }
       ]
     },
+    "ClaimQueryItem": {
+      "type": "object",
+      "properties": {
+        "assertionId": {
+          "$ref": "#/$defs/AssertionId"
+        },
+        "polarity": {
+          "enum": ["positive", "negative"]
+        },
+        "scope": {
+          "$ref": "#/$defs/ScopeComparison"
+        },
+        "temporal": {
+          "$ref": "#/$defs/TemporalComparison"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceStatus"
+        },
+        "familySupport": {
+          "$ref": "#/$defs/FamilySupport"
+        }
+      },
+      "required": [
+        "assertionId",
+        "polarity",
+        "scope",
+        "temporal",
+        "evidence",
+        "familySupport"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimQueryItems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ClaimQueryItem"
+      }
+    },
+    "ClaimQueryResult": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.claim-query-result/1"
+        },
+        "scope": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+        },
+        "temporal": {
+          "$ref": "#/$defs/TemporalQuery"
+        },
+        "definite": {
+          "$ref": "#/$defs/ClaimQueryItems"
+        },
+        "possible": {
+          "$ref": "#/$defs/ClaimQueryItems"
+        },
+        "unresolved": {
+          "$ref": "#/$defs/ClaimQueryItems"
+        },
+        "excluded": {
+          "$ref": "#/$defs/ClaimQueryItems"
+        },
+        "scopeCoverage": {
+          "const": "exhaustive"
+        }
+      },
+      "required": [
+        "format",
+        "scope",
+        "temporal",
+        "definite",
+        "possible",
+        "unresolved",
+        "excluded",
+        "scopeCoverage"
+      ],
+      "additionalProperties": false
+    },
     "CommonResponse": {
       "oneOf": [
         {
@@ -423,6 +501,9 @@
     },
     {
       "$ref": "#/$defs/TemporalComparison"
+    },
+    {
+      "$ref": "#/$defs/ClaimQueryResult"
     },
     {
       "$ref": "#/$defs/CommonResponse"

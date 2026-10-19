@@ -333,6 +333,10 @@ export function assertValidApplicability(applicability: ApplicabilityV1): void {
   );
 }
 
+export function assertValidTemporalQuery(query: TemporalQueryV1): void {
+  validateQuery(query);
+}
+
 export function evaluateApplicability(
   applicability: ApplicabilityV1,
   query: TemporalQueryV1,

@@ -1,14 +1,32 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import type { ApiRequestV1 } from "@wmm/wire-contracts";
-import { validateApiResponse } from "@wmm/wire-contracts";
+import type { ApiRequestV1, ClaimQueryResultV1 } from "@wmm/wire-contracts";
+import { validateApiResponse, validateSemanticContract } from "@wmm/wire-contracts";
 import { executeApiRequest } from "../src/index.js";
 
 const bundlePath = fileURLToPath(
   new URL("../../../fixtures/v1/complete-world/", import.meta.url),
 );
+
+type ClaimsQueryRequest = Extract<ApiRequestV1, { readonly operation: "claims.query" }>;
+type ResultGroup = "definite" | "possible" | "unresolved" | "excluded";
+
+interface QueryFixtures {
+  readonly requests: readonly {
+    readonly request: ClaimsQueryRequest;
+    readonly expected: Readonly<Record<ResultGroup, readonly string[]>>;
+  }[];
+}
+
+const queryFixtures = JSON.parse(
+  readFileSync(
+    new URL("../../../fixtures/v2/claim-query-cases.json", import.meta.url),
+    "utf8",
+  ),
+) as QueryFixtures;
 
 function request(
   operation: ApiRequestV1["operation"],
@@ -55,6 +73,48 @@ describe("V1 application API", () => {
     expect(exported).toMatchObject({
       outcome: "success",
       data: { format: "wmm.world-export/1" },
+    });
+  });
+
+  it("queries active claims with explicit four-way classification", () => {
+    for (const fixture of queryFixtures.requests) {
+      const response = executeApiRequest({
+        ...fixture.request,
+        payload: { ...fixture.request.payload, bundlePath },
+      });
+      expect(validateApiResponse(response).valid).toBe(true);
+      expect(response.outcome).toBe("success");
+      if (response.outcome !== "success") throw new Error(response.error.message);
+      expect(validateSemanticContract(response.data).valid).toBe(true);
+      const result = response.data as unknown as ClaimQueryResultV1;
+      for (const group of ["definite", "possible", "unresolved", "excluded"] as const) {
+        expect(result[group].map((item) => item.assertionId)).toEqual(
+          fixture.expected[group],
+        );
+      }
+    }
+  });
+
+  it("reports semantically invalid temporal query bounds as invalid requests", () => {
+    const fixture = queryFixtures.requests[0]?.request;
+    if (fixture === undefined) throw new Error("Missing query fixture");
+    const response = executeApiRequest({
+      ...fixture,
+      payload: {
+        ...fixture.payload,
+        bundlePath,
+        temporal: {
+          format: "wmm.temporal-query/1",
+          mode: "intersects",
+          axisDefinitionDigest: fixture.payload.temporal.axisDefinitionDigest,
+          start: "1000",
+          endExclusive: "1000",
+        },
+      },
+    });
+    expect(response).toMatchObject({
+      outcome: "error",
+      error: { code: "INVALID_REQUEST" },
     });
   });
 

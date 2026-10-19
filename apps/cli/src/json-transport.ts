@@ -11,6 +11,7 @@ import {
 } from "@wmm/application";
 import type {
   ApiErrorCodeV1,
+  ApiOperationV1,
   ApiRequestV1,
   ApiResponseV1,
 } from "@wmm/wire-contracts";
@@ -20,11 +21,14 @@ import {
 } from "@wmm/wire-contracts";
 
 const MAX_REQUEST_BYTES = 1024 * 1024;
-const SUPPORTED_OPERATIONS = new Set([
-  "world.validate",
-  "record.inspect",
-  "world.export",
-]);
+const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
+  [
+    "world.validate",
+    "record.inspect",
+    "world.export",
+    "claims.query",
+  ] satisfies readonly ApiOperationV1[],
+);
 
 export interface JsonTransportResult {
   readonly response: ApiResponseV1;

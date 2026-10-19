@@ -1,0 +1,134 @@
+{
+  "format": "wmm.claim-query-fixtures/1",
+  "requests": [
+    {
+      "name": "applicable at 1005",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "claims-at-1005",
+        "operation": "claims.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "1005"
+          }
+        }
+      },
+      "expected": {
+        "definite": [
+          "asrt:5236037c755f09ad545a1322425877b6b137fc8b00dd9dc14986ea928f278139",
+          "asrt:b7192460c840990490bc1a3e15a6e4d9fd0c7c4f291b183c363922da6efb545d"
+        ],
+        "possible": [],
+        "unresolved": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "outside interval at 2000",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "claims-at-2000",
+        "operation": "claims.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "2000"
+          }
+        }
+      },
+      "expected": {
+        "definite": [
+          "asrt:b7192460c840990490bc1a3e15a6e4d9fd0c7c4f291b183c363922da6efb545d"
+        ],
+        "possible": [],
+        "unresolved": [],
+        "excluded": [
+          "asrt:5236037c755f09ad545a1322425877b6b137fc8b00dd9dc14986ea928f278139"
+        ]
+      }
+    },
+    {
+      "name": "different recognition frame",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "claims-rival-frame",
+        "operation": "claims.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:rival-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "1005"
+          }
+        }
+      },
+      "expected": {
+        "definite": [],
+        "possible": [],
+        "unresolved": [],
+        "excluded": [
+          "asrt:5236037c755f09ad545a1322425877b6b137fc8b00dd9dc14986ea928f278139",
+          "asrt:b7192460c840990490bc1a3e15a6e4d9fd0c7c4f291b183c363922da6efb545d"
+        ]
+      }
+    },
+    {
+      "name": "unresolved recognition frame",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "claims-unresolved-frame",
+        "operation": "claims.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "unresolved" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "1005"
+          }
+        }
+      },
+      "expected": {
+        "definite": [],
+        "possible": [],
+        "unresolved": [
+          "asrt:5236037c755f09ad545a1322425877b6b137fc8b00dd9dc14986ea928f278139",
+          "asrt:b7192460c840990490bc1a3e15a6e4d9fd0c7c4f291b183c363922da6efb545d"
+        ],
+        "excluded": []
+      }
+    }
+  ]
+}

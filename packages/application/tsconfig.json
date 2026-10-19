@@ -7,6 +7,7 @@
   },
   "references": [
     { "path": "../wire-contracts" },
+    { "path": "../core" },
     { "path": "../exchange" }
   ],
   "include": ["src/**/*.ts"]

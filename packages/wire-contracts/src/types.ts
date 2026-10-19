@@ -209,6 +209,26 @@ export type TemporalComparisonV1 =
       readonly reason: "applicabilityType";
     };
 
+export interface ClaimQueryItemV1 {
+  readonly assertionId: AssertionId;
+  readonly polarity: "positive" | "negative";
+  readonly scope: ScopeComparisonV1;
+  readonly temporal: TemporalComparisonV1;
+  readonly evidence: EvidenceStatusV1;
+  readonly familySupport: FamilySupportV1;
+}
+
+export interface ClaimQueryResultV1 {
+  readonly format: "wmm.claim-query-result/1";
+  readonly scope: ScopeV1;
+  readonly temporal: TemporalQueryV1;
+  readonly definite: readonly ClaimQueryItemV1[];
+  readonly possible: readonly ClaimQueryItemV1[];
+  readonly unresolved: readonly ClaimQueryItemV1[];
+  readonly excluded: readonly ClaimQueryItemV1[];
+  readonly scopeCoverage: "exhaustive";
+}
+
 export interface DiagnosticV1 {
   readonly code: string;
   readonly severity: "info" | "warning" | "error" | "blocker";
@@ -365,7 +385,8 @@ export type WorldRecordV1 =
 export type ApiOperationV1 =
   | "world.validate"
   | "record.inspect"
-  | "world.export";
+  | "world.export"
+  | "claims.query";
 
 interface ApiRequestBaseV1 {
   readonly format: "wmm.request/1";
@@ -388,6 +409,14 @@ export type ApiRequestV1 =
   | (ApiRequestBaseV1 & {
       readonly operation: "world.export";
       readonly payload: { readonly bundlePath: string };
+    })
+  | (ApiRequestBaseV1 & {
+      readonly operation: "claims.query";
+      readonly payload: {
+        readonly bundlePath: string;
+        readonly scope: ScopeV1;
+        readonly temporal: TemporalQueryV1;
+      };
     });
 
 export type ApiErrorCodeV1 =
@@ -441,5 +470,6 @@ export type SemanticContractV1 =
   | FamilySupportV1
   | TemporalQueryV1
   | TemporalComparisonV1
+  | ClaimQueryResultV1
   | CommonResponseV1
   | ValidationStatusV1;
