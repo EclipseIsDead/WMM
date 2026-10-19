@@ -1,4 +1,8 @@
-import { ClaimQueryInputError, queryActiveClaims } from "@wmm/core";
+import {
+  ClaimQueryInputError,
+  queryAbsence,
+  queryActiveClaims,
+} from "@wmm/core";
 import {
   exportWorldBundle,
   inspectWorldBundle,
@@ -100,6 +104,20 @@ export function executeApiRequest(request: ApiRequestV1): ApiResponseV1 {
             assertions: world.assertions,
             supports: world.supports,
           },
+          request.payload.scope,
+          request.payload.temporal,
+        ) as unknown as JsonValue;
+        break;
+      case "absence.query":
+        data = queryAbsence(
+          {
+            worldId: world.world.worldId,
+            snapshotDigest: world.snapshot.snapshotDigest,
+            activeAssertionIds: world.world.activeAssertionIds,
+            assertions: world.assertions,
+            definitionsByDigest: world.definitionsByDigest,
+          },
+          request.payload.target,
           request.payload.scope,
           request.payload.temporal,
         ) as unknown as JsonValue;

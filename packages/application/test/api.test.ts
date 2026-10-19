@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import type { ApiRequestV1, ClaimQueryResultV1 } from "@wmm/wire-contracts";
+import type {
+  AbsenceQueryResultV1,
+  ApiRequestV1,
+  ClaimQueryResultV1,
+} from "@wmm/wire-contracts";
 import { validateApiResponse, validateSemanticContract } from "@wmm/wire-contracts";
 import { executeApiRequest } from "../src/index.js";
 
@@ -12,6 +16,7 @@ const bundlePath = fileURLToPath(
 );
 
 type ClaimsQueryRequest = Extract<ApiRequestV1, { readonly operation: "claims.query" }>;
+type AbsenceQueryRequest = Extract<ApiRequestV1, { readonly operation: "absence.query" }>;
 type ResultGroup = "definite" | "possible" | "unresolved" | "excluded";
 
 interface QueryFixtures {
@@ -27,6 +32,27 @@ const queryFixtures = JSON.parse(
     "utf8",
   ),
 ) as QueryFixtures;
+
+interface AbsenceFixtures {
+  readonly requests: readonly {
+    readonly request: AbsenceQueryRequest;
+    readonly expected: {
+      readonly conclusion: AbsenceQueryResultV1["conclusion"]["status"];
+      readonly bases: AbsenceQueryResultV1["conclusion"]["bases"];
+      readonly declaration: AbsenceQueryResultV1["declaration"]["status"];
+      readonly witnesses: AbsenceQueryResultV1["witnesses"]["status"];
+      readonly derivation: AbsenceQueryResultV1["derivation"]["status"];
+      readonly derivationReason: AbsenceQueryResultV1["derivation"]["reason"];
+    };
+  }[];
+}
+
+const absenceFixtures = JSON.parse(
+  readFileSync(
+    new URL("../../../fixtures/v2/absence-query-cases.json", import.meta.url),
+    "utf8",
+  ),
+) as AbsenceFixtures;
 
 function request(
   operation: ApiRequestV1["operation"],
@@ -54,7 +80,7 @@ describe("V1 application API", () => {
       execution: "completed",
       resolved: {
         worldId: "world:valen_v1",
-        snapshotDigest: "ca759f1f66a555d2735e6f81b4cd44eafebf413ee2c595d5f4cc1e0b4b02b21a",
+        snapshotDigest: "e46d4269225984e5baf982024dff8e33497bda96d7553edb7b61bb2b09866747",
       },
       data: { status: "valid" },
     });
@@ -92,6 +118,28 @@ describe("V1 application API", () => {
           fixture.expected[group],
         );
       }
+    }
+  });
+
+  it("distinguishes declared, derived, witnessed, and unestablished absence", () => {
+    for (const fixture of absenceFixtures.requests) {
+      const response = executeApiRequest({
+        ...fixture.request,
+        payload: { ...fixture.request.payload, bundlePath },
+      });
+      expect(validateApiResponse(response).valid).toBe(true);
+      expect(response.outcome).toBe("success");
+      if (response.outcome !== "success") throw new Error(response.error.message);
+      expect(validateSemanticContract(response.data).valid).toBe(true);
+      const result = response.data as unknown as AbsenceQueryResultV1;
+      expect(result.conclusion).toEqual({
+        status: fixture.expected.conclusion,
+        bases: fixture.expected.bases,
+      });
+      expect(result.declaration.status).toBe(fixture.expected.declaration);
+      expect(result.witnesses.status).toBe(fixture.expected.witnesses);
+      expect(result.derivation.status).toBe(fixture.expected.derivation);
+      expect(result.derivation.reason).toBe(fixture.expected.derivationReason);
     }
   });
 

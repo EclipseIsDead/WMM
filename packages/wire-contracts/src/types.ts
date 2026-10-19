@@ -177,20 +177,22 @@ export interface FamilySupportV1 {
   readonly negativeIds: readonly RecordId[];
 }
 
-export type TemporalQueryV1 =
-  | {
-      readonly format: "wmm.temporal-query/1";
-      readonly mode: "at";
-      readonly axisDefinitionDigest: DigestHex;
-      readonly position: string;
-    }
-  | {
-      readonly format: "wmm.temporal-query/1";
-      readonly mode: "intersects" | "throughout";
-      readonly axisDefinitionDigest: DigestHex;
-      readonly start: string;
-      readonly endExclusive: string;
-    };
+export interface PointTemporalQueryV1 {
+  readonly format: "wmm.temporal-query/1";
+  readonly mode: "at";
+  readonly axisDefinitionDigest: DigestHex;
+  readonly position: string;
+}
+
+export interface IntervalTemporalQueryV1 {
+  readonly format: "wmm.temporal-query/1";
+  readonly mode: "intersects" | "throughout";
+  readonly axisDefinitionDigest: DigestHex;
+  readonly start: string;
+  readonly endExclusive: string;
+}
+
+export type TemporalQueryV1 = PointTemporalQueryV1 | IntervalTemporalQueryV1;
 
 export type TemporalComparisonV1 =
   | {
@@ -227,6 +229,101 @@ export interface ClaimQueryResultV1 {
   readonly unresolved: readonly ClaimQueryItemV1[];
   readonly excluded: readonly ClaimQueryItemV1[];
   readonly scopeCoverage: "exhaustive";
+}
+
+export interface AbsenceInputSelectionV1 {
+  readonly format: "wmm.absence-input-selection/1";
+  readonly worldId: WorldId;
+  readonly snapshotDigest: DigestHex;
+  readonly target: ExistsV1;
+  readonly scope: ScopeV1;
+  readonly temporal: PointTemporalQueryV1;
+  readonly membershipAssertionIds: readonly AssertionId[];
+}
+
+export interface AbsenceCandidateEvaluationV1 {
+  readonly candidateId: RecordId;
+  readonly membershipAssertionIds: readonly AssertionId[];
+  readonly membership: "member" | "possible" | "conflicting" | "unresolved";
+  readonly eligibilityAssertionIds: readonly AssertionId[];
+  readonly eligibility:
+    | "eligible"
+    | "possibly-eligible"
+    | "ineligible"
+    | "conflicting"
+    | "unresolved";
+}
+
+interface AbsenceEvaluationBaseV1 {
+  readonly format: "wmm.absence-evaluation-receipt/1";
+  readonly algorithm: "bundled-absence-point-v1";
+  readonly inputSelection: AbsenceInputSelectionV1;
+  readonly inputSelectionDigest: DigestHex;
+  readonly positiveCoverageAssertionIds: readonly AssertionId[];
+  readonly negativeCoverageAssertionIds: readonly AssertionId[];
+  readonly eligibilityAssertionIds: readonly AssertionId[];
+  readonly candidates: readonly AbsenceCandidateEvaluationV1[];
+}
+
+export type AbsenceEvaluationBodyV1 =
+  | (AbsenceEvaluationBaseV1 & {
+      readonly status: "established";
+      readonly reason: "all-candidates-ineligible";
+    })
+  | (AbsenceEvaluationBaseV1 & {
+      readonly status: "not-established";
+      readonly reason:
+        | "coverage-not-established"
+        | "coverage-conflicted"
+        | "coverage-unresolved"
+        | "membership-not-established"
+        | "membership-conflicted"
+        | "membership-unresolved"
+        | "candidate-eligibility-conflicted"
+        | "candidate-eligibility-unresolved"
+        | "recorded-witness";
+    })
+  | (AbsenceEvaluationBaseV1 & {
+      readonly status: "unsupported";
+      readonly reason: "unsupported-semantics";
+    });
+
+export type AbsenceEvaluationReceiptV1 = AbsenceEvaluationBodyV1 & {
+  readonly evaluationDigest: DigestHex;
+};
+
+export interface AbsenceQueryResultV1 {
+  readonly format: "wmm.absence-query-result/1";
+  readonly target: ExistsV1;
+  readonly scope: ScopeV1;
+  readonly temporal: PointTemporalQueryV1;
+  readonly conclusion: {
+    readonly status:
+      | "absence-declared"
+      | "absence-derived"
+      | "absence-declared-and-derived"
+      | "witness-recorded"
+      | "conflicting"
+      | "absence-not-established"
+      | "unresolved";
+    readonly bases: readonly ("declared" | "derived")[];
+  };
+  readonly declaration: {
+    readonly status: "recorded" | "possible" | "unresolved" | "not-recorded";
+    readonly definiteAssertionIds: readonly AssertionId[];
+    readonly possibleAssertionIds: readonly AssertionId[];
+    readonly unresolvedAssertionIds: readonly AssertionId[];
+  };
+  readonly witnesses: {
+    readonly status: "recorded" | "possible" | "unresolved" | "none-recorded";
+    readonly existentialAssertionIds: readonly AssertionId[];
+    readonly possibleExistentialAssertionIds: readonly AssertionId[];
+    readonly unresolvedExistentialAssertionIds: readonly AssertionId[];
+    readonly candidateIds: readonly RecordId[];
+    readonly possibleCandidateIds: readonly RecordId[];
+    readonly unresolvedCandidateIds: readonly RecordId[];
+  };
+  readonly derivation: AbsenceEvaluationReceiptV1;
 }
 
 export interface DiagnosticV1 {
@@ -288,6 +385,8 @@ export type SemanticOperationV1 =
   | "exact-tuple-multivalue-v1"
   | "text-value-v1"
   | "population-coverage-atom-v1"
+  | "population-membership-atom-v1"
+  | "criterion-satisfaction-atom-v1"
   | "retained-unicode-v1"
   | "bundled-candidate-membership-v1"
   | "bundled-eligibility-v1"
@@ -386,7 +485,8 @@ export type ApiOperationV1 =
   | "world.validate"
   | "record.inspect"
   | "world.export"
-  | "claims.query";
+  | "claims.query"
+  | "absence.query";
 
 interface ApiRequestBaseV1 {
   readonly format: "wmm.request/1";
@@ -416,6 +516,15 @@ export type ApiRequestV1 =
         readonly bundlePath: string;
         readonly scope: ScopeV1;
         readonly temporal: TemporalQueryV1;
+      };
+    })
+  | (ApiRequestBaseV1 & {
+      readonly operation: "absence.query";
+      readonly payload: {
+        readonly bundlePath: string;
+        readonly target: ExistsV1;
+        readonly scope: ScopeV1;
+        readonly temporal: PointTemporalQueryV1;
       };
     });
 
@@ -471,5 +580,6 @@ export type SemanticContractV1 =
   | TemporalQueryV1
   | TemporalComparisonV1
   | ClaimQueryResultV1
+  | AbsenceQueryResultV1
   | CommonResponseV1
   | ValidationStatusV1;

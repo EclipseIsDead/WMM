@@ -26,7 +26,7 @@ export interface ClaimQuerySnapshotV1 {
   readonly supports: readonly SupportRecordV1[];
 }
 
-type QueryGroup = "definite" | "possible" | "unresolved" | "excluded";
+export type ClaimQueryGroupV1 = "definite" | "possible" | "unresolved" | "excluded";
 
 export class ClaimQueryInputError extends TypeError {
   readonly code: string;
@@ -71,10 +71,10 @@ function selectActive<T extends { readonly id: string }>(
   return selected.sort((left, right) => asciiCompare(left.id, right.id));
 }
 
-function classify(
+export function classifyQueryComparison(
   scopeResult: ClaimQueryItemV1["scope"]["result"],
   temporal: TemporalComparisonV1,
-): QueryGroup {
+): ClaimQueryGroupV1 {
   if (
     scopeResult === "different" ||
     temporal.kind === "excluded" ||
@@ -126,7 +126,7 @@ export function queryActiveClaims(
     assertionsByFamily.set(familyDigest, existing);
   }
 
-  const groups: Record<QueryGroup, ClaimQueryItemV1[]> = {
+  const groups: Record<ClaimQueryGroupV1, ClaimQueryItemV1[]> = {
     definite: [],
     possible: [],
     unresolved: [],
@@ -158,7 +158,7 @@ export function queryActiveClaims(
       evidence,
       familySupport,
     };
-    groups[classify(scopeComparison.result, temporalComparison)].push(item);
+    groups[classifyQueryComparison(scopeComparison.result, temporalComparison)].push(item);
   }
 
   return {

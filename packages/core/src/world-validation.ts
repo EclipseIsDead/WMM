@@ -218,12 +218,27 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
       );
       assertTypedValue(body.proposition.value, definitionsByDigest, descriptorIds);
       if (
-        predicate.operation === "exact-tuple-multivalue-v1" &&
+        (
+          predicate.operation === "exact-tuple-multivalue-v1" ||
+          predicate.operation === "population-coverage-atom-v1" ||
+          predicate.operation === "population-membership-atom-v1" ||
+          predicate.operation === "criterion-satisfaction-atom-v1"
+        ) &&
         body.proposition.value.kind !== "ref"
       ) {
         throw new WorldValidationError(
           "INVALID_OPERATION_VALUE",
-          "exact-tuple-multivalue-v1 requires a descriptor reference value",
+          `${predicate.operation} requires a descriptor reference value`,
+        );
+      }
+      if (
+        predicate.operation === "population-coverage-atom-v1" &&
+        body.proposition.value.kind === "ref" &&
+        body.proposition.subjectId !== body.proposition.value.id
+      ) {
+        throw new WorldValidationError(
+          "INVALID_OPERATION_VALUE",
+          "population-coverage-atom-v1 requires a self-referential population value",
         );
       }
     } else {

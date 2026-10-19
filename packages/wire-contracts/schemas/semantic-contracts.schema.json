@@ -26,6 +26,13 @@
       },
       "uniqueItems": true
     },
+    "AssertionIdSet": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AssertionId"
+      },
+      "uniqueItems": true
+    },
     "Diagnostic": {
       "type": "object",
       "properties": {
@@ -338,6 +345,413 @@
       ],
       "additionalProperties": false
     },
+    "AbsenceInputSelection": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.absence-input-selection/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "snapshotDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "target": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Exists"
+        },
+        "scope": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+        },
+        "temporal": {
+          "$ref": "#/$defs/PointQuery"
+        },
+        "membershipAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "snapshotDigest",
+        "target",
+        "scope",
+        "temporal",
+        "membershipAssertionIds"
+      ],
+      "additionalProperties": false
+    },
+    "AbsenceCandidateEvaluation": {
+      "type": "object",
+      "properties": {
+        "candidateId": {
+          "$ref": "#/$defs/RecordId"
+        },
+        "membershipAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        },
+        "membership": {
+          "enum": ["member", "possible", "conflicting", "unresolved"]
+        },
+        "eligibilityAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        },
+        "eligibility": {
+          "enum": [
+            "eligible",
+            "possibly-eligible",
+            "ineligible",
+            "conflicting",
+            "unresolved"
+          ]
+        }
+      },
+      "required": [
+        "candidateId",
+        "membershipAssertionIds",
+        "membership",
+        "eligibilityAssertionIds",
+        "eligibility"
+      ],
+      "additionalProperties": false
+    },
+    "AbsenceEvaluationReceipt": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.absence-evaluation-receipt/1"
+        },
+        "algorithm": {
+          "const": "bundled-absence-point-v1"
+        },
+        "inputSelection": {
+          "$ref": "#/$defs/AbsenceInputSelection"
+        },
+        "inputSelectionDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "evaluationDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "positiveCoverageAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        },
+        "negativeCoverageAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        },
+        "eligibilityAssertionIds": {
+          "$ref": "#/$defs/AssertionIdSet"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AbsenceCandidateEvaluation"
+          }
+        },
+        "status": {
+          "enum": ["established", "not-established", "unsupported"]
+        },
+        "reason": {
+          "enum": [
+            "all-candidates-ineligible",
+            "coverage-not-established",
+            "coverage-conflicted",
+            "coverage-unresolved",
+            "membership-not-established",
+            "membership-conflicted",
+            "membership-unresolved",
+            "candidate-eligibility-conflicted",
+            "candidate-eligibility-unresolved",
+            "recorded-witness",
+            "unsupported-semantics"
+          ]
+        }
+      },
+      "required": [
+        "format",
+        "algorithm",
+        "inputSelection",
+        "inputSelectionDigest",
+        "evaluationDigest",
+        "positiveCoverageAssertionIds",
+        "negativeCoverageAssertionIds",
+        "eligibilityAssertionIds",
+        "candidates",
+        "status",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "established" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "reason": { "const": "all-candidates-ineligible" },
+              "inputSelection": {
+                "properties": {
+                  "membershipAssertionIds": { "minItems": 1 }
+                }
+              },
+              "positiveCoverageAssertionIds": { "minItems": 1 },
+              "candidates": {
+                "minItems": 1,
+                "items": {
+                  "allOf": [
+                    { "$ref": "#/$defs/AbsenceCandidateEvaluation" },
+                    {
+                      "properties": {
+                        "membership": { "const": "member" },
+                        "eligibility": { "const": "ineligible" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "not-established" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "coverage-not-established",
+                  "coverage-conflicted",
+                  "coverage-unresolved",
+                  "membership-not-established",
+                  "membership-conflicted",
+                  "membership-unresolved",
+                  "candidate-eligibility-conflicted",
+                  "candidate-eligibility-unresolved",
+                  "recorded-witness"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "unsupported" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "reason": { "const": "unsupported-semantics" } }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "AbsenceQueryResult": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.absence-query-result/1"
+        },
+        "target": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Exists"
+        },
+        "scope": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+        },
+        "temporal": {
+          "$ref": "#/$defs/PointQuery"
+        },
+        "conclusion": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "absence-declared",
+                "absence-derived",
+                "absence-declared-and-derived",
+                "witness-recorded",
+                "conflicting",
+                "absence-not-established",
+                "unresolved"
+              ]
+            },
+            "bases": {
+              "type": "array",
+              "items": {
+                "enum": ["declared", "derived"]
+              },
+              "uniqueItems": true,
+              "maxItems": 2
+            }
+          },
+          "required": ["status", "bases"],
+          "additionalProperties": false
+        },
+        "declaration": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": ["recorded", "possible", "unresolved", "not-recorded"]
+            },
+            "definiteAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            },
+            "possibleAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            },
+            "unresolvedAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            }
+          },
+          "required": [
+            "status",
+            "definiteAssertionIds",
+            "possibleAssertionIds",
+            "unresolvedAssertionIds"
+          ],
+          "additionalProperties": false
+        },
+        "witnesses": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": ["recorded", "possible", "unresolved", "none-recorded"]
+            },
+            "existentialAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            },
+            "possibleExistentialAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            },
+            "unresolvedExistentialAssertionIds": {
+              "$ref": "#/$defs/AssertionIdSet"
+            },
+            "candidateIds": {
+              "$ref": "#/$defs/IdSet"
+            },
+            "possibleCandidateIds": {
+              "$ref": "#/$defs/IdSet"
+            },
+            "unresolvedCandidateIds": {
+              "$ref": "#/$defs/IdSet"
+            }
+          },
+          "required": [
+            "status",
+            "existentialAssertionIds",
+            "possibleExistentialAssertionIds",
+            "unresolvedExistentialAssertionIds",
+            "candidateIds",
+            "possibleCandidateIds",
+            "unresolvedCandidateIds"
+          ],
+          "additionalProperties": false
+        },
+        "derivation": {
+          "$ref": "#/$defs/AbsenceEvaluationReceipt"
+        }
+      },
+      "required": [
+        "format",
+        "target",
+        "scope",
+        "temporal",
+        "conclusion",
+        "declaration",
+        "witnesses",
+        "derivation"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "conclusion": {
+                "properties": { "status": { "const": "absence-declared" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "conclusion": {
+                "properties": { "bases": { "const": ["declared"] } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conclusion": {
+                "properties": { "status": { "const": "absence-derived" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "conclusion": {
+                "properties": { "bases": { "const": ["derived"] } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conclusion": {
+                "properties": {
+                  "status": { "const": "absence-declared-and-derived" }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "conclusion": {
+                "properties": { "bases": { "const": ["declared", "derived"] } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conclusion": {
+                "properties": {
+                  "status": {
+                    "enum": ["witness-recorded", "absence-not-established"]
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "conclusion": {
+                "properties": { "bases": { "maxItems": 0 } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conclusion": {
+                "properties": { "status": { "const": "conflicting" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "conclusion": {
+                "properties": { "bases": { "const": ["declared"] } }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
     "CommonResponse": {
       "oneOf": [
         {
@@ -504,6 +918,9 @@
     },
     {
       "$ref": "#/$defs/ClaimQueryResult"
+    },
+    {
+      "$ref": "#/$defs/AbsenceQueryResult"
     },
     {
       "$ref": "#/$defs/CommonResponse"

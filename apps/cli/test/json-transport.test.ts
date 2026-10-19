@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -9,6 +10,9 @@ const bundlePath = fileURLToPath(
   new URL("../../../fixtures/v1/complete-world/", import.meta.url),
 );
 const bytes = (value: unknown): Uint8Array => Buffer.from(JSON.stringify(value), "utf8");
+const absenceRequest = JSON.parse(
+  readFileSync(new URL("../../../fixtures/v2/absence-request.json", import.meta.url), "utf8"),
+) as { readonly payload: Readonly<Record<string, unknown>> };
 
 describe("JSON stdin transport", () => {
   it("executes a valid request and preserves correlation", () => {
@@ -63,11 +67,35 @@ describe("JSON stdin transport", () => {
       outcome: "success",
       data: {
         format: "wmm.claim-query-result/1",
-        definite: [{ polarity: "negative" }, { polarity: "positive" }],
-        possible: [],
-        unresolved: [],
-        excluded: [],
         scopeCoverage: "exhaustive",
+      },
+    });
+  });
+
+  it("distinguishes derived absence from an empty search", () => {
+    const result = runJsonTransport(
+      bytes({
+        ...absenceRequest,
+        payload: { ...absenceRequest.payload, bundlePath },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(validateApiResponse(result.response).valid).toBe(true);
+    expect(result.response).toMatchObject({
+      requestId: "absence-at-1005",
+      operation: "absence.query",
+      outcome: "success",
+      data: {
+        format: "wmm.absence-query-result/1",
+        conclusion: {
+          status: "absence-declared-and-derived",
+          bases: ["declared", "derived"],
+        },
+        witnesses: { status: "none-recorded" },
+        derivation: {
+          status: "established",
+          reason: "all-candidates-ineligible",
+        },
       },
     });
   });

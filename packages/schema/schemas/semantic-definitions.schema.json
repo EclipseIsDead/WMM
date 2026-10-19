@@ -33,6 +33,8 @@
             "exact-tuple-multivalue-v1",
             "text-value-v1",
             "population-coverage-atom-v1",
+            "population-membership-atom-v1",
+            "criterion-satisfaction-atom-v1",
             "retained-unicode-v1",
             "bundled-candidate-membership-v1",
             "bundled-eligibility-v1",

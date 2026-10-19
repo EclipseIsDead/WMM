@@ -9,6 +9,33 @@ import type {
 
 import { admitSemanticProfile } from "./admission.js";
 
+const candidateMembershipDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "candidate_membership",
+  kind: "predicate",
+  operation: "population-membership-atom-v1",
+  version: "1",
+  dependencies: [],
+};
+
+const eligibilitySatisfactionDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "eligibility_satisfaction",
+  kind: "predicate",
+  operation: "criterion-satisfaction-atom-v1",
+  version: "1",
+  dependencies: [],
+};
+
+const populationCoverageDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "population_coverage",
+  kind: "predicate",
+  operation: "population-coverage-atom-v1",
+  version: "1",
+  dependencies: [],
+};
+
 const definitions: readonly SemanticDefinitionV1[] = [
   {
     format: "wmm.semantic-definition/1",
@@ -26,6 +53,9 @@ const definitions: readonly SemanticDefinitionV1[] = [
     version: "1",
     dependencies: [],
   },
+  candidateMembershipDefinition,
+  eligibilitySatisfactionDefinition,
+  populationCoverageDefinition,
   {
     format: "wmm.semantic-definition/1",
     key: "author_stipulation_interpretation",
@@ -48,7 +78,10 @@ const definitions: readonly SemanticDefinitionV1[] = [
     kind: "population",
     operation: "bundled-candidate-membership-v1",
     version: "1",
-    dependencies: [],
+    dependencies: [
+      semanticDefinitionDigest(candidateMembershipDefinition),
+      semanticDefinitionDigest(populationCoverageDefinition),
+    ].sort(),
   },
   {
     format: "wmm.semantic-definition/1",
@@ -64,7 +97,7 @@ const definitions: readonly SemanticDefinitionV1[] = [
     kind: "criterion",
     operation: "bundled-eligibility-v1",
     version: "1",
-    dependencies: [],
+    dependencies: [semanticDefinitionDigest(eligibilitySatisfactionDefinition)],
   },
   {
     format: "wmm.semantic-definition/1",

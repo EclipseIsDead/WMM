@@ -1,0 +1,139 @@
+{
+  "format": "wmm.absence-query-fixtures/1",
+  "requests": [
+    {
+      "name": "declared and derived absence at 1005",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-at-1005",
+        "operation": "absence.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "kind": "exists",
+            "population": {
+              "descriptorId": "population:succession-candidates",
+              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
+            },
+            "criterion": {
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
+              "arguments": {
+                "office": { "kind": "ref", "id": "office:valen-crown" }
+              }
+            }
+          },
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "1005"
+          }
+        }
+      },
+      "expected": {
+        "conclusion": "absence-declared-and-derived",
+        "bases": ["declared", "derived"],
+        "declaration": "recorded",
+        "witnesses": "none-recorded",
+        "derivation": "established",
+        "derivationReason": "all-candidates-ineligible",
+        "inputSelectionDigest": "b3caeb3040c06756c7d4a9c43092f57d18d4dc8aab9c70d90b98048768d83e8a",
+        "evaluationDigest": "159d8ebc8f567b38edd450d701ff1793e5c04f25487f19d9866b79cbb8cd9b5a"
+      }
+    },
+    {
+      "name": "recorded witness at 1035",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-at-1035",
+        "operation": "absence.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "kind": "exists",
+            "population": {
+              "descriptorId": "population:succession-candidates",
+              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
+            },
+            "criterion": {
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
+              "arguments": {
+                "office": { "kind": "ref", "id": "office:valen-crown" }
+              }
+            }
+          },
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "1035"
+          }
+        }
+      },
+      "expected": {
+        "conclusion": "witness-recorded",
+        "bases": [],
+        "declaration": "not-recorded",
+        "witnesses": "recorded",
+        "derivation": "not-established",
+        "derivationReason": "recorded-witness"
+      }
+    },
+    {
+      "name": "empty search does not establish absence at 2000",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-at-2000",
+        "operation": "absence.query",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "kind": "exists",
+            "population": {
+              "descriptorId": "population:succession-candidates",
+              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
+            },
+            "criterion": {
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
+              "arguments": {
+                "office": { "kind": "ref", "id": "office:valen-crown" }
+              }
+            }
+          },
+          "scope": {
+            "account": { "kind": "ref", "id": "account:canonical" },
+            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
+            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "at",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "position": "2000"
+          }
+        }
+      },
+      "expected": {
+        "conclusion": "absence-not-established",
+        "bases": [],
+        "declaration": "not-recorded",
+        "witnesses": "none-recorded",
+        "derivation": "not-established",
+        "derivationReason": "coverage-not-established"
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -30,34 +30,20 @@ function readJson<T>(url: URL): T {
 const world = readJson<WorldCatalogV1>(
   new URL("../../../fixtures/v1/complete-world/payload/world.json", import.meta.url),
 );
-const assertions = [
-  readJson<AssertionRecordV1>(
-    new URL(
-      "../../../fixtures/v1/complete-world/payload/records/assertions/5236037c755f09ad545a1322425877b6b137fc8b00dd9dc14986ea928f278139.json",
-      import.meta.url,
-    ),
-  ),
-  readJson<AssertionRecordV1>(
-    new URL(
-      "../../../fixtures/v1/complete-world/payload/records/assertions/b7192460c840990490bc1a3e15a6e4d9fd0c7c4f291b183c363922da6efb545d.json",
-      import.meta.url,
-    ),
-  ),
-];
-const supports = [
-  readJson<SupportRecordV1>(
-    new URL(
-      "../../../fixtures/v1/complete-world/payload/records/supports/3589682fe7de5f60a56ad50c5592496c0f7a3fa80cec43fc8251833ce8e7a460.json",
-      import.meta.url,
-    ),
-  ),
-  readJson<SupportRecordV1>(
-    new URL(
-      "../../../fixtures/v1/complete-world/payload/records/supports/a3ce9806b364c82b5481f82d1c1c21574a08db9066a7306e429481f73cb1cc32.json",
-      import.meta.url,
-    ),
-  ),
-];
+const assertionDirectory = new URL(
+  "../../../fixtures/v1/complete-world/payload/records/assertions/",
+  import.meta.url,
+);
+const supportDirectory = new URL(
+  "../../../fixtures/v1/complete-world/payload/records/supports/",
+  import.meta.url,
+);
+const assertions = readdirSync(assertionDirectory)
+  .sort()
+  .map((name) => readJson<AssertionRecordV1>(new URL(name, assertionDirectory)));
+const supports = readdirSync(supportDirectory)
+  .sort()
+  .map((name) => readJson<SupportRecordV1>(new URL(name, supportDirectory)));
 const fixtures = readJson<QueryFixtures>(
   new URL("../../../fixtures/v2/claim-query-cases.json", import.meta.url),
 );
@@ -99,7 +85,7 @@ describe("active claim querying", () => {
       fixture.request.payload.scope,
       fixture.request.payload.temporal,
     );
-    expect(result.definite).toHaveLength(2);
+    expect(result.definite).toHaveLength(7);
     for (const item of result.definite) {
       expect(item.evidence.status).toBe("supported");
       expect(item.evidence.supportingIds).toHaveLength(1);

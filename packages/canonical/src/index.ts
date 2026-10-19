@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 
 import type {
+  AbsenceEvaluationBodyV1,
+  AbsenceInputSelectionV1,
   ClaimBodyV1,
   JsonValue,
   RevisionEnvelopeV1,
@@ -219,6 +221,22 @@ export function semanticProfileDigest(profile: SemanticProfileV1): string {
 
 export function supportDigest(support: SupportBodyV1): string {
   return framedJsonDigest("wmm.support/v1", support as unknown as JsonValue);
+}
+
+export function absenceInputSelectionDigest(
+  selection: AbsenceInputSelectionV1,
+): string {
+  return framedJsonDigest(
+    "wmm.absence-input-selection/v1",
+    selection as unknown as JsonValue,
+  );
+}
+
+export function absenceEvaluationDigest(evaluation: AbsenceEvaluationBodyV1): string {
+  return framedJsonDigest(
+    "wmm.absence-evaluation/v1",
+    evaluation as unknown as JsonValue,
+  );
 }
 
 export function supportId(support: SupportBodyV1): string {

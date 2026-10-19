@@ -83,14 +83,14 @@ describe("production V1 world bundle", () => {
     expect(validateWorldBundle(bundle)).toEqual({
       status: "valid",
       worldId: "world:valen_v1",
-      snapshotDigest: "ca759f1f66a555d2735e6f81b4cd44eafebf413ee2c595d5f4cc1e0b4b02b21a",
-      files: 27,
+      snapshotDigest: "e46d4269225984e5baf982024dff8e33497bda96d7553edb7b61bb2b09866747",
+      files: 42,
       descriptors: 7,
       sources: 1,
-      assertions: 2,
-      activeAssertions: 2,
-      supports: 2,
-      activeSupports: 2,
+      assertions: 8,
+      activeAssertions: 8,
+      supports: 8,
+      activeSupports: 8,
     });
   });
 

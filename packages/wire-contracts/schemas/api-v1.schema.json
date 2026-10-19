@@ -159,6 +159,46 @@
       "required": ["format", "apiVersion", "requestId", "operation", "payload"],
       "additionalProperties": false
     },
+    "AbsenceQueryRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.request/1"
+        },
+        "apiVersion": {
+          "const": "wmm/1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "const": "absence.query"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": {
+              "$ref": "#/$defs/BundlePath"
+            },
+            "target": {
+              "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Exists"
+            },
+            "scope": {
+              "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+            },
+            "temporal": {
+              "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/PointQuery"
+            }
+          },
+          "required": ["bundlePath", "target", "scope", "temporal"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
     "Request": {
       "oneOf": [
         {
@@ -172,6 +212,9 @@
         },
         {
           "$ref": "#/$defs/ClaimsQueryRequest"
+        },
+        {
+          "$ref": "#/$defs/AbsenceQueryRequest"
         }
       ]
     },
@@ -202,7 +245,13 @@
           "minLength": 1
         },
         "operation": {
-          "enum": ["world.validate", "record.inspect", "world.export", "claims.query"]
+          "enum": [
+            "world.validate",
+            "record.inspect",
+            "world.export",
+            "claims.query",
+            "absence.query"
+          ]
         },
         "outcome": {
           "const": "success"

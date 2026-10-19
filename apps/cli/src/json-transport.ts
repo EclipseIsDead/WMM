@@ -27,6 +27,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "record.inspect",
     "world.export",
     "claims.query",
+    "absence.query",
   ] satisfies readonly ApiOperationV1[],
 );
 

@@ -41,6 +41,8 @@ const allowedOperations: Readonly<
     "exact-tuple-multivalue-v1",
     "text-value-v1",
     "population-coverage-atom-v1",
+    "population-membership-atom-v1",
+    "criterion-satisfaction-atom-v1",
   ]),
   literal: new Set(["retained-unicode-v1"]),
   population: new Set(["bundled-candidate-membership-v1"]),

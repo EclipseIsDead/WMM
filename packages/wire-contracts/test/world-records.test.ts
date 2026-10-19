@@ -23,7 +23,7 @@ describe("production V1 world record schema", () => {
         (path) => JSON.parse(readFileSync(`${fixtureRoot}/payload/${path}`, "utf8")) as unknown,
       ),
     ];
-    expect(records).toHaveLength(14);
+    expect(records).toHaveLength(26);
     for (const record of records) {
       const result = validateWorldRecord(record);
       expect(result.valid, JSON.stringify(result.errors)).toBe(true);
