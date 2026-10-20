@@ -1,0 +1,294 @@
+{
+  "format": "wmm.interval-query-fixtures/1",
+  "requests": [
+    {
+      "name": "absence established throughout [1000, 1030)",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-throughout-1000-1030",
+        "operation": "absence.proveThroughout",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
+            "kind": "exists",
+            "population": {
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
+            }
+          },
+          "scope": {
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "throughout",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "start": "1000",
+            "endExclusive": "1030"
+          }
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "execution": "completed",
+        "exitCode": 0,
+        "status": "established",
+        "reason": "all-cells-ineligible",
+        "breakpoints": [
+          "1000",
+          "1030"
+        ],
+        "cellCount": 1,
+        "cells": [
+          {
+            "start": "1000",
+            "endExclusive": "1030",
+            "representativePosition": "1000",
+            "derivation": "established",
+            "derivationReason": "all-candidates-ineligible",
+            "witnesses": "none-recorded"
+          }
+        ]
+      }
+    },
+    {
+      "name": "recorded witness across breakpoint 1030 in [1029, 1031)",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-throughout-1029-1031",
+        "operation": "absence.proveThroughout",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
+            "kind": "exists",
+            "population": {
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
+            }
+          },
+          "scope": {
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "throughout",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "start": "1029",
+            "endExclusive": "1031"
+          }
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "execution": "completed",
+        "exitCode": 0,
+        "status": "not-established",
+        "reason": "recorded-witness",
+        "breakpoints": [
+          "1029",
+          "1030",
+          "1031"
+        ],
+        "cellCount": 2,
+        "cells": [
+          {
+            "start": "1029",
+            "endExclusive": "1030",
+            "representativePosition": "1029",
+            "derivation": "established",
+            "derivationReason": "all-candidates-ineligible",
+            "witnesses": "none-recorded"
+          },
+          {
+            "start": "1030",
+            "endExclusive": "1031",
+            "representativePosition": "1030",
+            "derivation": "not-established",
+            "derivationReason": "recorded-witness",
+            "witnesses": "recorded"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no coverage in the first cell of [990, 1005)",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-throughout-990-1005",
+        "operation": "absence.proveThroughout",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
+            "kind": "exists",
+            "population": {
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
+            }
+          },
+          "scope": {
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "throughout",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "start": "990",
+            "endExclusive": "1005"
+          }
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "execution": "completed",
+        "exitCode": 0,
+        "status": "not-established",
+        "reason": "cell-not-established",
+        "breakpoints": [
+          "990",
+          "1000",
+          "1005"
+        ],
+        "cellCount": 2,
+        "cells": [
+          {
+            "start": "990",
+            "endExclusive": "1000",
+            "representativePosition": "990",
+            "derivation": "not-established",
+            "derivationReason": "coverage-not-established",
+            "witnesses": "none-recorded"
+          },
+          {
+            "start": "1000",
+            "endExclusive": "1005",
+            "representativePosition": "1000",
+            "derivation": "established",
+            "derivationReason": "all-candidates-ineligible",
+            "witnesses": "none-recorded"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cell budget exhausted for [1029, 1031)",
+      "request": {
+        "format": "wmm.request/1",
+        "apiVersion": "wmm/1",
+        "requestId": "absence-throughout-1029-1031-budget",
+        "operation": "absence.proveThroughout",
+        "payload": {
+          "bundlePath": "fixtures/v1/complete-world",
+          "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
+            "kind": "exists",
+            "population": {
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
+            }
+          },
+          "scope": {
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
+          },
+          "temporal": {
+            "format": "wmm.temporal-query/1",
+            "mode": "throughout",
+            "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+            "start": "1029",
+            "endExclusive": "1031"
+          },
+          "limits": {
+            "maxCells": 1
+          }
+        }
+      },
+      "expected": {
+        "outcome": "error",
+        "execution": "incomplete",
+        "exitCode": 4,
+        "errorCode": "BUDGET_EXCEEDED"
+      }
+    }
+  ]
+}

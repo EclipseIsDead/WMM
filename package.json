@@ -20,7 +20,7 @@
     "generate:v2-fixtures": "pnpm build && node tools/generate-v2-fixtures.mjs",
     "generate:fixtures": "pnpm build && node tools/generate-v1-fixture.mjs && node tools/generate-v2-fixtures.mjs",
     "verify:v1": "pnpm build && node apps/cli/dist/main.js json < fixtures/v1/validate-request.json",
-    "verify:v2": "pnpm build && node apps/cli/dist/main.js json < fixtures/v2/query-request.json && node apps/cli/dist/main.js json < fixtures/v2/absence-request.json",
+    "verify:v2": "pnpm build && node apps/cli/dist/main.js json < fixtures/v2/query-request.json && node apps/cli/dist/main.js json < fixtures/v2/absence-request.json && node apps/cli/dist/main.js json < fixtures/v2/interval-request.json",
     "check": "pnpm verify:kit && pnpm typecheck:tests && pnpm test"
   },
   "devDependencies": {

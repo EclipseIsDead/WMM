@@ -199,6 +199,36 @@
       "required": ["format", "apiVersion", "requestId", "operation", "payload"],
       "additionalProperties": false
     },
+    "AbsenceProveThroughoutRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "operation": { "const": "absence.proveThroughout" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundlePath": { "$ref": "#/$defs/BundlePath" },
+            "target": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Exists" },
+            "scope": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope" },
+            "temporal": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/ThroughoutQuery" },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "maxCells": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/IntervalAbsenceLimits/properties/maxCells" },
+                "maxWorkUnits": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/IntervalAbsenceLimits/properties/maxWorkUnits" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": ["bundlePath", "target", "scope", "temporal"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
     "Request": {
       "oneOf": [
         {
@@ -215,6 +245,9 @@
         },
         {
           "$ref": "#/$defs/AbsenceQueryRequest"
+        },
+        {
+          "$ref": "#/$defs/AbsenceProveThroughoutRequest"
         }
       ]
     },
@@ -502,7 +535,8 @@
             "record.inspect",
             "world.export",
             "claims.query",
-            "absence.query"
+            "absence.query",
+            "absence.proveThroughout"
           ]
         },
         "outcome": {
@@ -600,6 +634,14 @@
               }
             }
           }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "absence.proveThroughout" } } },
+          "then": {
+            "properties": {
+              "data": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/IntervalAbsenceResult" }
+            }
+          }
         }
       ]
     },
@@ -634,6 +676,7 @@
                 "INVALID_REQUEST",
                 "INVALID_WORLD",
                 "UNKNOWN_RECORD",
+                "BUDGET_EXCEEDED",
                 "STORAGE_FAILURE",
                 "INTERNAL_ERROR"
               ]
@@ -661,6 +704,17 @@
         "execution",
         "error",
         "diagnostics"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "error": { "properties": { "code": { "const": "BUDGET_EXCEEDED" } }, "required": ["code"] }
+            },
+            "required": ["error"]
+          },
+          "then": { "properties": { "execution": { "const": "incomplete" } } }
+        }
       ],
       "additionalProperties": false
     },

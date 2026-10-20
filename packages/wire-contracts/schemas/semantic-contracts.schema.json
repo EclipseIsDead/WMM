@@ -205,6 +205,12 @@
       "required": ["format", "mode", "axisDefinitionDigest", "start", "endExclusive"],
       "additionalProperties": false
     },
+    "ThroughoutQuery": {
+      "allOf": [
+        { "$ref": "#/$defs/IntervalQuery" },
+        { "properties": { "mode": { "const": "throughout" } } }
+      ]
+    },
     "TemporalQuery": {
       "oneOf": [
         {
@@ -854,6 +860,106 @@
       ],
       "additionalProperties": false
     },
+    "IntervalAbsenceLimits": {
+      "type": "object",
+      "properties": {
+        "maxCells": { "type": "integer", "minimum": 1, "maximum": 1024, "default": 256 },
+        "maxWorkUnits": { "type": "integer", "minimum": 1, "maximum": 50000000, "default": 2000000 }
+      },
+      "required": ["maxCells", "maxWorkUnits"],
+      "additionalProperties": false
+    },
+    "IntervalConstancyDeclaration": {
+      "type": "object",
+      "properties": {
+        "assertionId": { "$ref": "#/$defs/AssertionId" },
+        "provider": { "const": "recorded-applicability-v1" },
+        "definitionDigests": { "type": "array", "items": { "$ref": "#/$defs/Digest" } },
+        "changePositions": { "type": "array", "items": { "$ref": "#/$defs/IntegerPosition" } }
+      },
+      "required": ["assertionId", "provider", "definitionDigests", "changePositions"],
+      "additionalProperties": false
+    },
+    "IntervalPartitionIssue": {
+      "type": "object",
+      "properties": {
+        "assertionId": { "oneOf": [{ "$ref": "#/$defs/AssertionId" }, { "type": "null" }] },
+        "reason": {
+          "enum": [
+            "uncertain-change-position",
+            "unmapped-axis",
+            "unresolved-scope",
+            "unsupported-semantics",
+            "unsupported-primitive"
+          ]
+        }
+      },
+      "required": ["assertionId", "reason"],
+      "additionalProperties": false
+    },
+    "IntervalAbsenceCell": {
+      "type": "object",
+      "properties": {
+        "start": { "$ref": "#/$defs/IntegerPosition" },
+        "endExclusive": { "$ref": "#/$defs/IntegerPosition" },
+        "representativePosition": { "$ref": "#/$defs/IntegerPosition" },
+        "evaluation": { "$ref": "#/$defs/AbsenceQueryResult" }
+      },
+      "required": ["start", "endExclusive", "representativePosition", "evaluation"],
+      "additionalProperties": false
+    },
+    "IntervalAbsenceResult": {
+      "$comment": "Shape only: numeric ordering, partition consistency, point-result replay, and digest integrity are validated by core.",
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.interval-absence-result/1" },
+        "algorithm": { "const": "bundled-absence-throughout-v1" },
+        "worldId": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId" },
+        "snapshotDigest": { "$ref": "#/$defs/Digest" },
+        "target": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Exists" },
+        "scope": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope" },
+        "temporal": { "$ref": "#/$defs/ThroughoutQuery" },
+        "limits": { "$ref": "#/$defs/IntervalAbsenceLimits" },
+        "execution": { "const": "completed" },
+        "status": { "enum": ["established", "not-established"] },
+        "reason": {
+          "enum": ["all-cells-ineligible", "cell-not-established", "recorded-witness", "partition-unresolved"]
+        },
+        "breakpoints": { "type": "array", "items": { "$ref": "#/$defs/IntegerPosition" } },
+        "constancyDeclarations": { "type": "array", "items": { "$ref": "#/$defs/IntervalConstancyDeclaration" } },
+        "partitionIssues": { "type": "array", "items": { "$ref": "#/$defs/IntervalPartitionIssue" } },
+        "cells": { "type": "array", "items": { "$ref": "#/$defs/IntervalAbsenceCell" } },
+        "evaluationDigest": { "$ref": "#/$defs/Digest" }
+      },
+      "required": [
+        "format", "algorithm", "worldId", "snapshotDigest", "target", "scope", "temporal", "limits",
+        "execution", "status", "reason", "breakpoints", "constancyDeclarations", "partitionIssues", "cells", "evaluationDigest"
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "established" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "reason": { "const": "all-cells-ineligible" },
+              "breakpoints": { "minItems": 2 },
+              "cells": { "minItems": 1 },
+              "partitionIssues": { "maxItems": 0 }
+            }
+          },
+          "else": {
+            "properties": { "reason": { "enum": ["cell-not-established", "recorded-witness", "partition-unresolved"] } }
+          }
+        },
+        {
+          "if": { "properties": { "reason": { "const": "partition-unresolved" } }, "required": ["reason"] },
+          "then": {
+            "properties": { "partitionIssues": { "minItems": 1 }, "cells": { "maxItems": 0 } }
+          },
+          "else": { "properties": { "cells": { "minItems": 1 }, "partitionIssues": { "maxItems": 0 } } }
+        }
+      ],
+      "additionalProperties": false
+    },
     "CommonResponse": {
       "oneOf": [
         {
@@ -1027,6 +1133,9 @@
     { "$ref": "#/$defs/AbsenceEvaluationReceipt" },
     {
       "$ref": "#/$defs/AbsenceQueryResult"
+    },
+    {
+      "$ref": "#/$defs/IntervalAbsenceResult"
     },
     {
       "$ref": "#/$defs/CommonResponse"

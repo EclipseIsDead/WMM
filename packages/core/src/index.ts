@@ -2,6 +2,7 @@ export * from "./absence.js";
 export * from "./admission.js";
 export * from "./bundled-v1.js";
 export * from "./evidence.js";
+export * from "./interval-absence.js";
 export * from "./population.js";
 export * from "./query.js";
 export * from "./scope.js";

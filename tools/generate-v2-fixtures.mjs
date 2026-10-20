@@ -289,7 +289,109 @@ const absenceFixtures = {
     },
   ],
 };
-for (const fixture of [...claimFixtures.requests, ...absenceFixtures.requests]) {
+const intervalRequest = (start, endExclusive, limits) => request(
+  "absence.proveThroughout",
+  `absence-throughout-${start}-${endExclusive}${limits === undefined ? "" : "-budget"}`,
+  {
+    target,
+    scope,
+    temporal: {
+      format: "wmm.temporal-query/1",
+      mode: "throughout",
+      axisDefinitionDigest,
+      start,
+      endExclusive,
+    },
+    ...(limits === undefined ? {} : { limits }),
+  },
+);
+// Expected cells follow the asserted fixture boundaries above, without running an evaluator.
+const intervalFixtures = {
+  format: "wmm.interval-query-fixtures/1",
+  requests: [
+    {
+      name: "absence established throughout [1000, 1030)",
+      request: intervalRequest("1000", "1030"),
+      expected: {
+        outcome: "success",
+        execution: "completed",
+        exitCode: 0,
+        status: "established",
+        reason: "all-cells-ineligible",
+        breakpoints: ["1000", "1030"],
+        cellCount: 1,
+        cells: [{
+          start: "1000", endExclusive: "1030", representativePosition: "1000",
+          derivation: "established", derivationReason: "all-candidates-ineligible",
+          witnesses: "none-recorded",
+        }],
+      },
+    },
+    {
+      name: "recorded witness across breakpoint 1030 in [1029, 1031)",
+      request: intervalRequest("1029", "1031"),
+      expected: {
+        outcome: "success",
+        execution: "completed",
+        exitCode: 0,
+        status: "not-established",
+        reason: "recorded-witness",
+        breakpoints: ["1029", "1030", "1031"],
+        cellCount: 2,
+        cells: [
+          {
+            start: "1029", endExclusive: "1030", representativePosition: "1029",
+            derivation: "established", derivationReason: "all-candidates-ineligible",
+            witnesses: "none-recorded",
+          },
+          {
+            start: "1030", endExclusive: "1031", representativePosition: "1030",
+            derivation: "not-established", derivationReason: "recorded-witness",
+            witnesses: "recorded",
+          },
+        ],
+      },
+    },
+    {
+      name: "no coverage in the first cell of [990, 1005)",
+      request: intervalRequest("990", "1005"),
+      expected: {
+        outcome: "success",
+        execution: "completed",
+        exitCode: 0,
+        status: "not-established",
+        reason: "cell-not-established",
+        breakpoints: ["990", "1000", "1005"],
+        cellCount: 2,
+        cells: [
+          {
+            start: "990", endExclusive: "1000", representativePosition: "990",
+            derivation: "not-established", derivationReason: "coverage-not-established",
+            witnesses: "none-recorded",
+          },
+          {
+            start: "1000", endExclusive: "1005", representativePosition: "1000",
+            derivation: "established", derivationReason: "all-candidates-ineligible",
+            witnesses: "none-recorded",
+          },
+        ],
+      },
+    },
+    {
+      name: "cell budget exhausted for [1029, 1031)",
+      request: intervalRequest("1029", "1031", { maxCells: 1 }),
+      expected: {
+        outcome: "error",
+        execution: "incomplete",
+        exitCode: 4,
+        errorCode: "BUDGET_EXCEEDED",
+      },
+    },
+  ],
+};
+for (const fixture of [
+  ...claimFixtures.requests, ...absenceFixtures.requests, ...intervalFixtures.requests,
+]) {
   assert.deepEqual(validateApiRequest(fixture.request), { valid: true, errors: [] });
 }
 const outputs = {
@@ -297,6 +399,8 @@ const outputs = {
   "absence-query-cases.json": absenceFixtures,
   "query-request.json": claimFixtures.requests[0].request,
   "absence-request.json": absenceFixtures.requests[0].request,
+  "interval-query-cases.json": intervalFixtures,
+  "interval-request.json": intervalFixtures.requests[0].request,
 };
 for (const [name, value] of Object.entries(outputs)) {
   writeFileSync(new URL(`../fixtures/v2/${name}`, import.meta.url), `${JSON.stringify(value, null, 2)}\n`);

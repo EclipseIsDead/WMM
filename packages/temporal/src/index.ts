@@ -352,6 +352,8 @@ export function evaluateApplicability(
   return evaluateInterval(applicability, query, parsedQuery);
 }
 
+export { exactApplicabilityChanges } from "./changes.js";
+
 export function mayHoldAt(
   comparison: TemporalComparisonV1,
 ): "yes" | "no" | "unresolved" {

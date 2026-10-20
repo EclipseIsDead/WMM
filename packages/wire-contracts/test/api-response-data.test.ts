@@ -8,6 +8,7 @@ import type {
   ApiRequestV1,
   ApiResultByOperationV1,
   ClaimQueryResultV1,
+  IntervalAbsenceResultV1,
   SemanticDefinitionV1,
   RosterV1,
   SemanticProfileV1,
@@ -122,6 +123,35 @@ const absence: AbsenceQueryResultV1 = {
     reason: "coverage-not-established",
   },
 };
+const interval: IntervalAbsenceResultV1 = {
+  format: "wmm.interval-absence-result/1",
+  algorithm: "bundled-absence-throughout-v1",
+  worldId: world.worldId,
+  snapshotDigest: snapshot.snapshotDigest,
+  target,
+  scope,
+  temporal: {
+    format: "wmm.temporal-query/1",
+    mode: "throughout",
+    axisDefinitionDigest: temporal.axisDefinitionDigest,
+    start: temporal.position,
+    endExclusive: "1006",
+  },
+  limits: { maxCells: 256, maxWorkUnits: 2_000_000 },
+  execution: "completed",
+  status: "not-established",
+  reason: "cell-not-established",
+  breakpoints: [temporal.position, "1006"],
+  constancyDeclarations: [],
+  partitionIssues: [],
+  cells: [{
+    start: temporal.position,
+    endExclusive: "1006",
+    representativePosition: temporal.position,
+    evaluation: absence,
+  }],
+  evaluationDigest: "c".repeat(64),
+};
 const results = {
   "world.validate": {
     status: "valid",
@@ -139,6 +169,7 @@ const results = {
   "world.export": exported,
   "claims.query": claims,
   "absence.query": absence,
+  "absence.proveThroughout": interval,
 } satisfies ApiResultByOperationV1;
 const operations = Object.keys(results) as ApiOperationV1[];
 

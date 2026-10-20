@@ -24,6 +24,23 @@ const request = Buffer.from(JSON.stringify({
 }));
 
 describe("JSON response failure boundary", () => {
+  it("maps budget errors to incomplete execution with exit 4 and no data", () => {
+    const result = jsonTransportError(
+      "BUDGET_EXCEEDED", "Interval cell budget exceeded", "budget-1", "absence.proveThroughout",
+    );
+    expect(result.exitCode).toBe(4);
+    expect(result.response).toMatchObject({
+      requestId: "budget-1",
+      operation: "absence.proveThroughout",
+      outcome: "error",
+      execution: "incomplete",
+      error: { code: "BUDGET_EXCEEDED" },
+    });
+    expect(result.response).not.toHaveProperty("data");
+    expect(validateApiResponse(result.response)).toEqual({ valid: true, errors: [] });
+    expect(serializeJsonTransportResult(result).exitCode).toBe(4);
+  });
+
   it("maps an unexpected application exception to a correlated internal error", () => {
     vi.mocked(executeApiRequest).mockImplementationOnce(() => {
       throw new Error("Untrusted failure with a lone surrogate: \ud800");

@@ -1,0 +1,46 @@
+{
+  "format": "wmm.request/1",
+  "apiVersion": "wmm/1",
+  "requestId": "absence-throughout-1000-1030",
+  "operation": "absence.proveThroughout",
+  "payload": {
+    "bundlePath": "fixtures/v1/complete-world",
+    "target": {
+      "criterion": {
+        "arguments": {
+          "office": {
+            "id": "office:valen-crown",
+            "kind": "ref"
+          }
+        },
+        "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+      },
+      "kind": "exists",
+      "population": {
+        "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+        "descriptorId": "population:succession-candidates"
+      }
+    },
+    "scope": {
+      "account": {
+        "id": "account:canonical",
+        "kind": "ref"
+      },
+      "jurisdiction": {
+        "id": "polity:valen",
+        "kind": "ref"
+      },
+      "recognitionFrame": {
+        "id": "frame:royal-court",
+        "kind": "ref"
+      }
+    },
+    "temporal": {
+      "format": "wmm.temporal-query/1",
+      "mode": "throughout",
+      "axisDefinitionDigest": "8c82e615f363d8c4b497b49d497f8cf4f93727f60034ceb471d2bad7382f0667",
+      "start": "1000",
+      "endExclusive": "1030"
+    }
+  }
+}

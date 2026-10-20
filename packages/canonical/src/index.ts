@@ -4,6 +4,7 @@ import { types } from "node:util";
 import type {
   AbsenceEvaluationBodyV1,
   AbsenceInputSelectionV1,
+  IntervalAbsenceEvaluationBodyV1,
   ClaimBodyV1,
   JsonValue,
   CoverageInputSelectionV1,
@@ -264,6 +265,13 @@ export function absenceInputSelectionDigest(
 export function absenceEvaluationDigest(evaluation: AbsenceEvaluationBodyV1): string {
   return framedJsonDigest(
     "wmm.absence-evaluation/v1",
+    evaluation as unknown as JsonValue,
+  );
+}
+
+export function intervalAbsenceEvaluationDigest(evaluation: IntervalAbsenceEvaluationBodyV1): string {
+  return framedJsonDigest(
+    "wmm.interval-absence-evaluation/v1",
     evaluation as unknown as JsonValue,
   );
 }

@@ -1,5 +1,7 @@
 import {
   ClaimQueryInputError,
+  IntervalAbsenceBudgetError,
+  proveAbsenceThroughout,
   queryAbsence,
   queryActiveClaims,
 } from "@wmm/core";
@@ -29,6 +31,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "world.export",
     "claims.query",
     "absence.query",
+    "absence.proveThroughout",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -179,8 +182,30 @@ export function executeApiRequest(input: unknown): ApiResponseV1 {
             request.payload.temporal,
           ),
         });
+      case "absence.proveThroughout":
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: proveAbsenceThroughout(
+            {
+              worldId: world.world.worldId,
+              snapshotDigest: world.snapshot.snapshotDigest,
+              activeAssertionIds: world.world.activeAssertionIds,
+              assertions: world.assertions,
+              definitionsByDigest: world.definitionsByDigest,
+              descriptors: world.descriptors,
+              rosters: world.rosters,
+            },
+            request.payload.target,
+            request.payload.scope,
+            request.payload.temporal,
+            request.payload.limits,
+          ),
+        });
     }
   } catch (error) {
+    if (error instanceof IntervalAbsenceBudgetError) {
+      return apiErrorResponse("BUDGET_EXCEEDED", error.message, requestId, operation, "incomplete");
+    }
     if (error instanceof WorldBundleError) {
       const code: ApiErrorCodeV1 = error.code === "FILESYSTEM_ERROR"
         ? "STORAGE_FAILURE"
@@ -216,6 +241,7 @@ export function operationExitCode(operation: ApiOperationV1, response: ApiRespon
     case "INVALID_WORLD":
     case "UNKNOWN_RECORD":
       return 3;
+    case "BUDGET_EXCEEDED":
     case "STORAGE_FAILURE":
     case "INTERNAL_ERROR":
       return 4;

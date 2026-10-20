@@ -75,7 +75,8 @@ function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort(asciiCompare);
 }
 
-function activeAssertions(snapshot: ValidatedAbsenceQuerySnapshotV1): AssertionRecordV1[] {
+/** @internal Shared by point evaluation and certified interval partitioning. */
+export function activeAssertions(snapshot: ValidatedAbsenceQuerySnapshotV1): AssertionRecordV1[] {
   const records = new Map<string, AssertionRecordV1>();
   for (const assertion of snapshot.assertions) {
     if (records.has(assertion.id)) throw new TypeError(`Duplicate assertion ID: ${assertion.id}`);
@@ -120,7 +121,8 @@ function dependencyForOperation(
   return matches.length === 1 ? matches[0] : undefined;
 }
 
-function resolveBindings(
+/** @internal Resolve the same implementation-owned primitives for both evaluators. */
+export function resolveBindings(
   target: ExistsV1,
   definitions: Readonly<Record<string, SemanticDefinitionV1>>,
 ): AbsenceSemanticBindings | undefined {

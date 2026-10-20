@@ -192,6 +192,10 @@ export interface IntervalTemporalQueryV1 {
   readonly endExclusive: string;
 }
 
+export type ThroughoutTemporalQueryV1 = IntervalTemporalQueryV1 & {
+  readonly mode: "throughout";
+};
+
 export type TemporalQueryV1 = PointTemporalQueryV1 | IntervalTemporalQueryV1;
 
 export type TemporalComparisonV1 =
@@ -371,6 +375,65 @@ export interface AbsenceQueryResultV1 {
   readonly derivation: AbsenceEvaluationReceiptV1;
 }
 
+export interface IntervalAbsenceLimitsV1 {
+  readonly maxCells: number;
+  readonly maxWorkUnits: number;
+}
+
+export interface IntervalConstancyDeclarationV1 {
+  readonly assertionId: AssertionId;
+  readonly provider: "recorded-applicability-v1";
+  readonly definitionDigests: readonly DigestHex[];
+  readonly changePositions: readonly string[];
+}
+
+export interface IntervalPartitionIssueV1 {
+  readonly assertionId: AssertionId | null;
+  readonly reason:
+    | "uncertain-change-position"
+    | "unmapped-axis"
+    | "unresolved-scope"
+    | "unsupported-semantics"
+    | "unsupported-primitive";
+}
+
+export interface IntervalAbsenceCellV1 {
+  readonly start: string;
+  readonly endExclusive: string;
+  readonly representativePosition: string;
+  readonly evaluation: AbsenceQueryResultV1;
+}
+
+interface IntervalAbsenceEvaluationBaseV1 {
+  readonly format: "wmm.interval-absence-result/1";
+  readonly algorithm: "bundled-absence-throughout-v1";
+  readonly worldId: WorldId;
+  readonly snapshotDigest: DigestHex;
+  readonly target: ExistsV1;
+  readonly scope: ScopeV1;
+  readonly temporal: ThroughoutTemporalQueryV1;
+  readonly limits: IntervalAbsenceLimitsV1;
+  readonly execution: "completed";
+  readonly breakpoints: readonly string[];
+  readonly constancyDeclarations: readonly IntervalConstancyDeclarationV1[];
+  readonly partitionIssues: readonly IntervalPartitionIssueV1[];
+  readonly cells: readonly IntervalAbsenceCellV1[];
+}
+
+export type IntervalAbsenceEvaluationBodyV1 =
+  | (IntervalAbsenceEvaluationBaseV1 & {
+      readonly status: "established";
+      readonly reason: "all-cells-ineligible";
+    })
+  | (IntervalAbsenceEvaluationBaseV1 & {
+      readonly status: "not-established";
+      readonly reason: "cell-not-established" | "recorded-witness" | "partition-unresolved";
+    });
+
+export type IntervalAbsenceResultV1 = IntervalAbsenceEvaluationBodyV1 & {
+  readonly evaluationDigest: DigestHex;
+};
+
 export interface DiagnosticV1 {
   readonly code: string;
   readonly severity: "info" | "warning" | "error" | "blocker";
@@ -534,7 +597,8 @@ export type ApiOperationV1 =
   | "record.inspect"
   | "world.export"
   | "claims.query"
-  | "absence.query";
+  | "absence.query"
+  | "absence.proveThroughout";
 
 interface ApiRequestBaseV1 {
   readonly format: "wmm.request/1";
@@ -574,6 +638,16 @@ export type ApiRequestV1 =
         readonly scope: ScopeV1;
         readonly temporal: PointTemporalQueryV1;
       };
+    })
+  | (ApiRequestBaseV1 & {
+      readonly operation: "absence.proveThroughout";
+      readonly payload: {
+        readonly bundlePath: string;
+        readonly target: ExistsV1;
+        readonly scope: ScopeV1;
+        readonly temporal: ThroughoutTemporalQueryV1;
+        readonly limits?: Partial<IntervalAbsenceLimitsV1>;
+      };
     });
 
 export type ApiErrorCodeV1 =
@@ -582,6 +656,7 @@ export type ApiErrorCodeV1 =
   | "INVALID_REQUEST"
   | "INVALID_WORLD"
   | "UNKNOWN_RECORD"
+  | "BUDGET_EXCEEDED"
   | "STORAGE_FAILURE"
   | "INTERNAL_ERROR";
 
@@ -637,6 +712,7 @@ export interface ApiResultByOperationV1 {
   readonly "world.export": WorldExportV1;
   readonly "claims.query": ClaimQueryResultV1;
   readonly "absence.query": AbsenceQueryResultV1;
+  readonly "absence.proveThroughout": IntervalAbsenceResultV1;
 }
 
 export type ApiSuccessResponseV1 = {
@@ -686,5 +762,6 @@ export type SemanticContractV1 =
   | PopulationCoverageBasisV1
   | AbsenceEvaluationReceiptV1
   | AbsenceQueryResultV1
+  | IntervalAbsenceResultV1
   | CommonResponseV1
   | ValidationStatusV1;

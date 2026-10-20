@@ -24,6 +24,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "world.export",
     "claims.query",
     "absence.query",
+    "absence.proveThroughout",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -62,6 +63,7 @@ function errorExitCode(code: ApiErrorCodeV1): number {
     case "INVALID_WORLD":
     case "UNKNOWN_RECORD":
       return 3;
+    case "BUDGET_EXCEEDED":
     case "STORAGE_FAILURE":
     case "INTERNAL_ERROR":
       return 4;
@@ -80,7 +82,7 @@ export function jsonTransportError(
       message,
       requestId,
       operation,
-      code === "INTERNAL_ERROR" ? "incomplete" : "completed",
+      code === "INTERNAL_ERROR" || code === "BUDGET_EXCEEDED" ? "incomplete" : "completed",
     ),
     exitCode: errorExitCode(code),
   };
