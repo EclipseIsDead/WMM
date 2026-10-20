@@ -86,6 +86,69 @@ describe("restricted canonical JSON profile", () => {
     expect(canonicalJson({ "2": 2, "10": 10 })).toBe('{"10":10,"2":2}');
   });
 
+  it("rejects array accessors repeatedly without invoking or mutating them", () => {
+    const value: JsonValue[] = [0];
+    let reads = 0;
+    Object.defineProperty(value, "0", {
+      enumerable: true,
+      get() {
+        reads += 1;
+        value.push(reads);
+        return reads;
+      },
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      expect(() => canonicalJson(value)).toThrow(/enumerable data elements/);
+    }
+    expect(reads).toBe(0);
+    expect(value.length).toBe(1);
+  });
+
+  it("rejects non-enumerable array elements", () => {
+    const value = [1];
+    Object.defineProperty(value, "0", { enumerable: false });
+    expect(() => canonicalJson(value)).toThrow(/enumerable data elements/);
+  });
+
+  it.each(["4294967295", "4294967296", "9007199254740993"])(
+    "rejects numeric array property %s outside the array-index range",
+    (key) => {
+      const value = [1];
+      Object.defineProperty(value, key, { value: 2, enumerable: true });
+      expect(value.length).toBe(1);
+      expect(() => canonicalJson(value)).toThrow(/non-index properties/);
+    },
+  );
+
+  it("rejects object accessors without invoking them", () => {
+    let reads = 0;
+    const value = {
+      get changing() { return ++reads; },
+    };
+    expect(() => canonicalJson(value)).toThrow(/enumerable data properties/);
+    expect(reads).toBe(0);
+  });
+
+  it.each([[], {}])("rejects proxies without invoking their traps", (target) => {
+    let traps = 0;
+    const value = new Proxy(target, {
+      get() { traps += 1; return traps; },
+      getPrototypeOf() { traps += 1; return Object.prototype; },
+      ownKeys() { traps += 1; return []; },
+      getOwnPropertyDescriptor() { traps += 1; return undefined; },
+    });
+    expect(() => canonicalJson(value)).toThrow(/Proxies/);
+    expect(traps).toBe(0);
+  });
+
+  it("keeps dense plain data deterministic, including shared non-cyclic values", () => {
+    const shared = Object.freeze({ z: 2, a: 1 });
+    const value = Object.freeze([shared, shared]);
+    expect(canonicalJson(value)).toBe('[{"a":1,"z":2},{"a":1,"z":2}]');
+    expect(canonicalJson(value)).toBe(canonicalJson(value));
+  });
+
   it("rejects values outside the v1 profile", () => {
     expect(() => canonicalJson("\ud800")).toThrow(CanonicalizationError);
     expect(() => canonicalJson(2 ** 53)).toThrow(/safe JSON integers/);

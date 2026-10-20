@@ -231,6 +231,42 @@ export interface ClaimQueryResultV1 {
   readonly scopeCoverage: "exhaustive";
 }
 
+export interface RosterV1 {
+  readonly format: "wmm.roster/1";
+  readonly worldId: WorldId;
+  readonly populationDefinitionDigest: DigestHex;
+  readonly memberIds: readonly RecordId[];
+}
+
+export interface CoverageInputSelectionV1 {
+  readonly format: "wmm.coverage-input/1";
+  readonly worldId: WorldId;
+  readonly populationDefinitionDigest: DigestHex;
+  readonly selectorDefinitionDigest: DigestHex;
+  readonly scope: ScopeV1;
+  readonly applicability: ApplicabilityV1;
+  readonly primitiveClaimIds: readonly AssertionId[];
+  readonly candidateBirthDigests: readonly DigestHex[];
+}
+
+export interface AbsenceCoverageCheckV1 {
+  readonly assertionId: AssertionId;
+  readonly basis: PopulationCoverageBasisV1;
+  readonly inputSelection: CoverageInputSelectionV1;
+  readonly inputSelectionDigest: DigestHex;
+  readonly roster: RosterV1 | null;
+  readonly status: "matched" | "selector-mismatch" | "input-stale" | "roster-missing" | "roster-mismatch";
+}
+
+export interface PopulationCoverageBasisV1 {
+  readonly format: "wmm.population-coverage-basis/1";
+  readonly populationDefinitionDigest: DigestHex;
+  readonly selectorDefinitionDigest: DigestHex;
+  readonly rosterDigest: DigestHex;
+  readonly inputSelectionDigest: DigestHex;
+  readonly coverageMethod: "authorAttested" | "sourceEnumeration";
+}
+
 export interface AbsenceInputSelectionV1 {
   readonly format: "wmm.absence-input-selection/1";
   readonly worldId: WorldId;
@@ -238,13 +274,14 @@ export interface AbsenceInputSelectionV1 {
   readonly target: ExistsV1;
   readonly scope: ScopeV1;
   readonly temporal: PointTemporalQueryV1;
+
   readonly membershipAssertionIds: readonly AssertionId[];
 }
 
 export interface AbsenceCandidateEvaluationV1 {
   readonly candidateId: RecordId;
   readonly membershipAssertionIds: readonly AssertionId[];
-  readonly membership: "member" | "possible" | "conflicting" | "unresolved";
+  readonly membership: "member" | "nonmember" | "possible" | "conflicting" | "unresolved";
   readonly eligibilityAssertionIds: readonly AssertionId[];
   readonly eligibility:
     | "eligible"
@@ -256,11 +293,15 @@ export interface AbsenceCandidateEvaluationV1 {
 
 interface AbsenceEvaluationBaseV1 {
   readonly format: "wmm.absence-evaluation-receipt/1";
-  readonly algorithm: "bundled-absence-point-v1";
+  readonly algorithm: "bundled-absence-point-v3";
   readonly inputSelection: AbsenceInputSelectionV1;
   readonly inputSelectionDigest: DigestHex;
   readonly positiveCoverageAssertionIds: readonly AssertionId[];
   readonly negativeCoverageAssertionIds: readonly AssertionId[];
+  readonly staleCoverageAssertionIds: readonly AssertionId[];
+  readonly selectedCoverageAssertionId: AssertionId | null;
+  readonly coverageChecks: readonly AbsenceCoverageCheckV1[];
+  readonly premiseAssertionIds: readonly AssertionId[];
   readonly eligibilityAssertionIds: readonly AssertionId[];
   readonly candidates: readonly AbsenceCandidateEvaluationV1[];
 }
@@ -274,6 +315,10 @@ export type AbsenceEvaluationBodyV1 =
       readonly status: "not-established";
       readonly reason:
         | "coverage-not-established"
+        | "coverage-roster-mismatch"
+        | "coverage-roster-missing"
+        | "coverage-input-stale"
+        | "coverage-selector-mismatch"
         | "coverage-conflicted"
         | "coverage-unresolved"
         | "membership-not-established"
@@ -375,6 +420,7 @@ export type SemanticDefinitionKindV1 =
   | "predicate"
   | "literal"
   | "population"
+  | "selector"
   | "criterion"
   | "axis"
   | "descriptorType"
@@ -387,8 +433,10 @@ export type SemanticOperationV1 =
   | "population-coverage-atom-v1"
   | "population-membership-atom-v1"
   | "criterion-satisfaction-atom-v1"
+  | "population-coverage-basis-v1"
   | "retained-unicode-v1"
   | "bundled-candidate-membership-v1"
+  | "bundled-candidate-selector-v1"
   | "bundled-eligibility-v1"
   | "integer-chronon-half-open-v1"
   | "descriptor-type-v1"
@@ -542,31 +590,84 @@ export interface ResolvedSnapshotV1 {
   readonly snapshotDigest: DigestHex;
 }
 
-export type ApiResponseV1 =
-  | {
-      readonly format: "wmm.response/1";
-      readonly apiVersion: "wmm/1";
-      readonly requestId: string;
-      readonly operation: ApiOperationV1;
-      readonly outcome: "success";
-      readonly execution: "completed";
-      readonly resolved: ResolvedSnapshotV1;
-      readonly data: JsonValue;
-      readonly diagnostics: readonly DiagnosticV1[];
-    }
-  | {
-      readonly format: "wmm.response/1";
-      readonly apiVersion: "wmm/1";
-      readonly requestId: string | null;
-      readonly operation: string | null;
-      readonly outcome: "error";
-      readonly execution: "completed" | "incomplete";
-      readonly error: {
-        readonly code: ApiErrorCodeV1;
-        readonly message: string;
-      };
-      readonly diagnostics: readonly DiagnosticV1[];
-    };
+export interface WorldValidationReportV1 {
+  readonly status: "valid";
+  readonly worldId: WorldId;
+  readonly snapshotDigest: DigestHex;
+  readonly files: number;
+  readonly descriptors: number;
+  readonly sources: number;
+  readonly assertions: number;
+  readonly activeAssertions: number;
+  readonly supports: number;
+  readonly activeSupports: number;
+}
+
+export type InspectableRecordV1 =
+  | RosterV1
+  | WorldRecordV1
+  | SemanticDefinitionV1
+  | SemanticProfileV1;
+
+export interface WorldExportV1 {
+  readonly format: "wmm.world-export/1";
+  readonly snapshotDigest: DigestHex;
+  readonly world: WorldCatalogV1;
+  readonly semanticProfile: SemanticProfileV1;
+  readonly definitions: readonly {
+    readonly digest: DigestHex;
+    readonly body: SemanticDefinitionV1;
+  }[];
+  readonly rosters: readonly { readonly digest: DigestHex; readonly body: RosterV1 }[];
+  readonly descriptors: readonly DescriptorRecordV1[];
+  readonly sources: readonly SourceRecordV1[];
+  readonly assertions: readonly AssertionRecordV1[];
+  readonly supports: readonly SupportRecordV1[];
+  readonly documents: readonly {
+    readonly path: string;
+    readonly mediaType: string;
+    readonly sha256: DigestHex;
+    readonly byteLength: string;
+  }[];
+}
+
+export interface ApiResultByOperationV1 {
+  readonly "world.validate": WorldValidationReportV1;
+  readonly "record.inspect": InspectableRecordV1;
+  readonly "world.export": WorldExportV1;
+  readonly "claims.query": ClaimQueryResultV1;
+  readonly "absence.query": AbsenceQueryResultV1;
+}
+
+export type ApiSuccessResponseV1 = {
+  [Operation in ApiOperationV1]: {
+    readonly format: "wmm.response/1";
+    readonly apiVersion: "wmm/1";
+    readonly requestId: string;
+    readonly operation: Operation;
+    readonly outcome: "success";
+    readonly execution: "completed";
+    readonly resolved: ResolvedSnapshotV1;
+    readonly data: ApiResultByOperationV1[Operation];
+    readonly diagnostics: readonly DiagnosticV1[];
+  };
+}[ApiOperationV1];
+
+export interface ApiErrorResponseV1 {
+  readonly format: "wmm.response/1";
+  readonly apiVersion: "wmm/1";
+  readonly requestId: string | null;
+  readonly operation: string | null;
+  readonly outcome: "error";
+  readonly execution: "completed" | "incomplete";
+  readonly error: {
+    readonly code: ApiErrorCodeV1;
+    readonly message: string;
+  };
+  readonly diagnostics: readonly DiagnosticV1[];
+}
+
+export type ApiResponseV1 = ApiSuccessResponseV1 | ApiErrorResponseV1;
 
 export type ApiContractV1 = ApiRequestV1 | ApiResponseV1;
 
@@ -580,6 +681,10 @@ export type SemanticContractV1 =
   | TemporalQueryV1
   | TemporalComparisonV1
   | ClaimQueryResultV1
+  | RosterV1
+  | CoverageInputSelectionV1
+  | PopulationCoverageBasisV1
+  | AbsenceEvaluationReceiptV1
   | AbsenceQueryResultV1
   | CommonResponseV1
   | ValidationStatusV1;

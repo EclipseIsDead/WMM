@@ -80,6 +80,143 @@ describe("trusted semantic-profile admission", () => {
     expect(Object.isFrozen(admitted.profile)).toBe(true);
   });
 
+  it("rejects a mutating request profile getter without reading it", () => {
+    const supplied = request();
+    let reads = 0;
+    Object.defineProperty(supplied, "profile", {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return reads === 1 ? profile : { ...profile, version: "changed" };
+      },
+    });
+
+    expect(() => admitSemanticProfile(supplied)).toThrow(/enumerable data properties/);
+    expect(reads).toBe(0);
+  });
+
+  it.each(["version", "definitions", "fixtureOnly"] as const)(
+    "rejects a profile %s getter before schema validation can invoke it",
+    (key) => {
+      const suppliedProfile = structuredClone(profile);
+      let reads = 0;
+      Object.defineProperty(suppliedProfile, key, {
+        enumerable: true,
+        get() {
+          reads += 1;
+          Reflect.set(suppliedProfile, "numericProfile", "changed");
+          return profile[key];
+        },
+      });
+
+      expect(() => admitSemanticProfile(request({ profile: suppliedProfile })))
+        .toThrow(/enumerable data properties/);
+      expect(reads).toBe(0);
+      expect(suppliedProfile.numericProfile).toBe(profile.numericProfile);
+    },
+  );
+
+  it("rejects definition and dependency accessors without invoking them", () => {
+    const suppliedDefinitions = structuredClone(definitions);
+    const first = suppliedDefinitions[0];
+    if (first === undefined) throw new Error("Definition fixture is missing");
+    let reads = 0;
+    Object.defineProperty(first, "dependencies", {
+      enumerable: true,
+      get() { reads += 1; return []; },
+    });
+    expect(() => admitSemanticProfile(request({ definitions: suppliedDefinitions })))
+      .toThrow(/enumerable data properties/);
+    expect(reads).toBe(0);
+
+    Object.defineProperty(first, "dependencies", { value: ["0".repeat(64)] });
+    Object.defineProperty(first.dependencies, "0", {
+      enumerable: true,
+      get() { reads += 1; return "0".repeat(64); },
+    });
+    expect(() => admitSemanticProfile(request({ definitions: suppliedDefinitions })))
+      .toThrow(/enumerable data elements/);
+    expect(reads).toBe(0);
+  });
+
+  it("rejects proxied profile data without invoking traps", () => {
+    let traps = 0;
+    const suppliedProfile = new Proxy(profile, {
+      get(target, key, receiver) {
+        traps += 1;
+        return Reflect.get(target, key, receiver);
+      },
+      ownKeys(target) { traps += 1; return Reflect.ownKeys(target); },
+    });
+    expect(() => admitSemanticProfile(request({ profile: suppliedProfile })))
+      .toThrow(/Proxies/);
+    expect(traps).toBe(0);
+  });
+
+  it("validates, hashes, and returns one snapshot despite trust callback mutations", () => {
+    const suppliedProfile = structuredClone(profile);
+    const suppliedDefinitions = structuredClone(definitions);
+    const trustedProfileDigests = new Set([profileDigest]);
+    trustedProfileDigests.has = (digest) => {
+      Reflect.set(suppliedProfile, "version", "changed");
+      (suppliedProfile.definitions as string[]).length = 0;
+      for (const definition of suppliedDefinitions) {
+        Reflect.set(definition, "version", "changed");
+        (definition.dependencies as string[]).push("0".repeat(64));
+      }
+      suppliedDefinitions.length = 0;
+      return Set.prototype.has.call(trustedProfileDigests, digest) as boolean;
+    };
+
+    const admitted = admitSemanticProfile(request({
+      profile: suppliedProfile,
+      definitions: suppliedDefinitions,
+      trustedProfileDigests,
+    }));
+    expect(suppliedProfile.version).toBe("changed");
+    expect(suppliedDefinitions).toHaveLength(0);
+    expect(admitted.profile).toEqual(profile);
+    expect(admitted.profile).not.toBe(suppliedProfile);
+    expect(admitted.profileDigest).toBe(profileDigest);
+    expect(semanticProfileDigest(admitted.profile)).toBe(admitted.profileDigest);
+    for (const [digest, definition] of Object.entries(admitted.definitionsByDigest)) {
+      expect(semanticDefinitionDigest(definition)).toBe(digest);
+      expect(definition).toEqual(definitions.find((value) => value.key === definition.key));
+    }
+  });
+
+  it("deeply freezes private profile and definition data without freezing the caller", () => {
+    const suppliedProfile = structuredClone(profile);
+    const suppliedDefinitions = structuredClone(definitions);
+    const admitted = admitSemanticProfile(request({
+      profile: suppliedProfile,
+      definitions: suppliedDefinitions,
+    }));
+    const digest = definitionDigests[0];
+    if (digest === undefined) throw new Error("Definition fixture is missing");
+    const definition = admitted.definitionsByDigest[digest];
+    if (definition === undefined) throw new Error("Admitted definition is missing");
+    expect(definition).not.toBe(suppliedDefinitions[0]);
+    expect(Object.isFrozen(admitted.definitionsByDigest)).toBe(true);
+    expect(Object.isFrozen(definition)).toBe(true);
+    expect(Object.isFrozen(definition.dependencies)).toBe(true);
+    expect(Object.isFrozen(admitted.profile.definitions)).toBe(true);
+    expect(Object.isFrozen(suppliedProfile)).toBe(false);
+    expect(Object.isFrozen(suppliedDefinitions[0])).toBe(false);
+    expect(Reflect.set(definition, "version", "changed")).toBe(false);
+    expect(() => (definition.dependencies as string[]).push("0".repeat(64))).toThrow(TypeError);
+    expect(Reflect.set(admitted.profile, "version", "changed")).toBe(false);
+    expect(() => (admitted.profile.definitions as string[]).pop()).toThrow(TypeError);
+
+    Reflect.set(suppliedProfile, "version", "changed");
+    (suppliedProfile.definitions as string[]).length = 0;
+    Reflect.set(suppliedDefinitions[0]!, "version", "changed");
+    (suppliedDefinitions[0]!.dependencies as string[]).push("0".repeat(64));
+    expect(admitted.profile).toEqual(profile);
+    expect(semanticProfileDigest(admitted.profile)).toBe(admitted.profileDigest);
+    expect(semanticDefinitionDigest(definition)).toBe(digest);
+  });
+
   it("rejects fixture-only artifacts in ordinary runtime admission", () => {
     expectAdmissionCode(
       () => admitSemanticProfile(request({ allowFixtureOnly: false })),

@@ -11,12 +11,14 @@ import { fileURLToPath } from "node:url";
 import {
   assertionId,
   canonicalJsonBytes,
+  coverageInputSelectionDigest,
   semanticDefinitionDigest,
+  populationRosterDigest,
   sha256Hex,
   snapshotDigest,
   supportId,
 } from "../packages/canonical/dist/index.js";
-import { bundledV1Semantics } from "../packages/core/dist/index.js";
+import { bundledV1Semantics, resolvePopulationSelector, selectCoverageInputs } from "../packages/core/dist/index.js";
 
 const root = fileURLToPath(new URL("../fixtures/v1/complete-world/", import.meta.url));
 const payloadRoot = resolve(root, "payload");
@@ -133,25 +135,7 @@ const claimBodies = [
       endExclusive: { kind: "exact", position: "1030" },
     },
   },
-  {
-    format: "wmm.claim/1",
-    worldId,
-    semanticProfileDigest: semantics.profileDigest,
-    proposition: {
-      kind: "atom",
-      subjectId: "population:succession-candidates",
-      predicateDefinitionDigest: digest("population_coverage"),
-      value: { kind: "ref", id: "population:succession-candidates" },
-    },
-    polarity: "positive",
-    scope,
-    applicability: {
-      kind: "interval",
-      axisDefinitionDigest: digest("days"),
-      start: { kind: "exact", position: "1000" },
-      endExclusive: { kind: "exact", position: "1040" },
-    },
-  },
+
   ...["person:alys", "person:bran"].map((candidateId) => ({
     format: "wmm.claim/1",
     worldId,
@@ -210,6 +194,53 @@ const claimBodies = [
     },
   },
 ];
+const roster = {
+  format: "wmm.roster/1", worldId, populationDefinitionDigest: digest("candidates"),
+  memberIds: ["person:alys", "person:bran"],
+};
+const rosterDigest = populationRosterDigest(roster);
+writeJson(`rosters/${rosterDigest}.json`, roster);
+const coverageApplicability = {
+  kind: "interval", axisDefinitionDigest: digest("days"),
+  start: { kind: "exact", position: "1000" }, endExclusive: { kind: "exact", position: "1040" },
+};
+const bindings = resolvePopulationSelector(digest("candidates"), Object.fromEntries(
+  semantics.definitions.map((definition) => [semanticDefinitionDigest(definition), definition]),
+));
+if (bindings === undefined) throw new Error("Missing candidate selector");
+const coverageInput = selectCoverageInputs(worldId, digest("candidates"), bindings, scope,
+  coverageApplicability,
+  claimBodies.map((body) => ({ format: "wmm.assertion-record/1", id: assertionId(body), body })), descriptors);
+claimBodies.push({
+  format: "wmm.claim/1",
+  worldId,
+  semanticProfileDigest: semantics.profileDigest,
+  proposition: {
+    kind: "atom",
+    subjectId: "population:succession-candidates",
+    predicateDefinitionDigest: digest("population_coverage"),
+    value: {
+      kind: "literal",
+      valueDefinitionDigest: digest("population_coverage_basis"),
+      data: {
+        format: "wmm.population-coverage-basis/1",
+        populationDefinitionDigest: digest("candidates"),
+        selectorDefinitionDigest: digest("candidate_selector"),
+        rosterDigest,
+        inputSelectionDigest: coverageInputSelectionDigest(coverageInput),
+        coverageMethod: "authorAttested",
+      },
+    },
+  },
+  polarity: "positive",
+  scope,
+  applicability: {
+    kind: "interval",
+    axisDefinitionDigest: digest("days"),
+    start: { kind: "exact", position: "1000" },
+    endExclusive: { kind: "exact", position: "1040" },
+  },
+});
 const assertions = claimBodies.map((body) => ({
   format: "wmm.assertion-record/1",
   id: assertionId(body),

@@ -27,13 +27,43 @@ const eligibilitySatisfactionDefinition: SemanticDefinitionV1 = {
   dependencies: [],
 };
 
+const personDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "person",
+  kind: "descriptorType",
+  operation: "descriptor-type-v1",
+  version: "1",
+  dependencies: [],
+};
+
+const candidateSelectorDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "candidate_selector",
+  kind: "selector",
+  operation: "bundled-candidate-selector-v1",
+  version: "1",
+  dependencies: [
+    semanticDefinitionDigest(candidateMembershipDefinition),
+    semanticDefinitionDigest(personDefinition),
+  ].sort(),
+};
+
+const populationCoverageBasisDefinition: SemanticDefinitionV1 = {
+  format: "wmm.semantic-definition/1",
+  key: "population_coverage_basis",
+  kind: "literal",
+  operation: "population-coverage-basis-v1",
+  version: "1",
+  dependencies: [],
+};
+
 const populationCoverageDefinition: SemanticDefinitionV1 = {
   format: "wmm.semantic-definition/1",
   key: "population_coverage",
   kind: "predicate",
   operation: "population-coverage-atom-v1",
-  version: "1",
-  dependencies: [],
+  version: "2",
+  dependencies: [semanticDefinitionDigest(populationCoverageBasisDefinition)],
 };
 
 const definitions: readonly SemanticDefinitionV1[] = [
@@ -54,7 +84,9 @@ const definitions: readonly SemanticDefinitionV1[] = [
     dependencies: [],
   },
   candidateMembershipDefinition,
+  candidateSelectorDefinition,
   eligibilitySatisfactionDefinition,
+  populationCoverageBasisDefinition,
   populationCoverageDefinition,
   {
     format: "wmm.semantic-definition/1",
@@ -79,7 +111,7 @@ const definitions: readonly SemanticDefinitionV1[] = [
     operation: "bundled-candidate-membership-v1",
     version: "1",
     dependencies: [
-      semanticDefinitionDigest(candidateMembershipDefinition),
+      semanticDefinitionDigest(candidateSelectorDefinition),
       semanticDefinitionDigest(populationCoverageDefinition),
     ].sort(),
   },
@@ -107,14 +139,7 @@ const definitions: readonly SemanticDefinitionV1[] = [
     version: "1",
     dependencies: [],
   },
-  {
-    format: "wmm.semantic-definition/1",
-    key: "person",
-    kind: "descriptorType",
-    operation: "descriptor-type-v1",
-    version: "1",
-    dependencies: [],
-  },
+  personDefinition,
   {
     format: "wmm.semantic-definition/1",
     key: "polity",
@@ -151,19 +176,28 @@ export interface BundledV1Semantics {
   readonly trustedProfileDigests: ReadonlySet<string>;
 }
 
+function readonlySet<T>(values: Iterable<T>): ReadonlySet<T> {
+  const backing = new Set(values);
+  const view: ReadonlySet<T> = Object.freeze({
+    get size() { return backing.size; },
+    has(value: T) { return backing.has(value); },
+    entries() { return backing.entries(); },
+    keys() { return backing.keys(); },
+    values() { return backing.values(); },
+    [Symbol.iterator]() { return backing[Symbol.iterator](); },
+    forEach(callback: (value: T, key: T, set: ReadonlySet<T>) => void, thisArg?: unknown) {
+      backing.forEach((value) => callback.call(thisArg, value, value, view));
+    },
+  });
+  return view;
+}
+
 let cached: BundledV1Semantics | undefined;
 
 export function bundledV1Semantics(): BundledV1Semantics {
   if (cached !== undefined) return cached;
 
-  const definitionsByKey: Record<string, SemanticDefinitionV1> = Object.create(null);
-  const definitionDigestsByKey: Record<string, string> = Object.create(null);
-  for (const definition of definitions) {
-    definitionsByKey[definition.key] = definition;
-    definitionDigestsByKey[definition.key] = semanticDefinitionDigest(definition);
-  }
-
-  const definitionDigests = Object.values(definitionDigestsByKey).sort();
+  const definitionDigests = definitions.map(semanticDefinitionDigest).sort();
   const profile: SemanticProfileV1 = {
     format: "wmm.semantic-profile/1",
     version: "1",
@@ -172,22 +206,29 @@ export function bundledV1Semantics(): BundledV1Semantics {
     propositionGrammar: "explicit-polarity-atom-exists-v1",
   };
   const profileDigest = semanticProfileDigest(profile);
-  const trustedDefinitionDigests = new Set(definitionDigests);
-  const trustedProfileDigests = new Set([profileDigest]);
+  const trustedDefinitionDigests = readonlySet(definitionDigests);
+  const trustedProfileDigests = readonlySet([profileDigest]);
 
-  admitSemanticProfile({
+  const admitted = admitSemanticProfile({
     profile,
     definitions,
     trustedDefinitionDigests,
     trustedProfileDigests,
   });
 
+  const definitionsByKey: Record<string, SemanticDefinitionV1> = Object.create(null);
+  const definitionDigestsByKey: Record<string, string> = Object.create(null);
+  for (const [digest, definition] of Object.entries(admitted.definitionsByDigest)) {
+    definitionsByKey[definition.key] = definition;
+    definitionDigestsByKey[definition.key] = digest;
+  }
+
   cached = Object.freeze({
-    definitions: Object.freeze([...definitions]),
+    definitions: Object.freeze(Object.values(admitted.definitionsByDigest)),
     definitionsByKey: Object.freeze(definitionsByKey),
     definitionDigestsByKey: Object.freeze(definitionDigestsByKey),
-    profile: Object.freeze(profile),
-    profileDigest,
+    profile: admitted.profile,
+    profileDigest: admitted.profileDigest,
     trustedDefinitionDigests,
     trustedProfileDigests,
   });

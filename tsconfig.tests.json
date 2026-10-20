@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "references": [
+    { "path": "packages/wire-contracts" },
+    { "path": "packages/canonical" },
+    { "path": "packages/temporal" },
+    { "path": "packages/schema" },
+    { "path": "packages/core" },
+    { "path": "packages/exchange" },
+    { "path": "packages/application" },
+    { "path": "apps/cli" }
+  ],
+  "include": ["packages/*/test/**/*.ts", "apps/*/test/**/*.ts"]
+}

@@ -1,5 +1,6 @@
 import {
   cpSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -15,11 +16,13 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalJson,
   canonicalJsonBytes,
+  populationRosterDigest,
   sha256Hex,
   snapshotDigest,
 } from "@wmm/canonical";
-import { bundledV1Semantics } from "@wmm/core";
-import type { SnapshotFileEntryV1 } from "@wmm/wire-contracts";
+import { bundledV1Semantics, queryAbsence } from "@wmm/core";
+import type { ApiRequestV1, JsonValue, RosterV1, SnapshotFileEntryV1 } from "@wmm/wire-contracts";
+import { validateApiResponse } from "@wmm/wire-contracts";
 import {
   exportWorldBundle,
   inspectWorldBundle,
@@ -83,8 +86,8 @@ describe("production V1 world bundle", () => {
     expect(validateWorldBundle(bundle)).toEqual({
       status: "valid",
       worldId: "world:valen_v1",
-      snapshotDigest: "e46d4269225984e5baf982024dff8e33497bda96d7553edb7b61bb2b09866747",
-      files: 42,
+      snapshotDigest: "1e910b5b346be8c4b269ca47eff0f003617f419d4361b8188a81320ed61d873c",
+      files: 45,
       descriptors: 7,
       sources: 1,
       assertions: 8,
@@ -115,8 +118,72 @@ describe("production V1 world bundle", () => {
   it("exports a deterministic canonical JSON view", () => {
     const first = exportWorldBundle(loadBundledV1WorldBundle(fixturePath));
     const second = exportWorldBundle(loadBundledV1WorldBundle(fixturePath));
-    expect(canonicalJson(first)).toBe(canonicalJson(second));
+    expect(canonicalJson(first as unknown as JsonValue)).toBe(
+      canonicalJson(second as unknown as JsonValue),
+    );
   });
+
+  it("keeps roster artifacts explicit in loaded, inspected, and typed exported views", () => {
+    const bundle = loadBundledV1WorldBundle(fixturePath);
+    const roster = bundle.rosters[0]!;
+    expect(bundle.rosters).toHaveLength(1);
+    expect(roster.digest).toBe(populationRosterDigest(roster.body));
+    expect(inspectWorldBundle(bundle, roster.digest)).toEqual(roster.body);
+    const exported = exportWorldBundle(bundle);
+    expect(exported.rosters).toEqual(bundle.rosters);
+    expect(exported.documents.some((document) => document.path.startsWith("rosters/"))).toBe(false);
+    for (const [operation, data] of [["record.inspect", roster.body], ["world.export", exported]] as const) {
+      expect(validateApiResponse({
+        format: "wmm.response/1", apiVersion: "wmm/1", requestId: "roster-view",
+        operation, outcome: "success", execution: "completed", diagnostics: [],
+        resolved: { worldId: bundle.world.worldId, snapshotDigest: bundle.snapshot.snapshotDigest }, data,
+      }).valid).toBe(true);
+    }
+  });
+
+  it("retains coverage claims with unavailable roster bytes without establishing proof", () => {
+    const root = mkdtempSync(join(tmpdir(), "wmm-missing-roster-"));
+    try {
+      cpSync(fixturePath, root, { recursive: true });
+      rmSync(join(root, "payload", "rosters"), { recursive: true });
+      rebuildSnapshot(root);
+      const bundle = loadBundledV1WorldBundle(root);
+      expect(bundle.rosters).toEqual([]);
+      const request = JSON.parse(readFileSync(new URL("../../../fixtures/v2/absence-request.json", import.meta.url), "utf8")) as Extract<ApiRequestV1, { operation: "absence.query" }>;
+      const result = queryAbsence({ ...bundle, worldId: bundle.world.worldId,
+        snapshotDigest: bundle.snapshot.snapshotDigest, activeAssertionIds: bundle.world.activeAssertionIds },
+      request.payload.target, request.payload.scope, request.payload.temporal);
+      expect(result.derivation.reason).toBe("coverage-roster-missing");
+      expect(result.conclusion.bases).toEqual(["declared"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["unsorted", "duplicate", "unknown-member", "world-mismatch", "population-role", "digest-mismatch", "wrong-path", "noncanonical"] as const)(
+    "rejects %s roster artifacts even after rebuilding manifest integrity", (corruption) => {
+      const root = mkdtempSync(join(tmpdir(), "wmm-roster-integrity-"));
+      try {
+        cpSync(fixturePath, root, { recursive: true });
+        const original = loadBundledV1WorldBundle(fixturePath).rosters[0]!;
+        let roster: RosterV1 = original.body;
+        if (corruption === "unsorted") roster = { ...roster, memberIds: [...roster.memberIds].reverse() };
+        if (corruption === "duplicate") roster = { ...roster, memberIds: ["person:alys", "person:alys"] };
+        if (corruption === "unknown-member") roster = { ...roster, memberIds: ["person:missing"] };
+        if (corruption === "world-mismatch") roster = { ...roster, worldId: "world:other" };
+        if (corruption === "population-role") roster = { ...roster, populationDefinitionDigest: bundledV1Semantics().definitionDigestsByKey["person"]! };
+        const name = corruption === "wrong-path" ? "not-a-digest" : corruption === "digest-mismatch" ? "0".repeat(64) : populationRosterDigest(roster);
+        rmSync(join(root, "payload", "rosters", `${original.digest}.json`));
+        const path = join(root, "payload", "rosters", `${name}.json`);
+        if (corruption === "noncanonical") writeFileSync(path, JSON.stringify(roster, null, 2));
+        else writeCanonical(path, roster);
+        rebuildSnapshot(root);
+        expect(() => loadBundledV1WorldBundle(root)).toThrow(expect.objectContaining({ code: "INVALID_WORLD" }));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("does not derive trust from imported profile bytes", () => {
     expect(() =>
@@ -124,7 +191,11 @@ describe("production V1 world bundle", () => {
         trustedDefinitionDigests: new Set(),
         trustedProfileDigests: new Set(),
       }),
-    ).toThrow(/not release-allowlisted/);
+    ).toThrow(expect.objectContaining({
+      name: "WorldBundleError",
+      code: "INVALID_WORLD",
+      message: expect.stringMatching(/not release-allowlisted/),
+    }));
   });
 
   it("rejects integrity-preserving semantic role corruption", () => {
@@ -146,7 +217,11 @@ describe("production V1 world bundle", () => {
       bundledV1Semantics().definitionDigestsByKey["allied_with"];
     writeCanonical(descriptorPath, descriptor);
     rebuildSnapshot(corrupted);
-    expect(() => loadBundledV1WorldBundle(corrupted)).toThrow(/expected descriptorType/);
+    expect(() => loadBundledV1WorldBundle(corrupted)).toThrow(expect.objectContaining({
+          name: "WorldBundleError",
+          code: "INVALID_WORLD",
+          message: expect.stringMatching(/expected descriptorType/),
+        }));
   });
 
   it("rejects integrity-preserving dangling historical references", () => {
@@ -165,6 +240,23 @@ describe("production V1 world bundle", () => {
     expect(() => loadBundledV1WorldBundle(corrupted)).toThrow(
       /Descriptor is unavailable: person:bran/,
     );
+  });
+
+  it("rejects integrity-preserving future record families rather than omitting them from views", () => {
+    const corrupted = mkdtempSync(join(tmpdir(), "wmm-world-future-record-"));
+    try {
+      cpSync(fixturePath, corrupted, { recursive: true });
+      const directory = join(corrupted, "payload", "records", "future");
+      mkdirSync(directory);
+      writeCanonical(join(directory, "record.json"), { format: "wmm.future-record/1" });
+      rebuildSnapshot(corrupted);
+      expect(() => loadBundledV1WorldBundle(corrupted)).toThrow(expect.objectContaining({
+        code: "INVALID_WORLD",
+        message: expect.stringMatching(/Unsupported reserved record namespace/),
+      }));
+    } finally {
+      rmSync(corrupted, { recursive: true, force: true });
+    }
   });
 
   it("rejects root additions and payload tampering", () => {

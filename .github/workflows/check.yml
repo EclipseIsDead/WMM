@@ -1,0 +1,36 @@
+name: Conformance
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.3.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm verify:v0
+      - run: pnpm verify:seed
+      - run: pnpm verify:v1
+      - run: pnpm verify:v2
+      - name: Check reproducible fixture bytes
+        run: |
+          pnpm generate:fixtures
+          git --no-pager diff --exit-code -- fixtures/

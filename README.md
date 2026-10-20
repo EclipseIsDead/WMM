@@ -1,7 +1,8 @@
 # World Master's Manual
 
-Implementation follows `WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md`.
-The current code includes the executable V0 contracts and a production V1 read-only portable-world engine with a versioned JSON stdin API. It is not yet an authoring or revision-storage engine.
+A read-only worldbuilding engine prototype with deterministic identities, verified directory bundles, scoped historical queries, and roster-bound exact-point absence evaluation over the versioned `wmm/1` JSON stdin API. It is not yet an authoring or revision-storage engine, and the contracts remain pre-release drafts.
+
+Implementation is guided by [RFC WMM-001 v0.3](plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md). See [implementation status](docs/STATUS.md) and [stabilization contracts and limitations](docs/STABILIZATION.md) for the narrower implemented boundary. The original plans were hidden by a `plans/` ignore rule; that rule has been removed so the existing originals can be versioned.
 
 ## Current packages
 
@@ -9,12 +10,13 @@ The current code includes the executable V0 contracts and a production V1 read-o
 - `packages/canonical`: restricted safe-integer canonical JSON, domain-separated SHA-256, and domain identity helpers.
 - `packages/temporal`: exact and uncertain local applicability over integer chronons, including correlated interval endpoints.
 - `packages/schema`: the bounded first-release semantic-definition/profile vocabulary and structural checks.
-- `packages/core`: scope comparison, evidence/family aggregation, trusted semantic-profile admission, bundled V1 semantics, and complete world-reference validation.
+- `packages/core`: scope comparison, evidence/family aggregation, immutable semantic admission, world-reference validation, active-claim queries, roster-bound absence, and snapshot-backed receipt replay.
 - `packages/exchange`: fixture-scoped compatibility loading plus production bundle verification, loading, inspection, and deterministic JSON export.
-- `packages/application`: versioned read-only validation, inspection, and export use cases with typed responses.
+- `packages/application`: versioned read-only validation, inspection, export, claim-query, and absence-query operations with runtime request admission and operation-discriminated responses.
 - `apps/cli`: development commands plus duplicate-key-safe `wmm/1` JSON request processing over stdin.
 - `fixtures/v0`: golden scope, evidence, temporal, and result-algebra cases.
 - `fixtures/v1/complete-world`: a fully referenced portable world with descriptors, source, assertions, supports, profile, definitions, manifest, and prose.
+- `fixtures/v2`: independently constructed before/after/scope query expectations and absence receipt fixtures.
 - `wmm-v0.3-contract-kit`: immutable seed vectors and independent Node/Python verifiers supplied with the RFC.
 
 ## Toolchain
@@ -34,12 +36,14 @@ pnpm check
 pnpm verify:contracts
 pnpm verify:v0
 pnpm verify:seed
-pnpm generate:v1-fixture
+pnpm generate:fixtures
 pnpm verify:v1
+pnpm verify:v2
 node apps/cli/dist/main.js json < fixtures/v1/validate-request.json
+node apps/cli/dist/main.js json < fixtures/v2/absence-request.json
 ```
 
-`pnpm check` runs the original Node verifier, TypeScript project-reference checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` executes the bounded semantic fixtures. `pnpm verify:seed` verifies the intentionally incomplete v0.3 seed payload. `pnpm generate:v1-fixture` deterministically regenerates the complete V1 world, and `pnpm verify:v1` validates it through the production loader.
+`pnpm check` runs the original Node verifier, strict source/test TypeScript checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` executes bounded semantic fixtures. `pnpm verify:seed` verifies the intentionally incomplete v0.3 seed payload. `pnpm generate:fixtures` regenerates the production world and V2 examples; `pnpm verify:v1` and `pnpm verify:v2` exercise the compiled stdin API. CI runs these checks on Linux and macOS and checks regenerated fixture bytes.
 
 The independent Python verifier additionally requires `jsonschema`. It is intentionally not a runtime dependency of WMM.
 
@@ -70,7 +74,8 @@ The current checks cover:
 - release-owned bundled semantic trust rather than trust derived from imported bytes;
 - complete catalog, identity, definition-role, temporal-input, source, and historical-reference validation;
 - production manifest closure, canonical JSON, size/path/symlink/case-collision controls, deterministic inspection/export, and integrity-preserving semantic corruption tests;
-- closed `wmm/1` request/response schemas for `world.validate`, `record.inspect`, and `world.export`;
-- duplicate-key-safe strict JSON parsing, one-megabyte request limits, request correlation, resolved snapshot identifiers, typed errors, canonical one-line output, and documented exit-code classes.
+- operation-discriminated `wmm/1` request/response schemas for `world.validate`, `record.inspect`, `world.export`, `claims.query`, and `absence.query`;
+- strict JSON/own-property/Unicode admission, bounded reads, request correlation, resolved snapshot identifiers, typed errors, canonical one-line output, and documented exit-code classes;
+- roster-bound population coverage, preservation of positive witness support under contrary claims, and separate integrity/replay verification of absence receipts.
 
-The read-only V1 path does not yet implement interval-wide population-coverage inference, proposal workspaces, host authorization, Git-backed revisions, branches, or backups. Those retain their RFC milestone gates.
+The read-only path does not yet implement interval-wide population-coverage proofs, general historical conflict/impact analysis, proposal workspaces, host authorization, Git-backed world revisions, branches, or backups. `world.export` is a metadata view, not a lossless backup. Load bundles from stable/private directories; no-follow file checks do not provide atomic confinement against concurrent parent-directory swaps. Queries remain synchronous and have no deadline/cancellation/pagination contract. These limitations remain explicit gates rather than implied completed capabilities.

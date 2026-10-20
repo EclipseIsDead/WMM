@@ -6,6 +6,8 @@ import type {
   ValidateFunction,
 } from "ajv/dist/2020.js";
 
+import { jsonDataError } from "./json-data.js";
+
 import type {
   ApiContractV1,
   ApiRequestV1,
@@ -53,6 +55,7 @@ const ajv = new Ajv2020({
   // constraint from RevisionEnvelope instead of repeating it locally.
   strictTypes: false,
   validateFormats: true,
+  ownProperties: true,
 });
 addFormats(ajv);
 
@@ -82,8 +85,16 @@ export function validateCoreContract(input: unknown): CoreContractValidationResu
   return validationResult(validateCore(input), validateCore.errors);
 }
 
+function preflight(input: unknown): CoreContractValidationResult | undefined {
+  const message = jsonDataError(input);
+  return message === undefined ? undefined : {
+    valid: false,
+    errors: [{ keyword: "jsonData", instancePath: "", schemaPath: "#/jsonData", params: {}, message }],
+  };
+}
+
 export function validateSemanticContract(input: unknown): CoreContractValidationResult {
-  return validationResult(validateSemantic(input), validateSemantic.errors);
+  return preflight(input) ?? validationResult(validateSemantic(input), validateSemantic.errors);
 }
 
 export function validateWorldRecord(input: unknown): CoreContractValidationResult {
@@ -91,15 +102,15 @@ export function validateWorldRecord(input: unknown): CoreContractValidationResul
 }
 
 export function validateApiContract(input: unknown): CoreContractValidationResult {
-  return validationResult(validateApi(input), validateApi.errors);
+  return preflight(input) ?? validationResult(validateApi(input), validateApi.errors);
 }
 
 export function validateApiRequest(input: unknown): CoreContractValidationResult {
-  return validationResult(validateRequest(input), validateRequest.errors);
+  return preflight(input) ?? validationResult(validateRequest(input), validateRequest.errors);
 }
 
 export function validateApiResponse(input: unknown): CoreContractValidationResult {
-  return validationResult(validateResponse(input), validateResponse.errors);
+  return preflight(input) ?? validationResult(validateResponse(input), validateResponse.errors);
 }
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {

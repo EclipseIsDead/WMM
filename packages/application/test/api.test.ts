@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type {
   AbsenceQueryResultV1,
   ApiRequestV1,
-  ClaimQueryResultV1,
+
 } from "@wmm/wire-contracts";
 import { validateApiResponse, validateSemanticContract } from "@wmm/wire-contracts";
 import { executeApiRequest } from "../src/index.js";
@@ -68,7 +68,7 @@ function request(
 }
 
 describe("V1 application API", () => {
-  it("validates a world with pinned resolved identifiers", () => {
+  it("validates a world with resolved identifiers matching the report", () => {
     const response = executeApiRequest(
       request("world.validate", { bundlePath }),
     );
@@ -80,26 +80,52 @@ describe("V1 application API", () => {
       execution: "completed",
       resolved: {
         worldId: "world:valen_v1",
-        snapshotDigest: "e46d4269225984e5baf982024dff8e33497bda96d7553edb7b61bb2b09866747",
+        snapshotDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       },
       data: { status: "valid" },
     });
+    if (response.outcome !== "success" || response.operation !== "world.validate") {
+      throw new Error("Expected a world validation report");
+    }
+    expect(response.data.worldId).toBe(response.resolved.worldId);
+    expect(response.data.snapshotDigest).toBe(response.resolved.snapshotDigest);
   });
 
   it("inspects and exports through the same response contract", () => {
     const inspected = executeApiRequest(
       request("record.inspect", { bundlePath, recordId: "person:alys" }),
     );
+    expect(validateApiResponse(inspected)).toEqual({ valid: true, errors: [] });
     expect(inspected).toMatchObject({
       outcome: "success",
       data: { format: "wmm.descriptor/1", id: "person:alys" },
     });
 
     const exported = executeApiRequest(request("world.export", { bundlePath }));
+    expect(validateApiResponse(exported)).toEqual({ valid: true, errors: [] });
     expect(exported).toMatchObject({
       outcome: "success",
       data: { format: "wmm.world-export/1" },
     });
+    if (exported.outcome !== "success" || exported.operation !== "world.export") {
+      throw new Error("Expected a world export");
+    }
+    expect(exported.data.snapshotDigest).toBe(exported.resolved.snapshotDigest);
+    const { semanticProfile, definitions, world, descriptors, sources, assertions, supports } =
+      exported.data;
+    const inspectable = [
+      [world.worldId, world],
+      ...[...descriptors, ...sources, ...assertions, ...supports].map(
+        (record) => [record.id, record] as const,
+      ),
+      [world.semanticProfileDigest, semanticProfile],
+      ...definitions.map(({ digest, body }) => [digest, body] as const),
+    ] as const;
+    for (const [recordId, record] of inspectable) {
+      const response = executeApiRequest(request("record.inspect", { bundlePath, recordId }));
+      expect(validateApiResponse(response)).toEqual({ valid: true, errors: [] });
+      expect(response).toMatchObject({ outcome: "success", data: record });
+    }
   });
 
   it("queries active claims with explicit four-way classification", () => {
@@ -110,9 +136,11 @@ describe("V1 application API", () => {
       });
       expect(validateApiResponse(response).valid).toBe(true);
       expect(response.outcome).toBe("success");
-      if (response.outcome !== "success") throw new Error(response.error.message);
+      if (response.outcome !== "success" || response.operation !== "claims.query") {
+        throw new Error("Expected a claims query result");
+      }
       expect(validateSemanticContract(response.data).valid).toBe(true);
-      const result = response.data as unknown as ClaimQueryResultV1;
+      const result = response.data;
       for (const group of ["definite", "possible", "unresolved", "excluded"] as const) {
         expect(result[group].map((item) => item.assertionId)).toEqual(
           fixture.expected[group],
@@ -129,9 +157,11 @@ describe("V1 application API", () => {
       });
       expect(validateApiResponse(response).valid).toBe(true);
       expect(response.outcome).toBe("success");
-      if (response.outcome !== "success") throw new Error(response.error.message);
+      if (response.outcome !== "success" || response.operation !== "absence.query") {
+        throw new Error("Expected an absence query result");
+      }
       expect(validateSemanticContract(response.data).valid).toBe(true);
-      const result = response.data as unknown as AbsenceQueryResultV1;
+      const result = response.data;
       expect(result.conclusion).toEqual({
         status: fixture.expected.conclusion,
         bases: fixture.expected.bases,

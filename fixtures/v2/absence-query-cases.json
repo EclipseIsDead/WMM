@@ -11,22 +11,34 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
             "kind": "exists",
             "population": {
-              "descriptorId": "population:succession-candidates",
-              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
-            },
-            "criterion": {
-              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
-              "arguments": {
-                "office": { "kind": "ref", "id": "office:valen-crown" }
-              }
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
             }
           },
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -38,13 +50,16 @@
       },
       "expected": {
         "conclusion": "absence-declared-and-derived",
-        "bases": ["declared", "derived"],
+        "bases": [
+          "declared",
+          "derived"
+        ],
         "declaration": "recorded",
         "witnesses": "none-recorded",
         "derivation": "established",
         "derivationReason": "all-candidates-ineligible",
-        "inputSelectionDigest": "b3caeb3040c06756c7d4a9c43092f57d18d4dc8aab9c70d90b98048768d83e8a",
-        "evaluationDigest": "159d8ebc8f567b38edd450d701ff1793e5c04f25487f19d9866b79cbb8cd9b5a"
+        "inputSelectionDigest": "aea3ceb730435e108bff1c3de98cac921dfb74cf9f4f0f231fdf31f08ced8982",
+        "evaluationDigest": "f7eb26031497111c5decfcef990e428ff044960c8f7b870c624df1d313b074d8"
       }
     },
     {
@@ -57,22 +72,34 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
             "kind": "exists",
             "population": {
-              "descriptorId": "population:succession-candidates",
-              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
-            },
-            "criterion": {
-              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
-              "arguments": {
-                "office": { "kind": "ref", "id": "office:valen-crown" }
-              }
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
             }
           },
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -101,22 +128,34 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "target": {
+            "criterion": {
+              "arguments": {
+                "office": {
+                  "id": "office:valen-crown",
+                  "kind": "ref"
+                }
+              },
+              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81"
+            },
             "kind": "exists",
             "population": {
-              "descriptorId": "population:succession-candidates",
-              "definitionDigest": "f88debb201c9046204a2fc0289ba3e3af5daf79e9ab85136ca919f115a7b6791"
-            },
-            "criterion": {
-              "definitionDigest": "4e2b08faacd42f8fc00b1bd0298cf742afc3884bbf4f38dfbb0986b64eb0bf81",
-              "arguments": {
-                "office": { "kind": "ref", "id": "office:valen-crown" }
-              }
+              "definitionDigest": "0eeba059d691896b317f437093a250cce138a25df0f1ee177316372a3dd5a5dc",
+              "descriptorId": "population:succession-candidates"
             }
           },
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",

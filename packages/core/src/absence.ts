@@ -3,6 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import {
   absenceEvaluationDigest,
   absenceInputSelectionDigest,
+  coverageInputSelectionDigest,
+  populationRosterDigest,
 } from "@wmm/canonical";
 import {
   assertValidTemporalQuery,
@@ -11,6 +13,9 @@ import {
 } from "@wmm/temporal";
 import type {
   AbsenceCandidateEvaluationV1,
+  AbsenceCoverageCheckV1,
+  DescriptorRecordV1,
+  RosterV1,
   AbsenceEvaluationBodyV1,
   AbsenceEvaluationReceiptV1,
   AbsenceInputSelectionV1,
@@ -25,6 +30,12 @@ import type {
   TemporalQueryV1,
 } from "@wmm/wire-contracts";
 
+import { validateSemanticContract } from "@wmm/wire-contracts";
+
+import {
+  populationCoverageBasis, resolvePopulationSelector, selectCoverageInputs,
+  type PopulationSelectorBindingsV1,
+} from "./population.js";
 import {
   ClaimQueryInputError,
   classifyQueryComparison,
@@ -34,7 +45,7 @@ import { compareScope } from "./scope.js";
 
 /**
  * Precondition: the repository adapter has verified that snapshotDigest identifies
- * the supplied active assertions and semantic definitions.
+ * the supplied active assertions, admitted definitions, descriptor births and roster artifacts.
  */
 export interface ValidatedAbsenceQuerySnapshotV1 {
   readonly worldId: string;
@@ -42,6 +53,8 @@ export interface ValidatedAbsenceQuerySnapshotV1 {
   readonly activeAssertionIds: readonly AssertionId[];
   readonly assertions: readonly AssertionRecordV1[];
   readonly definitionsByDigest: Readonly<Record<string, SemanticDefinitionV1>>;
+  readonly descriptors: readonly DescriptorRecordV1[];
+  readonly rosters: readonly { readonly digest: string; readonly body: RosterV1 }[];
 }
 
 interface ClassifiedAssertion {
@@ -49,9 +62,7 @@ interface ClassifiedAssertion {
   readonly group: ClaimQueryGroupV1;
 }
 
-interface AbsenceSemanticBindings {
-  readonly coveragePredicateDigest: string;
-  readonly membershipPredicateDigest: string;
+interface AbsenceSemanticBindings extends PopulationSelectorBindingsV1 {
   readonly eligibilityPredicateDigest: string;
   readonly criterionValue: ExistsV1["criterion"]["arguments"][string];
 }
@@ -113,28 +124,18 @@ function resolveBindings(
   target: ExistsV1,
   definitions: Readonly<Record<string, SemanticDefinitionV1>>,
 ): AbsenceSemanticBindings | undefined {
-  const population = definitions[target.population.definitionDigest];
+  const selector = resolvePopulationSelector(target.population.definitionDigest, definitions);
   const criterion = definitions[target.criterion.definitionDigest];
   if (
-    population?.kind !== "population" ||
-    population.operation !== "bundled-candidate-membership-v1" ||
+    selector === undefined ||
     criterion?.kind !== "criterion" ||
     criterion.operation !== "bundled-eligibility-v1" ||
+    criterion.dependencies.length !== 1 ||
     !isDeepStrictEqual(Object.keys(target.criterion.arguments).sort(), ["office"])
   ) {
     return undefined;
   }
 
-  const coveragePredicateDigest = dependencyForOperation(
-    population,
-    definitions,
-    "population-coverage-atom-v1",
-  );
-  const membershipPredicateDigest = dependencyForOperation(
-    population,
-    definitions,
-    "population-membership-atom-v1",
-  );
   const eligibilityPredicateDigest = dependencyForOperation(
     criterion,
     definitions,
@@ -142,8 +143,6 @@ function resolveBindings(
   );
   const criterionValue = target.criterion.arguments["office"];
   if (
-    coveragePredicateDigest === undefined ||
-    membershipPredicateDigest === undefined ||
     eligibilityPredicateDigest === undefined ||
     criterionValue?.kind !== "ref"
   ) {
@@ -151,8 +150,7 @@ function resolveBindings(
   }
 
   return {
-    coveragePredicateDigest,
-    membershipPredicateDigest,
+    ...selector,
     eligibilityPredicateDigest,
     criterionValue,
   };
@@ -201,14 +199,22 @@ function receiptBase(
   negativeCoverageAssertionIds: readonly AssertionId[],
   eligibilityAssertionIds: readonly AssertionId[],
   candidates: readonly AbsenceCandidateEvaluationV1[],
+  staleCoverageAssertionIds: readonly AssertionId[] = [],
+  coverageChecks: readonly AbsenceCoverageCheckV1[] = [],
+  selectedCoverageAssertionId: AssertionId | null = null,
+  premiseAssertionIds: readonly AssertionId[] = [],
 ) {
   return {
     format: "wmm.absence-evaluation-receipt/1" as const,
-    algorithm: "bundled-absence-point-v1" as const,
+    algorithm: "bundled-absence-point-v3" as const,
     inputSelection,
     inputSelectionDigest: absenceInputSelectionDigest(inputSelection),
     positiveCoverageAssertionIds,
     negativeCoverageAssertionIds,
+    staleCoverageAssertionIds,
+    coverageChecks,
+    selectedCoverageAssertionId,
+    premiseAssertionIds,
     eligibilityAssertionIds,
     candidates,
   };
@@ -224,32 +230,131 @@ function groupHas(
   );
 }
 
-export interface AbsenceReceiptVerificationV1 {
+export type AbsenceVerificationErrorV1 =
+  | "INVALID_RECEIPT_SHAPE"
+  | "INVALID_RESULT_SHAPE"
+  | "ROSTER_DIGEST_MISMATCH"
+  | "INPUT_SELECTION_DIGEST_MISMATCH"
+  | "COVERAGE_CHECK_MISMATCH"
+  | "NONCANONICAL_SET"
+  | "PREMISE_SELECTION_MISMATCH"
+  | "EVALUATION_DIGEST_MISMATCH"
+  | "SNAPSHOT_MISMATCH"
+  | "EVALUATION_MISMATCH"
+  | "RESULT_MISMATCH";
+
+export interface AbsenceVerificationV1 {
   readonly valid: boolean;
-  readonly errors: readonly (
-    | "INPUT_SELECTION_DIGEST_MISMATCH"
-    | "EVALUATION_DIGEST_MISMATCH"
-  )[];
+  readonly verification: "integrity-only" | "snapshot-replay";
+  readonly errors: readonly AbsenceVerificationErrorV1[];
 }
 
-export function verifyAbsenceEvaluationReceipt(
-  receipt: AbsenceEvaluationReceiptV1,
-): AbsenceReceiptVerificationV1 {
-  const errors: (
-    | "INPUT_SELECTION_DIGEST_MISMATCH"
-    | "EVALUATION_DIGEST_MISMATCH"
-  )[] = [];
+function coverageCheckStatus(check: Omit<AbsenceCoverageCheckV1, "status">): AbsenceCoverageCheckV1["status"] {
+  if (check.basis.selectorDefinitionDigest !== check.inputSelection.selectorDefinitionDigest) return "selector-mismatch";
+  if (check.basis.inputSelectionDigest !== check.inputSelectionDigest) return "input-stale";
+  if (check.roster === null) return "roster-missing";
   if (
-    receipt.inputSelectionDigest !==
-    absenceInputSelectionDigest(receipt.inputSelection)
+    populationRosterDigest(check.roster) !== check.basis.rosterDigest ||
+    check.roster.worldId !== check.inputSelection.worldId ||
+    check.roster.populationDefinitionDigest !== check.basis.populationDefinitionDigest
+  ) return "roster-mismatch";
+  return "matched";
+}
+
+/** Unkeyed hash consistency only; this does not authenticate or prove a conclusion. */
+export function verifyAbsenceReceiptIntegrity(input: unknown): AbsenceVerificationV1 {
+  if (
+    !validateSemanticContract(input).valid ||
+    (input as { readonly format?: unknown }).format !== "wmm.absence-evaluation-receipt/1"
   ) {
+    return { valid: false, verification: "integrity-only", errors: ["INVALID_RECEIPT_SHAPE"] };
+  }
+  const receipt = input as AbsenceEvaluationReceiptV1;
+  const errors: AbsenceVerificationErrorV1[] = [];
+  const sets = [
+    receipt.inputSelection.membershipAssertionIds, receipt.positiveCoverageAssertionIds,
+    receipt.negativeCoverageAssertionIds, receipt.staleCoverageAssertionIds,
+    receipt.eligibilityAssertionIds, receipt.premiseAssertionIds,
+    receipt.coverageChecks.map((check) => check.assertionId),
+    receipt.candidates.map((candidate) => candidate.candidateId),
+    ...receipt.candidates.flatMap((candidate) => [candidate.membershipAssertionIds, candidate.eligibilityAssertionIds]),
+    ...receipt.coverageChecks.flatMap((check) => [check.inputSelection.primitiveClaimIds,
+      check.inputSelection.candidateBirthDigests, check.roster?.memberIds ?? []]),
+  ];
+  if (sets.some((values) => !isDeepStrictEqual(values, sortedUnique(values)))) errors.push("NONCANONICAL_SET");
+  const premises = new Set(receipt.premiseAssertionIds);
+  const referenced = [
+    ...receipt.inputSelection.membershipAssertionIds, ...receipt.positiveCoverageAssertionIds,
+    ...receipt.negativeCoverageAssertionIds, ...receipt.staleCoverageAssertionIds,
+    ...receipt.eligibilityAssertionIds, ...receipt.coverageChecks.map((check) => check.assertionId),
+    ...receipt.candidates.flatMap((candidate) => [...candidate.membershipAssertionIds, ...candidate.eligibilityAssertionIds]),
+  ];
+  if (referenced.some((id) => !premises.has(id))) errors.push("PREMISE_SELECTION_MISMATCH");
+  const selected = receipt.coverageChecks.find((check) => check.assertionId === receipt.selectedCoverageAssertionId);
+  if ((receipt.selectedCoverageAssertionId !== null && selected === undefined) ||
+    (receipt.status === "established" && (selected?.status !== "matched" ||
+      !receipt.positiveCoverageAssertionIds.includes(receipt.selectedCoverageAssertionId ?? "")))) {
+    errors.push("COVERAGE_CHECK_MISMATCH");
+  }
+  for (const check of receipt.coverageChecks) {
+    if (check.inputSelection.worldId !== receipt.inputSelection.worldId ||
+      check.inputSelection.populationDefinitionDigest !== receipt.inputSelection.target.population.definitionDigest ||
+      check.basis.populationDefinitionDigest !== check.inputSelection.populationDefinitionDigest) {
+      errors.push("COVERAGE_CHECK_MISMATCH");
+    }
+    if (check.roster !== null && populationRosterDigest(check.roster) !== check.basis.rosterDigest) {
+      errors.push("ROSTER_DIGEST_MISMATCH");
+    }
+    if (check.inputSelectionDigest !== coverageInputSelectionDigest(check.inputSelection)) {
+      errors.push("INPUT_SELECTION_DIGEST_MISMATCH");
+    }
+    if (check.status !== coverageCheckStatus(check)) errors.push("COVERAGE_CHECK_MISMATCH");
+  }
+  if (receipt.inputSelectionDigest !== absenceInputSelectionDigest(receipt.inputSelection)) {
     errors.push("INPUT_SELECTION_DIGEST_MISMATCH");
   }
   const { evaluationDigest, ...body } = receipt;
-  if (evaluationDigest !== absenceEvaluationDigest(body as AbsenceEvaluationBodyV1)) {
+  if (evaluationDigest !== absenceEvaluationDigest(body)) {
     errors.push("EVALUATION_DIGEST_MISMATCH");
   }
-  return { valid: errors.length === 0, errors };
+  return { valid: errors.length === 0, verification: "integrity-only", errors: [...new Set(errors)] };
+}
+
+/** Replay against adapter-verified content; no imported receipt supplies its own authority. */
+export function verifyAbsenceEvaluationReceipt(
+  input: unknown,
+  snapshot: ValidatedAbsenceQuerySnapshotV1,
+): AbsenceVerificationV1 {
+  const integrity = verifyAbsenceReceiptIntegrity(input);
+  if (!integrity.valid) return { ...integrity, verification: "snapshot-replay" };
+  const receipt = input as AbsenceEvaluationReceiptV1;
+  const selection = receipt.inputSelection;
+  if (selection.worldId !== snapshot.worldId || selection.snapshotDigest !== snapshot.snapshotDigest) {
+    return { valid: false, verification: "snapshot-replay", errors: ["SNAPSHOT_MISMATCH"] };
+  }
+  const expected = queryAbsence(snapshot, selection.target, selection.scope, selection.temporal);
+  const errors: AbsenceVerificationErrorV1[] = isDeepStrictEqual(receipt, expected.derivation)
+    ? [] : ["EVALUATION_MISMATCH"];
+  return { valid: errors.length === 0, verification: "snapshot-replay", errors };
+}
+
+export function verifyAbsenceQueryResult(
+  input: unknown,
+  snapshot: ValidatedAbsenceQuerySnapshotV1,
+): AbsenceVerificationV1 {
+  if (
+    !validateSemanticContract(input).valid ||
+    (input as { readonly format?: unknown }).format !== "wmm.absence-query-result/1"
+  ) {
+    return { valid: false, verification: "snapshot-replay", errors: ["INVALID_RESULT_SHAPE"] };
+  }
+  const result = input as AbsenceQueryResultV1;
+  const receipt = verifyAbsenceEvaluationReceipt(result.derivation, snapshot);
+  if (!receipt.valid) return receipt;
+  const expected = queryAbsence(snapshot, result.target, result.scope, result.temporal);
+  const errors: AbsenceVerificationErrorV1[] = isDeepStrictEqual(result, expected)
+    ? [] : ["RESULT_MISMATCH"];
+  return { valid: errors.length === 0, verification: "snapshot-replay", errors };
 }
 
 export function queryAbsence(
@@ -273,7 +378,8 @@ export function queryAbsence(
     throw error;
   }
 
-  const classified = classifyAssertions(activeAssertions(snapshot), scope, temporal);
+  const active = activeAssertions(snapshot);
+  const classified = classifyAssertions(active, scope, temporal);
   const matchingExists = classified.filter((value) =>
     matchesTarget(value.assertion, target),
   );
@@ -301,6 +407,7 @@ export function queryAbsence(
   const unresolvedExistentialWitnessIds = idsFor(positiveExists, "unresolved");
 
   const bindings = resolveBindings(target, snapshot.definitionsByDigest);
+
   let inputSelection: AbsenceInputSelectionV1 = {
     format: "wmm.absence-input-selection/1",
     worldId: snapshot.worldId,
@@ -308,6 +415,7 @@ export function queryAbsence(
     target,
     scope,
     temporal,
+
     membershipAssertionIds: [],
   };
 
@@ -318,22 +426,43 @@ export function queryAbsence(
 
   if (bindings === undefined) {
     derivation = withEvaluationDigest({
-      ...receiptBase(inputSelection, [], [], [], []),
+      ...receiptBase(inputSelection, [], [], [], [], [], [], null,
+        matchingExists.filter(isNonExcluded).map((value) => value.assertion.id)),
       status: "unsupported",
       reason: "unsupported-semantics",
     });
   } else {
-    const coverage = classified.filter((value) => {
+    const coverageCandidates = classified.filter((value) => {
       const proposition = value.assertion.body.proposition;
-      return (
-        isNonExcluded(value) &&
-        matchingAtom(value, bindings.coveragePredicateDigest) &&
-        proposition.kind === "atom" &&
-        proposition.subjectId === target.population.descriptorId &&
-        proposition.value.kind === "ref" &&
-        proposition.value.id === target.population.descriptorId
-      );
+      if (
+        !isNonExcluded(value) ||
+        !matchingAtom(value, bindings.coveragePredicateDigest) ||
+        proposition.kind !== "atom" ||
+        proposition.subjectId !== target.population.descriptorId
+      ) return false;
+      const basis = populationCoverageBasis(proposition.value, snapshot.definitionsByDigest);
+      return basis?.populationDefinitionDigest === target.population.definitionDigest;
     });
+    const coverageChecks: AbsenceCoverageCheckV1[] = coverageCandidates.map(({ assertion }) => {
+      const proposition = assertion.body.proposition;
+      const basis = proposition.kind === "atom"
+        ? populationCoverageBasis(proposition.value, snapshot.definitionsByDigest) : undefined;
+      if (basis === undefined) throw new TypeError("Missing validated coverage basis");
+      // Coverage binds its own assertion context, never the query point/context.
+      const selection = selectCoverageInputs(snapshot.worldId, target.population.definitionDigest,
+        bindings, assertion.body.scope, assertion.body.applicability, active, snapshot.descriptors);
+      const check = {
+        assertionId: assertion.id, basis, inputSelection: selection,
+        inputSelectionDigest: coverageInputSelectionDigest(selection),
+        roster: snapshot.rosters.find((roster) => roster.digest === basis.rosterDigest)?.body ?? null,
+      };
+      return { ...check, status: coverageCheckStatus(check) };
+    });
+    const checksById = new Map(coverageChecks.map((check) => [check.assertionId, check]));
+    const coverage = coverageCandidates.filter((value) => checksById.get(value.assertion.id)?.status === "matched");
+    const staleCoverageAssertionIds = coverageChecks
+      .filter((check) => check.status !== "matched" && check.status !== "roster-missing")
+      .map((check) => check.assertionId).sort(asciiCompare);
     const membership = classified.filter((value) => {
       const proposition = value.assertion.body.proposition;
       return (
@@ -359,12 +488,15 @@ export function queryAbsence(
       .map((value) => value.assertion.id)
       .sort(asciiCompare);
 
-    const candidateIdSet = new Set<string>();
+    const candidateIdSet = new Set(snapshot.descriptors
+      .filter((descriptor) => descriptor.birthTypeDefinitionDigest === bindings.candidateTypeDefinitionDigest)
+      .map((descriptor) => descriptor.id));
     for (const value of membership) {
       const proposition = value.assertion.body.proposition;
-      if (value.assertion.body.polarity === "positive" && proposition.kind === "atom") {
-        candidateIdSet.add(proposition.subjectId);
-      }
+      if (proposition.kind === "atom") candidateIdSet.add(proposition.subjectId);
+    }
+    for (const check of coverageChecks) {
+      for (const memberId of check.roster?.memberIds ?? []) candidateIdSet.add(memberId);
     }
 
     const candidateEvaluations: AbsenceCandidateEvaluationV1[] = [];
@@ -405,6 +537,8 @@ export function queryAbsence(
         !negativeMemberUncertain
       ) {
         membershipResult = "member";
+      } else if (negativeMemberDefinite && !positiveMemberDefinite && !positiveMemberPossible && !positiveMemberUnresolved) {
+        membershipResult = "nonmember";
       } else if (
         positiveMemberPossible &&
         !positiveMemberUnresolved &&
@@ -461,19 +595,19 @@ export function queryAbsence(
         eligibilityResult = "unresolved";
       }
 
-      if (
-        membershipResult === "member" &&
-        (eligibilityResult === "eligible" || eligibilityResult === "conflicting")
-      ) {
+      // Positive support survives contrary information; missing eligibility is
+      // not itself a recorded witness against an authorial stipulation.
+      if (positiveMemberDefinite && positiveEligibleDefinite) {
         candidateIds.push(candidateId);
       } else if (
-        (membershipResult === "member" || membershipResult === "possible") &&
-        (eligibilityResult === "eligible" || eligibilityResult === "possibly-eligible")
+        (positiveMemberDefinite || positiveMemberPossible) &&
+        (positiveEligibleDefinite || positiveEligiblePossible)
       ) {
         possibleCandidateIds.push(candidateId);
       } else if (
-        membershipResult !== "member" ||
-        eligibilityResult === "unresolved"
+        (positiveMemberUnresolved &&
+          (positiveEligibleDefinite || positiveEligiblePossible || positiveEligibleUnresolved)) ||
+        ((positiveMemberDefinite || positiveMemberPossible) && positiveEligibleUnresolved)
       ) {
         unresolvedCandidateIds.push(candidateId);
       }
@@ -502,26 +636,7 @@ export function queryAbsence(
       candidateEvaluations.flatMap((candidate) => candidate.eligibilityAssertionIds),
     );
 
-    const coveragePositiveDefinite = groupHas(coverage, "positive", "definite");
-    const coveragePositiveUncertain =
-      groupHas(coverage, "positive", "possible") ||
-      groupHas(coverage, "positive", "unresolved");
-    const coverageNegativeDefinite = groupHas(coverage, "negative", "definite");
-    const coverageNegativeUncertain =
-      groupHas(coverage, "negative", "possible") ||
-      groupHas(coverage, "negative", "unresolved");
-    const membershipConflict = candidateEvaluations.some(
-      (candidate) => candidate.membership === "conflicting",
-    );
-    const membershipUnresolved = candidateEvaluations.some(
-      (candidate) => candidate.membership !== "member",
-    );
-    const eligibilityConflict = candidateEvaluations.some(
-      (candidate) => candidate.eligibility === "conflicting",
-    );
-    const eligibilityUnresolved = candidateEvaluations.some(
-      (candidate) => candidate.eligibility !== "ineligible",
-    );
+
     const definiteWitness =
       existentialWitnessIds.length > 0 || candidateIds.length > 0;
     const uncertainWitness =
@@ -530,42 +645,44 @@ export function queryAbsence(
       possibleCandidateIds.length > 0 ||
       unresolvedCandidateIds.length > 0;
 
-    let status: AbsenceEvaluationBodyV1["status"];
-    let reason: AbsenceEvaluationBodyV1["reason"];
-    if (!coveragePositiveDefinite && coveragePositiveUncertain) {
-      status = "not-established";
-      reason = "coverage-unresolved";
-    } else if (!coveragePositiveDefinite) {
-      status = "not-established";
-      reason = "coverage-not-established";
-    } else if (coverageNegativeDefinite) {
-      status = "not-established";
-      reason = "coverage-conflicted";
-    } else if (coverageNegativeUncertain) {
-      status = "not-established";
-      reason = "coverage-unresolved";
-    } else if (candidateEvaluations.length === 0) {
-      status = "not-established";
-      reason = "membership-not-established";
-    } else if (membershipConflict) {
-      status = "not-established";
-      reason = "membership-conflicted";
-    } else if (membershipUnresolved) {
-      status = "not-established";
-      reason = "membership-unresolved";
-    } else if (eligibilityConflict) {
-      status = "not-established";
-      reason = "candidate-eligibility-conflicted";
-    } else if (definiteWitness) {
-      status = "not-established";
-      reason = "recorded-witness";
-    } else if (eligibilityUnresolved || uncertainWitness) {
-      status = "not-established";
-      reason = "candidate-eligibility-unresolved";
-    } else {
-      status = "established";
-      reason = "all-candidates-ineligible";
+    type ProofReason = Exclude<AbsenceEvaluationBodyV1["reason"], "unsupported-semantics">;
+    function proofReason(value: ClassifiedAssertion): ProofReason {
+      const check = checksById.get(value.assertion.id);
+      if (check === undefined) throw new TypeError("Missing coverage check");
+      if (check.status === "selector-mismatch") return "coverage-selector-mismatch";
+      if (check.status === "input-stale") return "coverage-input-stale";
+      if (check.status === "roster-missing") return "coverage-roster-missing";
+      if (check.status === "roster-mismatch") return "coverage-roster-mismatch";
+      const opposition = coverageCandidates.filter((other) =>
+        other.assertion.body.polarity === "negative" &&
+        isDeepStrictEqual(checksById.get(other.assertion.id)?.basis, check.basis));
+      if (groupHas(opposition, "negative", "definite")) return "coverage-conflicted";
+      if (opposition.length > 0) return "coverage-unresolved";
+      const members = new Set(check.roster?.memberIds);
+      if (members.size === 0) return "membership-not-established";
+      if (candidateEvaluations.some((candidate) => candidate.membership === "conflicting")) return "membership-conflicted";
+      if (candidateEvaluations.some((candidate) => !members.has(candidate.candidateId) && candidate.membership === "member")) return "coverage-roster-mismatch";
+      if (candidateEvaluations.some((candidate) => members.has(candidate.candidateId)
+        ? candidate.membership !== "member" : candidate.membership !== "nonmember")) return "membership-unresolved";
+      const intended = candidateEvaluations.filter((candidate) => members.has(candidate.candidateId));
+      if (intended.some((candidate) => candidate.eligibility === "conflicting")) return "candidate-eligibility-conflicted";
+      if (definiteWitness) return "recorded-witness";
+      if (intended.some((candidate) => candidate.eligibility !== "ineligible") || uncertainWitness) return "candidate-eligibility-unresolved";
+      return "all-candidates-ineligible";
     }
+    const definiteCoverage = coverageCandidates.filter((value) =>
+      value.assertion.body.polarity === "positive" && value.group === "definite");
+    const attempts = definiteCoverage.map((value) => ({ id: value.assertion.id, reason: proofReason(value) }));
+    const selected = attempts.find((attempt) => attempt.reason === "all-candidates-ineligible") ?? attempts[0];
+    const reason: ProofReason = selected?.reason ?? (coverageCandidates.some((value) =>
+      value.assertion.body.polarity === "positive") ? "coverage-unresolved" : "coverage-not-established");
+    const status = reason === "all-candidates-ineligible" ? "established" : "not-established";
+    const premiseAssertionIds = sortedUnique([
+      ...matchingExists.filter(isNonExcluded).map((value) => value.assertion.id),
+      ...coverageCandidates.map((value) => value.assertion.id),
+      ...membershipAssertionIds,
+      ...eligibilityAssertionIds,
+    ]);
 
     derivation = withEvaluationDigest({
       ...receiptBase(
@@ -574,6 +691,10 @@ export function queryAbsence(
         negativeCoverageAssertionIds,
         eligibilityAssertionIds,
         candidateEvaluations,
+        staleCoverageAssertionIds,
+        coverageChecks,
+        selected?.id ?? null,
+        premiseAssertionIds,
       ),
       status,
       reason,

@@ -8,14 +8,29 @@ import {
   inspectWorldBundle,
   loadBundledV1WorldBundle,
   validateWorldBundle,
+  WorldBundleError,
 } from "@wmm/exchange";
 import type {
   ApiErrorCodeV1,
+  ApiErrorResponseV1,
   ApiOperationV1,
   ApiRequestV1,
   ApiResponseV1,
-  JsonValue,
+  ApiResultByOperationV1,
+  ApiSuccessResponseV1,
+  ResolvedSnapshotV1,
 } from "@wmm/wire-contracts";
+import { validateApiRequest } from "@wmm/wire-contracts";
+
+const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
+  [
+    "world.validate",
+    "record.inspect",
+    "world.export",
+    "claims.query",
+    "absence.query",
+  ] satisfies readonly ApiOperationV1[],
+);
 
 export function apiErrorResponse(
   code: ApiErrorCodeV1,
@@ -23,7 +38,7 @@ export function apiErrorResponse(
   requestId: string | null,
   operation: string | null,
   execution: "completed" | "incomplete" = "completed",
-): ApiResponseV1 {
+): ApiErrorResponseV1 {
   return {
     format: "wmm.response/1",
     apiVersion: "wmm/1",
@@ -36,50 +51,82 @@ export function apiErrorResponse(
   };
 }
 
+type OperationResult = {
+  [Operation in ApiOperationV1]: {
+    readonly operation: Operation;
+    readonly data: ApiResultByOperationV1[Operation];
+  };
+}[ApiOperationV1];
+
 function successResponse(
-  request: ApiRequestV1,
-  worldId: string,
-  snapshotDigest: string,
-  data: JsonValue,
-): ApiResponseV1 {
+  requestId: string,
+  resolved: ResolvedSnapshotV1,
+  result: OperationResult,
+): ApiSuccessResponseV1 {
   return {
     format: "wmm.response/1",
     apiVersion: "wmm/1",
-    requestId: request.requestId,
-    operation: request.operation,
+    requestId,
     outcome: "success",
     execution: "completed",
-    resolved: { worldId, snapshotDigest },
-    data,
+    resolved,
+    ...result,
     diagnostics: [],
   };
 }
 
-function isStorageError(error: unknown): error is NodeJS.ErrnoException {
-  if (!(error instanceof Error)) return false;
-  const code = (error as NodeJS.ErrnoException).code;
-  return (
-    code === "ENOENT" ||
-    code === "EACCES" ||
-    code === "EPERM" ||
-    code === "ENOTDIR" ||
-    code === "EISDIR"
-  );
+function ownScalarString(input: unknown, key: string): string | null {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return null;
+  // Error correlation must not invoke getters or echo inherited/non-scalar values.
+  const value: unknown = Object.getOwnPropertyDescriptor(input, key)?.value;
+  return typeof value === "string" && value.isWellFormed() ? value : null;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-export function executeApiRequest(request: ApiRequestV1): ApiResponseV1 {
+export function executeApiRequest(input: unknown): ApiResponseV1 {
+  let requestId: string | null = null;
+  let operation: string | null = null;
   try {
+    requestId = ownScalarString(input, "requestId");
+    operation = ownScalarString(input, "operation");
+    const apiVersion = ownScalarString(input, "apiVersion");
+    if (apiVersion !== null && apiVersion !== "wmm/1") {
+      return apiErrorResponse(
+        "UNSUPPORTED_API_VERSION",
+        `Unsupported API version: ${apiVersion}`,
+        requestId,
+        operation,
+      );
+    }
+    if (operation !== null && !SUPPORTED_OPERATIONS.has(operation)) {
+      return apiErrorResponse(
+        "UNSUPPORTED_FEATURE",
+        `Unsupported operation: ${operation}`,
+        requestId,
+        operation,
+      );
+    }
+    if (!validateApiRequest(input).valid) {
+      return apiErrorResponse(
+        "INVALID_REQUEST",
+        "Request does not satisfy the wmm/1 operation schema",
+        requestId,
+        operation,
+      );
+    }
+
+    const request = input as ApiRequestV1;
     const world = loadBundledV1WorldBundle(request.payload.bundlePath);
-    let data: JsonValue;
+    const resolved: ResolvedSnapshotV1 = {
+      worldId: world.world.worldId,
+      snapshotDigest: world.snapshot.snapshotDigest,
+    };
 
     switch (request.operation) {
       case "world.validate":
-        data = validateWorldBundle(world) as unknown as JsonValue;
-        break;
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: validateWorldBundle(world),
+        });
       case "record.inspect": {
         const record = inspectWorldBundle(world, request.payload.recordId);
         if (record === undefined) {
@@ -90,57 +137,71 @@ export function executeApiRequest(request: ApiRequestV1): ApiResponseV1 {
             request.operation,
           );
         }
-        data = record;
-        break;
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: record,
+        });
       }
       case "world.export":
-        data = exportWorldBundle(world);
-        break;
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: exportWorldBundle(world),
+        });
       case "claims.query":
-        data = queryActiveClaims(
-          {
-            activeAssertionIds: world.world.activeAssertionIds,
-            activeSupportIds: world.world.activeSupportIds,
-            assertions: world.assertions,
-            supports: world.supports,
-          },
-          request.payload.scope,
-          request.payload.temporal,
-        ) as unknown as JsonValue;
-        break;
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: queryActiveClaims(
+            {
+              activeAssertionIds: world.world.activeAssertionIds,
+              activeSupportIds: world.world.activeSupportIds,
+              assertions: world.assertions,
+              supports: world.supports,
+            },
+            request.payload.scope,
+            request.payload.temporal,
+          ),
+        });
       case "absence.query":
-        data = queryAbsence(
-          {
-            worldId: world.world.worldId,
-            snapshotDigest: world.snapshot.snapshotDigest,
-            activeAssertionIds: world.world.activeAssertionIds,
-            assertions: world.assertions,
-            definitionsByDigest: world.definitionsByDigest,
-          },
-          request.payload.target,
-          request.payload.scope,
-          request.payload.temporal,
-        ) as unknown as JsonValue;
-        break;
+        return successResponse(request.requestId, resolved, {
+          operation: request.operation,
+          data: queryAbsence(
+            {
+              worldId: world.world.worldId,
+              snapshotDigest: world.snapshot.snapshotDigest,
+              activeAssertionIds: world.world.activeAssertionIds,
+              assertions: world.assertions,
+              definitionsByDigest: world.definitionsByDigest,
+              descriptors: world.descriptors,
+              rosters: world.rosters,
+            },
+            request.payload.target,
+            request.payload.scope,
+            request.payload.temporal,
+          ),
+        });
     }
-
-    return successResponse(
-      request,
-      world.world.worldId,
-      world.snapshot.snapshotDigest,
-      data,
-    );
   } catch (error) {
-    const code: ApiErrorCodeV1 = isStorageError(error)
-      ? "STORAGE_FAILURE"
-      : error instanceof ClaimQueryInputError
-        ? "INVALID_REQUEST"
-        : "INVALID_WORLD";
+    if (error instanceof WorldBundleError) {
+      const code: ApiErrorCodeV1 = error.code === "FILESYSTEM_ERROR"
+        ? "STORAGE_FAILURE"
+        : error.code;
+      return apiErrorResponse(
+        code,
+        error.message,
+        requestId,
+        operation,
+        code === "INTERNAL_ERROR" ? "incomplete" : "completed",
+      );
+    }
+    if (error instanceof ClaimQueryInputError) {
+      return apiErrorResponse("INVALID_REQUEST", error.message, requestId, operation);
+    }
     return apiErrorResponse(
-      code,
-      errorMessage(error),
-      request.requestId,
-      request.operation,
+      "INTERNAL_ERROR",
+      "Unexpected application failure",
+      requestId,
+      operation,
+      "incomplete",
     );
   }
 }

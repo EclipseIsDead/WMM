@@ -51,7 +51,18 @@ describe("wmm/1 API wire contract", () => {
         worldId: "world:valen_v1",
         snapshotDigest: "a".repeat(64),
       },
-      data: { status: "valid" },
+      data: {
+        status: "valid",
+        worldId: "world:valen_v1",
+        snapshotDigest: "a".repeat(64),
+        files: 0,
+        descriptors: 0,
+        sources: 0,
+        assertions: 0,
+        activeAssertions: 0,
+        supports: 0,
+        activeSupports: 0,
+      },
       diagnostics: [],
     };
     const error: ApiResponseV1 = {

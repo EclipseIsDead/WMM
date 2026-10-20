@@ -6,9 +6,18 @@
   "payload": {
     "bundlePath": "fixtures/v1/complete-world",
     "scope": {
-      "account": { "kind": "ref", "id": "account:canonical" },
-      "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-      "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+      "account": {
+        "id": "account:canonical",
+        "kind": "ref"
+      },
+      "jurisdiction": {
+        "id": "polity:valen",
+        "kind": "ref"
+      },
+      "recognitionFrame": {
+        "id": "frame:royal-court",
+        "kind": "ref"
+      }
     },
     "temporal": {
       "format": "wmm.temporal-query/1",

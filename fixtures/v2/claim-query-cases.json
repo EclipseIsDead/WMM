@@ -11,9 +11,18 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -25,18 +34,18 @@
       },
       "expected": {
         "definite": [
-          "asrt:04602f8c928e8b4e9b75d7c09d574f948f980749916ecd51258d1d306c5a8403",
-          "asrt:17bf11165c3b76c79d9016a3b3fb7d8831d3064c51878a888d1cac029c8b7a96",
-          "asrt:2cd1bfc1b988b9b7da743903181bef2dd2cc6fa9e4728785d550d3186e53bb4e",
-          "asrt:6ff1c8bb74930eca23d3f05f7d6caa7274b1f16123774e8a57c446e41cd44189",
-          "asrt:72c0aca9744a39adffa8b6022c30a85164b21d6d98fcedc0f4a97102481bb3df",
-          "asrt:985495c1f81d705e962afd00d20e0c793aaca876b0c6bf4619ee401059e6498f",
-          "asrt:bd290a7765a178cfb00b49230349ba5178f69be7b49d2b816bd380c9500e6ac0"
+          "asrt:03175cc001fa9adf035d615502c0b57bead5d4b40dda825a4d1965dfcca807fb",
+          "asrt:18b023e64bf6f100006aa0c7cb0721f4b14f549bb3e414e4b7f6f3c57bea957f",
+          "asrt:3a04ac43dd7f08a6365e9787d772d24cb4cf6b4d2828763b7da30062948c33d4",
+          "asrt:44407cbf9804139786c230abd0298098867e8e44fa892ad0e446e777ca3109d8",
+          "asrt:76caab78967043a8e9e783f44e266e7dc365f5a51627b0363637f23dc1bdc188",
+          "asrt:b06b14a28ae852890e0da59d3a0dc34fc5e8c76ccf86c98a20d776d12efcb03a",
+          "asrt:f45b924fe2b6d6ac5fecbf0808a68b86ee37a56aa999b839106551827b32116a"
         ],
         "possible": [],
         "unresolved": [],
         "excluded": [
-          "asrt:a130115f9840558d8e30cca95b5c760a55fca4a582f6049d6b2b6497fefdae50"
+          "asrt:933fdb95fba16fa0a8c5d65fb3cbc85125d6c52d37f2c152a165666e25e57415"
         ]
       }
     },
@@ -50,9 +59,18 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:royal-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "id": "frame:royal-court",
+              "kind": "ref"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -64,18 +82,18 @@
       },
       "expected": {
         "definite": [
-          "asrt:04602f8c928e8b4e9b75d7c09d574f948f980749916ecd51258d1d306c5a8403"
+          "asrt:44407cbf9804139786c230abd0298098867e8e44fa892ad0e446e777ca3109d8"
         ],
         "possible": [],
         "unresolved": [],
         "excluded": [
-          "asrt:17bf11165c3b76c79d9016a3b3fb7d8831d3064c51878a888d1cac029c8b7a96",
-          "asrt:2cd1bfc1b988b9b7da743903181bef2dd2cc6fa9e4728785d550d3186e53bb4e",
-          "asrt:6ff1c8bb74930eca23d3f05f7d6caa7274b1f16123774e8a57c446e41cd44189",
-          "asrt:72c0aca9744a39adffa8b6022c30a85164b21d6d98fcedc0f4a97102481bb3df",
-          "asrt:985495c1f81d705e962afd00d20e0c793aaca876b0c6bf4619ee401059e6498f",
-          "asrt:a130115f9840558d8e30cca95b5c760a55fca4a582f6049d6b2b6497fefdae50",
-          "asrt:bd290a7765a178cfb00b49230349ba5178f69be7b49d2b816bd380c9500e6ac0"
+          "asrt:03175cc001fa9adf035d615502c0b57bead5d4b40dda825a4d1965dfcca807fb",
+          "asrt:18b023e64bf6f100006aa0c7cb0721f4b14f549bb3e414e4b7f6f3c57bea957f",
+          "asrt:3a04ac43dd7f08a6365e9787d772d24cb4cf6b4d2828763b7da30062948c33d4",
+          "asrt:76caab78967043a8e9e783f44e266e7dc365f5a51627b0363637f23dc1bdc188",
+          "asrt:933fdb95fba16fa0a8c5d65fb3cbc85125d6c52d37f2c152a165666e25e57415",
+          "asrt:b06b14a28ae852890e0da59d3a0dc34fc5e8c76ccf86c98a20d776d12efcb03a",
+          "asrt:f45b924fe2b6d6ac5fecbf0808a68b86ee37a56aa999b839106551827b32116a"
         ]
       }
     },
@@ -89,9 +107,18 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "ref", "id": "frame:rival-court" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "kind": "ref",
+              "id": "frame:rival-court"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -106,14 +133,14 @@
         "possible": [],
         "unresolved": [],
         "excluded": [
-          "asrt:04602f8c928e8b4e9b75d7c09d574f948f980749916ecd51258d1d306c5a8403",
-          "asrt:17bf11165c3b76c79d9016a3b3fb7d8831d3064c51878a888d1cac029c8b7a96",
-          "asrt:2cd1bfc1b988b9b7da743903181bef2dd2cc6fa9e4728785d550d3186e53bb4e",
-          "asrt:6ff1c8bb74930eca23d3f05f7d6caa7274b1f16123774e8a57c446e41cd44189",
-          "asrt:72c0aca9744a39adffa8b6022c30a85164b21d6d98fcedc0f4a97102481bb3df",
-          "asrt:985495c1f81d705e962afd00d20e0c793aaca876b0c6bf4619ee401059e6498f",
-          "asrt:a130115f9840558d8e30cca95b5c760a55fca4a582f6049d6b2b6497fefdae50",
-          "asrt:bd290a7765a178cfb00b49230349ba5178f69be7b49d2b816bd380c9500e6ac0"
+          "asrt:03175cc001fa9adf035d615502c0b57bead5d4b40dda825a4d1965dfcca807fb",
+          "asrt:18b023e64bf6f100006aa0c7cb0721f4b14f549bb3e414e4b7f6f3c57bea957f",
+          "asrt:3a04ac43dd7f08a6365e9787d772d24cb4cf6b4d2828763b7da30062948c33d4",
+          "asrt:44407cbf9804139786c230abd0298098867e8e44fa892ad0e446e777ca3109d8",
+          "asrt:76caab78967043a8e9e783f44e266e7dc365f5a51627b0363637f23dc1bdc188",
+          "asrt:933fdb95fba16fa0a8c5d65fb3cbc85125d6c52d37f2c152a165666e25e57415",
+          "asrt:b06b14a28ae852890e0da59d3a0dc34fc5e8c76ccf86c98a20d776d12efcb03a",
+          "asrt:f45b924fe2b6d6ac5fecbf0808a68b86ee37a56aa999b839106551827b32116a"
         ]
       }
     },
@@ -127,9 +154,17 @@
         "payload": {
           "bundlePath": "fixtures/v1/complete-world",
           "scope": {
-            "account": { "kind": "ref", "id": "account:canonical" },
-            "jurisdiction": { "kind": "ref", "id": "polity:valen" },
-            "recognitionFrame": { "kind": "unresolved" }
+            "account": {
+              "id": "account:canonical",
+              "kind": "ref"
+            },
+            "jurisdiction": {
+              "id": "polity:valen",
+              "kind": "ref"
+            },
+            "recognitionFrame": {
+              "kind": "unresolved"
+            }
           },
           "temporal": {
             "format": "wmm.temporal-query/1",
@@ -143,16 +178,16 @@
         "definite": [],
         "possible": [],
         "unresolved": [
-          "asrt:04602f8c928e8b4e9b75d7c09d574f948f980749916ecd51258d1d306c5a8403",
-          "asrt:17bf11165c3b76c79d9016a3b3fb7d8831d3064c51878a888d1cac029c8b7a96",
-          "asrt:2cd1bfc1b988b9b7da743903181bef2dd2cc6fa9e4728785d550d3186e53bb4e",
-          "asrt:6ff1c8bb74930eca23d3f05f7d6caa7274b1f16123774e8a57c446e41cd44189",
-          "asrt:72c0aca9744a39adffa8b6022c30a85164b21d6d98fcedc0f4a97102481bb3df",
-          "asrt:985495c1f81d705e962afd00d20e0c793aaca876b0c6bf4619ee401059e6498f",
-          "asrt:bd290a7765a178cfb00b49230349ba5178f69be7b49d2b816bd380c9500e6ac0"
+          "asrt:03175cc001fa9adf035d615502c0b57bead5d4b40dda825a4d1965dfcca807fb",
+          "asrt:18b023e64bf6f100006aa0c7cb0721f4b14f549bb3e414e4b7f6f3c57bea957f",
+          "asrt:3a04ac43dd7f08a6365e9787d772d24cb4cf6b4d2828763b7da30062948c33d4",
+          "asrt:44407cbf9804139786c230abd0298098867e8e44fa892ad0e446e777ca3109d8",
+          "asrt:76caab78967043a8e9e783f44e266e7dc365f5a51627b0363637f23dc1bdc188",
+          "asrt:b06b14a28ae852890e0da59d3a0dc34fc5e8c76ccf86c98a20d776d12efcb03a",
+          "asrt:f45b924fe2b6d6ac5fecbf0808a68b86ee37a56aa999b839106551827b32116a"
         ],
         "excluded": [
-          "asrt:a130115f9840558d8e30cca95b5c760a55fca4a582f6049d6b2b6497fefdae50"
+          "asrt:933fdb95fba16fa0a8c5d65fb3cbc85125d6c52d37f2c152a165666e25e57415"
         ]
       }
     }

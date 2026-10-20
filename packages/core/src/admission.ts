@@ -1,4 +1,7 @@
+import { types } from "node:util";
+
 import {
+  canonicalJson,
   semanticDefinitionDigest,
   semanticProfileDigest,
 } from "@wmm/canonical";
@@ -7,6 +10,7 @@ import {
   assertSemanticProfile,
 } from "@wmm/schema";
 import type {
+  JsonValue,
   SemanticDefinitionV1,
   SemanticProfileV1,
 } from "@wmm/wire-contracts";
@@ -54,6 +58,28 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+function assertPlainDataRequest(request: SemanticAdmissionRequest): void {
+  if (
+    request === null ||
+    typeof request !== "object" ||
+    types.isProxy(request) ||
+    Object.getPrototypeOf(request) !== Object.prototype
+  ) {
+    throw new TypeError("Semantic admission request must be an ordinary data object");
+  }
+  for (const key of Reflect.ownKeys(request)) {
+    const descriptor = Object.getOwnPropertyDescriptor(request, key);
+    if (
+      typeof key !== "string" ||
+      descriptor === undefined ||
+      !("value" in descriptor) ||
+      !descriptor.enumerable
+    ) {
+      throw new TypeError("Semantic admission request may contain only enumerable data properties");
+    }
+  }
+}
+
 function assertAcyclic(
   definitions: ReadonlyMap<string, SemanticDefinitionV1>,
 ): void {
@@ -89,13 +115,23 @@ function assertAcyclic(
 export function admitSemanticProfile(
   request: SemanticAdmissionRequest,
 ): AdmittedSemanticProfile {
-  assertSemanticProfile(request.profile);
-  if (request.profile.fixtureOnly === true && request.allowFixtureOnly !== true) {
+  assertPlainDataRequest(request);
+  const { trustedDefinitionDigests, trustedProfileDigests, allowFixtureOnly } = request;
+  // Canonicalization rejects accessors and proxies before validation or trust callbacks.
+  const { profile, definitions: suppliedDefinitions } = deepFreeze(
+    JSON.parse(canonicalJson({
+      profile: request.profile,
+      definitions: request.definitions,
+    } as unknown as JsonValue)) as Pick<SemanticAdmissionRequest, "profile" | "definitions">,
+  );
+
+  assertSemanticProfile(profile);
+  if (profile.fixtureOnly === true && allowFixtureOnly !== true) {
     throw new AdmissionError("FIXTURE_ONLY", "Fixture-only semantic profile is not admissible");
   }
 
-  const profileDigest = semanticProfileDigest(request.profile);
-  if (!request.trustedProfileDigests.has(profileDigest)) {
+  const profileDigest = semanticProfileDigest(profile);
+  if (!trustedProfileDigests.has(profileDigest)) {
     throw new AdmissionError(
       "UNTRUSTED_PROFILE",
       `Semantic profile digest is not release-allowlisted: ${profileDigest}`,
@@ -104,18 +140,17 @@ export function admitSemanticProfile(
 
   const definitions = new Map<string, SemanticDefinitionV1>();
   const definitionKeys = new Set<string>();
-  for (const supplied of request.definitions) {
-    assertSemanticDefinition(supplied);
-    if (supplied.fixtureOnly === true && request.allowFixtureOnly !== true) {
+  for (const definition of suppliedDefinitions) {
+    assertSemanticDefinition(definition);
+    if (definition.fixtureOnly === true && allowFixtureOnly !== true) {
       throw new AdmissionError(
         "FIXTURE_ONLY",
-        `Fixture-only semantic definition is not admissible: ${supplied.key}`,
+        `Fixture-only semantic definition is not admissible: ${definition.key}`,
       );
     }
 
-    const definition = deepFreeze(structuredClone(supplied));
     const digest = semanticDefinitionDigest(definition);
-    if (!request.trustedDefinitionDigests.has(digest)) {
+    if (!trustedDefinitionDigests.has(digest)) {
       throw new AdmissionError(
         "UNTRUSTED_DEFINITION",
         `Semantic definition digest is not release-allowlisted: ${digest}`,
@@ -138,7 +173,7 @@ export function admitSemanticProfile(
     definitions.set(digest, definition);
   }
 
-  const declared = new Set(request.profile.definitions);
+  const declared = new Set(profile.definitions);
   for (const digest of declared) {
     if (!definitions.has(digest)) {
       throw new AdmissionError(
@@ -168,7 +203,7 @@ export function admitSemanticProfile(
 
   return deepFreeze({
     profileDigest,
-    profile: deepFreeze(structuredClone(request.profile)),
+    profile,
     definitionsByDigest,
   });
 }

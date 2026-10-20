@@ -345,6 +345,68 @@
       ],
       "additionalProperties": false
     },
+    "Roster": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.roster/1" },
+        "worldId": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId" },
+        "populationDefinitionDigest": { "$ref": "#/$defs/Digest" },
+        "memberIds": { "$ref": "#/$defs/IdSet" }
+      },
+      "required": ["format", "worldId", "populationDefinitionDigest", "memberIds"],
+      "additionalProperties": false
+    },
+    "CoverageInputSelection": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.coverage-input/1" },
+        "worldId": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId" },
+        "populationDefinitionDigest": { "$ref": "#/$defs/Digest" },
+        "selectorDefinitionDigest": { "$ref": "#/$defs/Digest" },
+        "scope": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope" },
+        "applicability": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Applicability" },
+        "primitiveClaimIds": { "$ref": "#/$defs/AssertionIdSet" },
+        "candidateBirthDigests": { "type": "array", "items": { "$ref": "#/$defs/Digest" }, "uniqueItems": true }
+      },
+      "required": ["format", "worldId", "populationDefinitionDigest", "selectorDefinitionDigest", "scope", "applicability", "primitiveClaimIds", "candidateBirthDigests"],
+      "additionalProperties": false
+    },
+    "AbsenceCoverageCheck": {
+      "type": "object",
+      "properties": {
+        "assertionId": { "$ref": "#/$defs/AssertionId" },
+        "basis": { "$ref": "#/$defs/PopulationCoverageBasis" },
+        "inputSelection": { "$ref": "#/$defs/CoverageInputSelection" },
+        "inputSelectionDigest": { "$ref": "#/$defs/Digest" },
+        "roster": { "oneOf": [{ "$ref": "#/$defs/Roster" }, { "type": "null" }] },
+        "status": { "enum": ["matched", "selector-mismatch", "input-stale", "roster-missing", "roster-mismatch"] }
+      },
+      "required": ["assertionId", "basis", "inputSelection", "inputSelectionDigest", "roster", "status"],
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "matched" } }, "required": ["status"] },
+          "then": { "properties": { "roster": { "$ref": "#/$defs/Roster" } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "roster-missing" } }, "required": ["status"] },
+          "then": { "properties": { "roster": { "type": "null" } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "PopulationCoverageBasis": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.population-coverage-basis/1" },
+        "populationDefinitionDigest": { "$ref": "#/$defs/Digest" },
+        "selectorDefinitionDigest": { "$ref": "#/$defs/Digest" },
+        "rosterDigest": { "$ref": "#/$defs/Digest" },
+        "inputSelectionDigest": { "$ref": "#/$defs/Digest" },
+        "coverageMethod": { "enum": ["authorAttested", "sourceEnumeration"] }
+      },
+      "required": ["format", "populationDefinitionDigest", "selectorDefinitionDigest", "rosterDigest", "inputSelectionDigest", "coverageMethod"],
+      "additionalProperties": false
+    },
     "AbsenceInputSelection": {
       "type": "object",
       "properties": {
@@ -366,6 +428,7 @@
         "temporal": {
           "$ref": "#/$defs/PointQuery"
         },
+
         "membershipAssertionIds": {
           "$ref": "#/$defs/AssertionIdSet"
         }
@@ -377,6 +440,7 @@
         "target",
         "scope",
         "temporal",
+
         "membershipAssertionIds"
       ],
       "additionalProperties": false
@@ -391,7 +455,7 @@
           "$ref": "#/$defs/AssertionIdSet"
         },
         "membership": {
-          "enum": ["member", "possible", "conflicting", "unresolved"]
+          "enum": ["member", "nonmember", "possible", "conflicting", "unresolved"]
         },
         "eligibilityAssertionIds": {
           "$ref": "#/$defs/AssertionIdSet"
@@ -422,7 +486,7 @@
           "const": "wmm.absence-evaluation-receipt/1"
         },
         "algorithm": {
-          "const": "bundled-absence-point-v1"
+          "const": "bundled-absence-point-v3"
         },
         "inputSelection": {
           "$ref": "#/$defs/AbsenceInputSelection"
@@ -439,6 +503,10 @@
         "negativeCoverageAssertionIds": {
           "$ref": "#/$defs/AssertionIdSet"
         },
+        "staleCoverageAssertionIds": { "$ref": "#/$defs/AssertionIdSet" },
+        "selectedCoverageAssertionId": { "oneOf": [{ "$ref": "#/$defs/AssertionId" }, { "type": "null" }] },
+        "coverageChecks": { "type": "array", "items": { "$ref": "#/$defs/AbsenceCoverageCheck" } },
+        "premiseAssertionIds": { "$ref": "#/$defs/AssertionIdSet" },
         "eligibilityAssertionIds": {
           "$ref": "#/$defs/AssertionIdSet"
         },
@@ -455,6 +523,10 @@
           "enum": [
             "all-candidates-ineligible",
             "coverage-not-established",
+            "coverage-roster-mismatch",
+            "coverage-roster-missing",
+            "coverage-input-stale",
+            "coverage-selector-mismatch",
             "coverage-conflicted",
             "coverage-unresolved",
             "membership-not-established",
@@ -475,6 +547,10 @@
         "evaluationDigest",
         "positiveCoverageAssertionIds",
         "negativeCoverageAssertionIds",
+        "staleCoverageAssertionIds",
+        "selectedCoverageAssertionId",
+        "coverageChecks",
+        "premiseAssertionIds",
         "eligibilityAssertionIds",
         "candidates",
         "status",
@@ -495,16 +571,38 @@
                 }
               },
               "positiveCoverageAssertionIds": { "minItems": 1 },
+              "selectedCoverageAssertionId": { "$ref": "#/$defs/AssertionId" },
+              "coverageChecks": {
+                "minItems": 1,
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "const": "matched" },
+                    "roster": {
+                      "allOf": [
+                        { "$ref": "#/$defs/Roster" },
+                        { "type": "object", "properties": { "memberIds": { "type": "array", "minItems": 1 } } }
+                      ]
+                    }
+                  },
+                  "required": ["status", "roster"]
+                }
+              },
               "candidates": {
                 "minItems": 1,
+                "contains": {
+                  "type": "object",
+                  "properties": { "membership": { "const": "member" }, "eligibility": { "const": "ineligible" } },
+                  "required": ["membership", "eligibility"]
+                },
                 "items": {
                   "allOf": [
                     { "$ref": "#/$defs/AbsenceCandidateEvaluation" },
                     {
-                      "properties": {
-                        "membership": { "const": "member" },
-                        "eligibility": { "const": "ineligible" }
-                      }
+                      "oneOf": [
+                        { "properties": { "membership": { "const": "member" }, "eligibility": { "const": "ineligible" } } },
+                        { "properties": { "membership": { "const": "nonmember" } } }
+                      ]
                     }
                   ]
                 }
@@ -522,6 +620,10 @@
               "reason": {
                 "enum": [
                   "coverage-not-established",
+                  "coverage-roster-mismatch",
+                  "coverage-roster-missing",
+                  "coverage-input-stale",
+                  "coverage-selector-mismatch",
                   "coverage-conflicted",
                   "coverage-unresolved",
                   "membership-not-established",
@@ -919,6 +1021,10 @@
     {
       "$ref": "#/$defs/ClaimQueryResult"
     },
+    { "$ref": "#/$defs/Roster" },
+    { "$ref": "#/$defs/CoverageInputSelection" },
+    { "$ref": "#/$defs/PopulationCoverageBasis" },
+    { "$ref": "#/$defs/AbsenceEvaluationReceipt" },
     {
       "$ref": "#/$defs/AbsenceQueryResult"
     },

@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
+import { types } from "node:util";
 
 import type {
   AbsenceEvaluationBodyV1,
   AbsenceInputSelectionV1,
   ClaimBodyV1,
   JsonValue,
+  CoverageInputSelectionV1,
+  DescriptorRecordV1,
+  RosterV1,
   RevisionEnvelopeV1,
   SemanticDefinitionV1,
   SemanticProfileV1,
@@ -84,6 +88,13 @@ function canonicalize(
     );
   }
 
+  if (types.isProxy(value)) {
+    throw new CanonicalizationError(
+      "NON_PLAIN_OBJECT",
+      "Proxies are outside the canonical JSON profile",
+    );
+  }
+
   if (ancestors.has(value)) {
     throw new CanonicalizationError("CYCLIC_VALUE", "Cyclic values are not JSON");
   }
@@ -91,10 +102,15 @@ function canonicalize(
 
   try {
     if (Array.isArray(value)) {
+      const length = value.length;
       const ownKeys = Reflect.ownKeys(value);
       for (const key of ownKeys) {
         if (key === "length") continue;
-        if (typeof key !== "string" || !/^(0|[1-9][0-9]*)$/.test(key)) {
+        if (
+          typeof key !== "string" ||
+          !/^(0|[1-9][0-9]*)$/.test(key) ||
+          Number(key) >= length
+        ) {
           throw new CanonicalizationError(
             "HIDDEN_PROPERTY",
             "Arrays may not contain non-index properties",
@@ -103,14 +119,21 @@ function canonicalize(
       }
 
       const elements: string[] = [];
-      for (let index = 0; index < value.length; index += 1) {
-        if (!Object.hasOwn(value, index)) {
+      for (let index = 0; index < length; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, index);
+        if (descriptor === undefined) {
           throw new CanonicalizationError(
             "SPARSE_ARRAY",
             "Sparse arrays are outside the canonical JSON profile",
           );
         }
-        elements.push(canonicalize(value[index], depth + 1, maxDepth, ancestors));
+        if (!("value" in descriptor) || !descriptor.enumerable) {
+          throw new CanonicalizationError(
+            "HIDDEN_PROPERTY",
+            "Arrays may contain only enumerable data elements",
+          );
+        }
+        elements.push(canonicalize(descriptor.value, depth + 1, maxDepth, ancestors));
       }
       return `[${elements.join(",")}]`;
     }
@@ -131,8 +154,9 @@ function canonicalize(
       );
     }
 
-    for (const key of stringKeys) {
-      quoteScalarString(key);
+    stringKeys.sort();
+    const properties = stringKeys.map((key) => {
+      const quotedKey = quoteScalarString(key);
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
         throw new CanonicalizationError(
@@ -140,16 +164,9 @@ function canonicalize(
           "Objects may contain only enumerable data properties",
         );
       }
-    }
-
-    stringKeys.sort();
-    const record = value as Record<string, unknown>;
-    return `{${stringKeys
-      .map(
-        (key) =>
-          `${quoteScalarString(key)}:${canonicalize(record[key], depth + 1, maxDepth, ancestors)}`,
-      )
-      .join(",")}}`;
+      return `${quotedKey}:${canonicalize(descriptor.value, depth + 1, maxDepth, ancestors)}`;
+    });
+    return `{${properties.join(",")}}`;
   } finally {
     ancestors.delete(value);
   }
@@ -221,6 +238,18 @@ export function semanticProfileDigest(profile: SemanticProfileV1): string {
 
 export function supportDigest(support: SupportBodyV1): string {
   return framedJsonDigest("wmm.support/v1", support as unknown as JsonValue);
+}
+
+export function populationRosterDigest(roster: RosterV1): string {
+  return framedJsonDigest("wmm.roster/v1", roster as unknown as JsonValue);
+}
+
+export function descriptorBirthDigest(descriptor: DescriptorRecordV1): string {
+  return framedJsonDigest("wmm.descriptor-birth/v1", descriptor as unknown as JsonValue);
+}
+
+export function coverageInputSelectionDigest(selection: CoverageInputSelectionV1): string {
+  return framedJsonDigest("wmm.coverage-input/v1", selection as unknown as JsonValue);
 }
 
 export function absenceInputSelectionDigest(

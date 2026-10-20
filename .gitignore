@@ -5,4 +5,4 @@ coverage/
 .cache/
 *.tsbuildinfo
 .DS_Store
-plans/
+/plans/

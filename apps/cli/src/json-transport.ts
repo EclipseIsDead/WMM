@@ -1,10 +1,4 @@
-import {
-  parse,
-  printParseErrorCode,
-  visit,
-  type ParseError,
-} from "jsonc-parser";
-
+import { canonicalJson } from "@wmm/canonical";
 import {
   apiErrorResponse,
   executeApiRequest,
@@ -14,13 +8,15 @@ import type {
   ApiOperationV1,
   ApiRequestV1,
   ApiResponseV1,
+  JsonValue,
 } from "@wmm/wire-contracts";
 import {
   validateApiRequest,
   validateApiResponse,
 } from "@wmm/wire-contracts";
 
-const MAX_REQUEST_BYTES = 1024 * 1024;
+import { MAX_REQUEST_BYTES, parseStrictJson } from "./json-input.js";
+
 const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
   [
     "world.validate",
@@ -36,63 +32,6 @@ export interface JsonTransportResult {
   readonly exitCode: number;
 }
 
-class RequestParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "RequestParseError";
-  }
-}
-
-function parseStrictJson(text: string): unknown {
-  const objectKeys: Set<string>[] = [];
-  let duplicateKey: string | undefined;
-  const visitorErrors: ParseError[] = [];
-
-  visit(
-    text,
-    {
-      onObjectBegin: () => {
-        objectKeys.push(new Set());
-      },
-      onObjectProperty: (property) => {
-        const keys = objectKeys.at(-1);
-        if (keys?.has(property) === true) duplicateKey ??= property;
-        keys?.add(property);
-      },
-      onObjectEnd: () => {
-        objectKeys.pop();
-      },
-      onError: (error, offset, length) => {
-        visitorErrors.push({ error, offset, length });
-      },
-    },
-    { allowTrailingComma: false, disallowComments: true },
-  );
-
-  if (duplicateKey !== undefined) {
-    throw new RequestParseError(`Duplicate JSON object key: ${duplicateKey}`);
-  }
-  if (visitorErrors.length > 0) {
-    const first = visitorErrors[0];
-    throw new RequestParseError(
-      `Invalid JSON: ${first === undefined ? "unknown parse error" : printParseErrorCode(first.error)}`,
-    );
-  }
-
-  const errors: ParseError[] = [];
-  const value: unknown = parse(text, errors, {
-    allowTrailingComma: false,
-    disallowComments: true,
-  });
-  if (errors.length > 0) {
-    const first = errors[0];
-    throw new RequestParseError(
-      `Invalid JSON: ${first === undefined ? "unknown parse error" : printParseErrorCode(first.error)}`,
-    );
-  }
-  return value;
-}
-
 function metadata(input: unknown): {
   readonly requestId: string | null;
   readonly operation: string | null;
@@ -102,10 +41,15 @@ function metadata(input: unknown): {
     return { requestId: null, operation: null, apiVersion: null };
   }
   const record = input as Record<string, unknown>;
+  const scalarString = (key: string): string | null => {
+    if (!Object.hasOwn(record, key)) return null;
+    const value = record[key];
+    return typeof value === "string" && value.isWellFormed() ? value : null;
+  };
   return {
-    requestId: typeof record["requestId"] === "string" ? record["requestId"] : null,
-    operation: typeof record["operation"] === "string" ? record["operation"] : null,
-    apiVersion: typeof record["apiVersion"] === "string" ? record["apiVersion"] : null,
+    requestId: scalarString("requestId"),
+    operation: scalarString("operation"),
+    apiVersion: scalarString("apiVersion"),
   };
 }
 
@@ -124,22 +68,63 @@ function errorExitCode(code: ApiErrorCodeV1): number {
   }
 }
 
+export function jsonTransportError(
+  code: ApiErrorCodeV1,
+  message: string,
+  requestId: string | null = null,
+  operation: string | null = null,
+): JsonTransportResult {
+  return {
+    response: apiErrorResponse(
+      code,
+      message,
+      requestId,
+      operation,
+      code === "INTERNAL_ERROR" ? "incomplete" : "completed",
+    ),
+    exitCode: errorExitCode(code),
+  };
+}
+
 function checkedResponse(response: ApiResponseV1): JsonTransportResult {
   const validation = validateApiResponse(response);
   if (!validation.valid) {
-    const internal = apiErrorResponse(
+    const correlation = metadata(response);
+    return jsonTransportError(
       "INTERNAL_ERROR",
       "Application produced a response outside the V1 wire contract",
-      response.requestId,
-      response.operation,
-      "incomplete",
+      correlation.requestId,
+      correlation.operation,
     );
-    return { response: internal, exitCode: 4 };
   }
   return {
     response,
     exitCode: response.outcome === "success" ? 0 : errorExitCode(response.error.code),
   };
+}
+
+export function serializeJsonTransportResult(result: JsonTransportResult): {
+  readonly output: string;
+  readonly exitCode: number;
+} {
+  try {
+    return {
+      output: `${canonicalJson(result.response as unknown as JsonValue)}\n`,
+      exitCode: result.exitCode,
+    };
+  } catch {
+    const correlation = metadata(result.response);
+    const fallback = jsonTransportError(
+      "INTERNAL_ERROR",
+      "Unable to serialize the JSON response",
+      correlation.requestId,
+      correlation.operation,
+    );
+    return {
+      output: `${canonicalJson(fallback.response as unknown as JsonValue)}\n`,
+      exitCode: fallback.exitCode,
+    };
+  }
 }
 
 export function runJsonTransport(bytes: Uint8Array): JsonTransportResult {
@@ -197,17 +182,26 @@ export function runJsonTransport(bytes: Uint8Array): JsonTransportResult {
     );
   }
 
-  const validation = validateApiRequest(input);
-  if (!validation.valid) {
-    return checkedResponse(
-      apiErrorResponse(
-        "INVALID_REQUEST",
-        "Request does not satisfy the wmm/1 operation schema",
-        requestMetadata.requestId,
-        requestMetadata.operation,
-      ),
+  try {
+    const validation = validateApiRequest(input);
+    if (!validation.valid) {
+      return checkedResponse(
+        apiErrorResponse(
+          "INVALID_REQUEST",
+          "Request does not satisfy the wmm/1 operation schema",
+          requestMetadata.requestId,
+          requestMetadata.operation,
+        ),
+      );
+    }
+
+    return checkedResponse(executeApiRequest(input as ApiRequestV1));
+  } catch {
+    return jsonTransportError(
+      "INTERNAL_ERROR",
+      "Unable to process the JSON request",
+      requestMetadata.requestId,
+      requestMetadata.operation,
     );
   }
-
-  return checkedResponse(executeApiRequest(input as ApiRequestV1));
 }

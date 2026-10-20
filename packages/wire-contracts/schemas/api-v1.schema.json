@@ -231,6 +231,258 @@
       "required": ["worldId", "snapshotDigest"],
       "additionalProperties": false
     },
+    "WorldValidationReport": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "valid"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId"
+        },
+        "snapshotDigest": {
+          "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+        },
+        "files": {
+          "$ref": "#/$defs/Count"
+        },
+        "descriptors": {
+          "$ref": "#/$defs/Count"
+        },
+        "sources": {
+          "$ref": "#/$defs/Count"
+        },
+        "assertions": {
+          "$ref": "#/$defs/Count"
+        },
+        "activeAssertions": {
+          "$ref": "#/$defs/Count"
+        },
+        "supports": {
+          "$ref": "#/$defs/Count"
+        },
+        "activeSupports": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "status",
+        "worldId",
+        "snapshotDigest",
+        "files",
+        "descriptors",
+        "sources",
+        "assertions",
+        "activeAssertions",
+        "supports",
+        "activeSupports"
+      ],
+      "additionalProperties": false
+    },
+    "Count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "SemanticDefinition": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.semantic-definition/1"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "kind": {
+          "enum": [
+            "predicate",
+            "literal",
+            "population",
+            "selector",
+            "criterion",
+            "axis",
+            "descriptorType",
+            "locator",
+            "interpretation"
+          ]
+        },
+        "operation": {
+          "enum": [
+            "exact-tuple-multivalue-v1",
+            "text-value-v1",
+            "population-coverage-atom-v1",
+            "population-membership-atom-v1",
+            "criterion-satisfaction-atom-v1",
+            "population-coverage-basis-v1",
+            "retained-unicode-v1",
+            "bundled-candidate-membership-v1",
+            "bundled-candidate-selector-v1",
+            "bundled-eligibility-v1",
+            "integer-chronon-half-open-v1",
+            "descriptor-type-v1",
+            "author-stipulation-locator-v1",
+            "author-stipulation-interpretation-v1"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+          },
+          "uniqueItems": true
+        },
+        "fixtureOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": ["format", "key", "kind", "operation", "version", "dependencies"],
+      "additionalProperties": false
+    },
+    "SemanticProfile": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.semantic-profile/1"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "definitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+          },
+          "uniqueItems": true
+        },
+        "numericProfile": {
+          "const": "safe-integer-json-v1"
+        },
+        "propositionGrammar": {
+          "const": "explicit-polarity-atom-exists-v1"
+        },
+        "fixtureOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "definitions",
+        "numericProfile",
+        "propositionGrammar"
+      ],
+      "additionalProperties": false
+    },
+    "InspectableRecord": {
+      "oneOf": [
+        {
+          "$ref": "urn:wmm:world-records:v1"
+        },
+        {
+          "$ref": "#/$defs/SemanticDefinition"
+        },
+        {
+          "$ref": "#/$defs/SemanticProfile"
+        },
+        { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Roster" }
+      ]
+    },
+    "WorldExport": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.world-export/1"
+        },
+        "snapshotDigest": {
+          "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+        },
+        "world": {
+          "$ref": "urn:wmm:world-records:v1#/$defs/WorldCatalog"
+        },
+        "semanticProfile": {
+          "$ref": "#/$defs/SemanticProfile"
+        },
+        "definitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "digest": {
+                "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest"
+              },
+              "body": {
+                "$ref": "#/$defs/SemanticDefinition"
+              }
+            },
+            "required": ["digest", "body"],
+            "additionalProperties": false
+          }
+        },
+        "rosters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "digest": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Digest" },
+              "body": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/Roster" }
+            },
+            "required": ["digest", "body"],
+            "additionalProperties": false
+          }
+        },
+        "descriptors": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:world-records:v1#/$defs/DescriptorRecord"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:world-records:v1#/$defs/SourceRecord"
+          }
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:world-records:v1#/$defs/AssertionRecord"
+          }
+        },
+        "supports": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:world-records:v1#/$defs/SupportRecord"
+          }
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/FileEntry"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "snapshotDigest",
+        "world",
+        "semanticProfile",
+        "definitions",
+        "rosters",
+        "descriptors",
+        "sources",
+        "assertions",
+        "supports",
+        "documents"
+      ],
+      "additionalProperties": false
+    },
     "SuccessResponse": {
       "type": "object",
       "properties": {
@@ -262,7 +514,9 @@
         "resolved": {
           "$ref": "#/$defs/ResolvedSnapshot"
         },
-        "data": true,
+        "data": {
+          "type": "object"
+        },
         "diagnostics": {
           "type": "array",
           "items": {
@@ -281,7 +535,73 @@
         "data",
         "diagnostics"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": { "const": "world.validate" }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": { "$ref": "#/$defs/WorldValidationReport" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": { "const": "record.inspect" }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": { "$ref": "#/$defs/InspectableRecord" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": { "const": "world.export" }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": { "$ref": "#/$defs/WorldExport" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": { "const": "claims.query" }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/ClaimQueryResult"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": { "const": "absence.query" }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/AbsenceQueryResult"
+              }
+            }
+          }
+        }
+      ]
     },
     "ErrorResponse": {
       "type": "object",

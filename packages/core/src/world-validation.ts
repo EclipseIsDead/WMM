@@ -1,10 +1,14 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { assertValidApplicability } from "@wmm/temporal";
+import { populationRosterDigest } from "@wmm/canonical";
+import { validateSemanticContract } from "@wmm/wire-contracts";
+import { populationCoverageBasis, resolvePopulationSelector } from "./population.js";
 import type {
   AssertionRecordV1,
   DescriptorRecordV1,
   SemanticDefinitionV1,
+  RosterV1,
   SourceRecordV1,
   SupportRecordV1,
   TypedValueV1,
@@ -38,6 +42,7 @@ export interface WorldSemanticInput {
   readonly sources: readonly SourceRecordV1[];
   readonly assertions: readonly AssertionRecordV1[];
   readonly supports: readonly SupportRecordV1[];
+  readonly rosters?: readonly { readonly digest: string; readonly body: RosterV1 }[];
 }
 
 function assertSortedUnique(values: readonly string[], name: string): void {
@@ -177,6 +182,18 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
     );
   }
 
+  const rosterDigests = (input.rosters ?? []).map((roster) => roster.digest);
+  assertSortedUnique(rosterDigests, "roster digests");
+  for (const { digest, body: roster } of input.rosters ?? []) {
+    if (!validateSemanticContract(roster).valid || roster.format !== "wmm.roster/1" || populationRosterDigest(roster) !== digest) {
+      throw new WorldValidationError("INVALID_OPERATION_VALUE", "Invalid roster artifact identity or shape");
+    }
+    if (roster.worldId !== world.worldId) throw new WorldValidationError("WORLD_MISMATCH", "Roster world mismatch");
+    requireDefinition(definitionsByDigest, roster.populationDefinitionDigest, "population");
+    assertSortedUnique(roster.memberIds, "roster memberIds");
+    for (const memberId of roster.memberIds) assertDescriptorReference(descriptorIds, memberId);
+  }
+
   const sourcesById = new Map(sources.map((source) => [source.id, source]));
   for (const source of sources) {
     if (source.worldId !== world.worldId) {
@@ -220,7 +237,6 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
       if (
         (
           predicate.operation === "exact-tuple-multivalue-v1" ||
-          predicate.operation === "population-coverage-atom-v1" ||
           predicate.operation === "population-membership-atom-v1" ||
           predicate.operation === "criterion-satisfaction-atom-v1"
         ) &&
@@ -231,15 +247,32 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
           `${predicate.operation} requires a descriptor reference value`,
         );
       }
-      if (
-        predicate.operation === "population-coverage-atom-v1" &&
-        body.proposition.value.kind === "ref" &&
-        body.proposition.subjectId !== body.proposition.value.id
-      ) {
-        throw new WorldValidationError(
-          "INVALID_OPERATION_VALUE",
-          "population-coverage-atom-v1 requires a self-referential population value",
+      if (predicate.operation === "population-coverage-atom-v1") {
+        const basis = populationCoverageBasis(body.proposition.value, definitionsByDigest);
+        if (
+          basis === undefined ||
+          body.proposition.value.kind !== "literal" ||
+          !predicate.dependencies.includes(body.proposition.value.valueDefinitionDigest)
+        ) {
+          throw new WorldValidationError(
+            "INVALID_OPERATION_VALUE",
+            "Population coverage requires its pinned roster-bound coverage basis literal",
+          );
+        }
+        const population = requireDefinition(
+          definitionsByDigest,
+          basis.populationDefinitionDigest,
+          "population",
         );
+        requireDefinition(definitionsByDigest, basis.selectorDefinitionDigest, "selector");
+        const selector = resolvePopulationSelector(basis.populationDefinitionDigest, definitionsByDigest);
+        if (!population.dependencies.includes(body.proposition.predicateDefinitionDigest) ||
+          selector?.selectorDefinitionDigest !== basis.selectorDefinitionDigest) {
+          throw new WorldValidationError(
+            "INVALID_OPERATION_VALUE",
+            "Coverage predicate or selector is not pinned by its population definition",
+          );
+        }
       }
     } else {
       assertDescriptorReference(descriptorIds, body.proposition.population.descriptorId);
