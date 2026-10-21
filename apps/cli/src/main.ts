@@ -2,6 +2,8 @@
 
 import { canonicalJson } from "@wmm/canonical";
 import type { JsonValue } from "@wmm/wire-contracts";
+import { validateApiRequest } from "@wmm/wire-contracts";
+import { parseStrictJson, MAX_REQUEST_BYTES } from "./json-input.js";
 import {
   exportSeedFixture,
   exportWorldBundle,
@@ -27,7 +29,10 @@ function usage(): never {
   throw new Error(
     [
       "Usage:",
-      "  wmm json < request.json",
+      "  wmm json [--workspace-dir <directory>] < request.json",
+      "  wmm workspace demo --workspace-dir <directory>",
+      "  wmm workspace open <bundle-directory> --workspace-dir <directory>",
+      "  wmm workspace resume --workspace-dir <directory> [--plain | --json]",
       "  wmm contract-kit verify <kit-directory>",
       "  wmm v0 verify <kit-directory> <semantic-cases-file>",
       "  wmm seed validate <kit-directory>",
@@ -86,13 +91,37 @@ function writeJsonTransport(result: JsonTransportResult): void {
   process.exitCode = serialized.exitCode;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args[0] === "workspace") {
+    const { runWorkspaceCommand } = await import("./workspace-command.js");
+    await runWorkspaceCommand(args.slice(1));
+    return;
+  }
   if (args[0] === "json") {
-    const result = args.length === 1
-      ? runJsonTransport(readJsonInput())
-      : jsonTransportError("INVALID_REQUEST", "Usage: wmm json < request.json");
-    writeJsonTransport(result);
+    if (args.length !== 1 && !(args.length === 3 && args[1] === "--workspace-dir" && args[2])) {
+      writeJsonTransport(jsonTransportError("INVALID_REQUEST", "Usage: wmm json [--workspace-dir <directory>] < request.json"));
+      return;
+    }
+    const bytes = readJsonInput();
+    let request: unknown;
+    if (args[2] !== undefined && bytes.length <= MAX_REQUEST_BYTES) {
+      try { request = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { /* The transport returns the original parse diagnostic. */ }
+    }
+    if (args[2] !== undefined && validateApiRequest(request).valid && request !== null && typeof request === "object" &&
+      "operation" in request && typeof request.operation === "string" && request.operation.startsWith("workspace.")) {
+      const { openWorkspaceRuntime, assertSeparateWorkspaceDirectory } = await import("./workspace-command.js");
+      try {
+        if (request.operation === "workspace.create" && "payload" in request) {
+          assertSeparateWorkspaceDirectory(args[2], (request.payload as { bundlePath: string }).bundlePath);
+        }
+        const runtime = openWorkspaceRuntime(args[2], request.operation === "workspace.create");
+        try { writeJsonTransport(runJsonTransport(bytes, runtime.services)); } finally { runtime.close(); }
+      } catch (error) {
+        writeJsonTransport(jsonTransportError("STORAGE_FAILURE", error instanceof Error ? error.message : "Unable to open workspace storage",
+          "requestId" in request && typeof request.requestId === "string" ? request.requestId : null, request.operation));
+      }
+    } else writeJsonTransport(runJsonTransport(bytes));
     return;
   }
 
@@ -105,13 +134,19 @@ function main(): void {
   });
 }
 
-try {
-  main();
-} catch (error) {
+void main().catch(async (error: unknown) => {
   if (process.argv[2] === "json") {
     writeJsonTransport(
       jsonTransportError("INTERNAL_ERROR", "Unable to read or process the JSON request"),
     );
+  } else if (process.argv[2] === "workspace") {
+    const message = error instanceof Error ? error.message : String(error);
+    if (process.argv.includes("--json")) writeJsonTransport(jsonTransportError("INVALID_REQUEST", message));
+    else {
+      const { terminalText } = await import("./workspace/text.js");
+      process.stderr.write(`WMM: ${terminalText(message)}\n`);
+      process.exitCode = 1;
+    }
   } else {
     writeJson({
       apiVersion: "wmm/dev/1",
@@ -124,4 +159,4 @@ try {
     });
     process.exitCode = 1;
   }
-}
+});

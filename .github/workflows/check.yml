@@ -30,6 +30,7 @@ jobs:
       - run: pnpm verify:seed
       - run: pnpm verify:v1
       - run: pnpm verify:v2
+      - run: pnpm verify:workspace
       - name: Check reproducible fixture bytes
         run: |
           pnpm generate:fixtures

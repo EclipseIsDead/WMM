@@ -7,3 +7,4 @@ export * from "./population.js";
 export * from "./query.js";
 export * from "./scope.js";
 export * from "./world-validation.js";
+export * from "./workspace.js";

@@ -1,0 +1,1 @@
+{"apiVersion":"wmm/1","format":"wmm.request/1","operation":"workspace.create","payload":{"bundlePath":"fixtures/v3/succession-world","goal":"Review a succession without changing canon.","idempotencyKey":"create-demo-1","mode":"succession-demo","title":"The succession crisis","workspaceId":"main"},"requestId":"create-succession-demo"}

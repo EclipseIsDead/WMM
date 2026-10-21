@@ -7,6 +7,8 @@
   },
   "references": [
     { "path": "../../packages/wire-contracts" },
+    { "path": "../../packages/ports" },
+    { "path": "../../packages/store-authoring-sqlite" },
     { "path": "../../packages/application" },
     { "path": "../../packages/canonical" },
     { "path": "../../packages/temporal" },

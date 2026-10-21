@@ -15,8 +15,17 @@
     "@wmm/canonical": "workspace:*",
     "@wmm/core": "workspace:*",
     "@wmm/exchange": "workspace:*",
+    "@wmm/ports": "workspace:*",
+    "@wmm/store-authoring-sqlite": "workspace:*",
     "@wmm/temporal": "workspace:*",
     "@wmm/wire-contracts": "workspace:*",
-    "jsonc-parser": "3.3.1"
+    "ink": "8.0.0",
+    "jsonc-parser": "3.3.1",
+    "react": "19.3.1",
+    "string-width": "8.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "ink-testing-library": "4.0.0"
   }
 }

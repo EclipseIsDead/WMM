@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import type {
   AnySchema,
   ErrorObject,
+  KeywordDefinition,
   ValidateFunction,
 } from "ajv/dist/2020.js";
 
@@ -31,13 +32,17 @@ const worldSchemaUrl = new URL(
   "../schemas/world-records.schema.json",
   import.meta.url,
 );
+const workspaceSchemaUrl = new URL("../schemas/workspace-v1.schema.json", import.meta.url);
 const apiSchemaUrl = new URL("../schemas/api-v1.schema.json", import.meta.url);
 const coreSchema = JSON.parse(readFileSync(coreSchemaUrl, "utf8")) as AnySchema;
 const semanticSchema = JSON.parse(readFileSync(semanticSchemaUrl, "utf8")) as AnySchema;
 const worldSchema = JSON.parse(readFileSync(worldSchemaUrl, "utf8")) as AnySchema;
+const workspaceSchema = JSON.parse(readFileSync(workspaceSchemaUrl, "utf8")) as AnySchema;
 const apiSchema = JSON.parse(readFileSync(apiSchemaUrl, "utf8")) as AnySchema;
 
 interface AjvLike {
+  addKeyword(definition: KeywordDefinition): AjvLike;
+  addSchema(schema: AnySchema): AjvLike;
   compile<T>(schema: AnySchema): ValidateFunction<T>;
 }
 
@@ -58,11 +63,22 @@ const ajv = new Ajv2020({
   ownProperties: true,
 });
 addFormats(ajv);
+// JSON Schema maxLength counts code points; authoring limits also bound JS string length.
+ajv.addKeyword({
+  keyword: "maxUtf16Length",
+  type: "string",
+  schemaType: "number",
+  metaSchema: { type: "integer", minimum: 0 },
+  validate: (limit: number, value: string): boolean => value.length <= limit,
+  errors: false,
+});
 
 const validateCore: ValidateFunction<CoreContractV1> = ajv.compile(coreSchema);
 const validateSemantic: ValidateFunction<SemanticContractV1> =
   ajv.compile(semanticSchema);
 const validateWorld: ValidateFunction<WorldRecordV1> = ajv.compile(worldSchema);
+// Workspace assertions reference world records, never API definitions.
+ajv.addSchema(workspaceSchema);
 const validateApi: ValidateFunction<ApiContractV1> = ajv.compile(apiSchema);
 const validateRequest: ValidateFunction<ApiRequestV1> = ajv.compile({
   $ref: "urn:wmm:api:v1#/$defs/Request",
@@ -120,4 +136,5 @@ export function isCoreContract(input: unknown): input is CoreContractV1 {
 export const coreContractsSchema = coreSchema;
 export const semanticContractsSchema = semanticSchema;
 export const worldRecordsSchema = worldSchema;
+export const workspaceV1Schema = workspaceSchema;
 export const apiV1Schema = apiSchema;

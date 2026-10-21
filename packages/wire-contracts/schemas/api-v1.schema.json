@@ -229,6 +229,10 @@
       "required": ["format", "apiVersion", "requestId", "operation", "payload"],
       "additionalProperties": false
     },
+    "WorkspaceCreateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/CreateRequest" },
+    "WorkspaceReadRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/ReadRequest" },
+    "WorkspaceMutateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/MutateRequest" },
+    "WorkspaceView": { "$ref": "urn:wmm:workspace:v1#/$defs/WorkspaceView" },
     "Request": {
       "oneOf": [
         {
@@ -248,7 +252,10 @@
         },
         {
           "$ref": "#/$defs/AbsenceProveThroughoutRequest"
-        }
+        },
+        { "$ref": "#/$defs/WorkspaceCreateRequest" },
+        { "$ref": "#/$defs/WorkspaceReadRequest" },
+        { "$ref": "#/$defs/WorkspaceMutateRequest" }
       ]
     },
     "ResolvedSnapshot": {
@@ -536,7 +543,10 @@
             "world.export",
             "claims.query",
             "absence.query",
-            "absence.proveThroughout"
+            "absence.proveThroughout",
+            "workspace.create",
+            "workspace.read",
+            "workspace.mutate"
           ]
         },
         "outcome": {
@@ -642,6 +652,10 @@
               "data": { "$ref": "urn:wmm:semantic-contracts:v1-draft-01#/$defs/IntervalAbsenceResult" }
             }
           }
+        },
+        {
+          "if": { "properties": { "operation": { "enum": ["workspace.create", "workspace.read", "workspace.mutate"] } } },
+          "then": { "properties": { "data": { "$ref": "#/$defs/WorkspaceView" } } }
         }
       ]
     },
@@ -678,7 +692,12 @@
                 "UNKNOWN_RECORD",
                 "BUDGET_EXCEEDED",
                 "STORAGE_FAILURE",
-                "INTERNAL_ERROR"
+                "INTERNAL_ERROR",
+                "STALE_WORKSPACE",
+                "IDEMPOTENCY_CONFLICT",
+                "WORKSPACE_NOT_FOUND",
+                "WORKSPACE_EXISTS",
+                "INVALID_WORKSPACE_ACTION"
               ]
             },
             "message": {

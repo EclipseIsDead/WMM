@@ -7,6 +7,8 @@
   },
   "references": [
     { "path": "../wire-contracts" },
+    { "path": "../ports" },
+    { "path": "../canonical" },
     { "path": "../core" },
     { "path": "../exchange" }
   ],

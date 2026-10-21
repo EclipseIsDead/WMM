@@ -1,12 +1,12 @@
-# Read-only engine stabilization contracts
+# Engine and workspace stabilization contracts
 
 ## Compatibility boundary
 
-The API envelope remains `wmm/1`, but these contracts are pre-release drafts. Roster-bound coverage stabilization tightened operation payload validation and replaced the draft self-referential coverage value with a pinned roster-bound literal. The bundled coverage predicate definition is version `2`; that literal dependency changed population/profile digests and therefore affected claim/support/snapshot identities. The exact-interval increment is an additional read-only operation, not a further coverage-profile migration.
+The API envelope remains `wmm/1`, but these contracts are pre-release drafts. U1/U2 add `workspace.create`, `workspace.read`, and `workspace.mutate` for durable draft authoring; the existing read-only world/claim/absence operations and their CLI usage are unchanged. This does not add canonical-world acceptance, a domain revision store, or full V3 conformance. Roster-bound coverage stabilization tightened operation payload validation and replaced the draft self-referential coverage value with a pinned roster-bound literal. The bundled coverage predicate definition is version `2`; that literal dependency changed population/profile digests and therefore affected claim/support/snapshot identities. The exact-interval increment is an additional read-only operation, not a further coverage-profile migration.
 
 Older bundles are not silently rewritten or reinterpreted by admission. Recompile draft worlds explicitly against the bundled profile. Previously generated absence receipts use `bundled-absence-point-v1`; the final roster/input-bound evaluation uses `bundled-absence-point-v3` (superseding the intermediate membership-only draft v2), and old receipts do not pass the new shape/replay contract. The independent `absence.proveThroughout` operation adds `wmm.interval-absence-result/1` / `bundled-absence-throughout-v1`; it does not widen the point-only `absence.query` contract or change its algorithm. The immutable v0.3 seed kit and its golden identity vectors are unchanged.
 
-`pnpm generate:fixtures` rebuilds both the production world and V2 request/expected-result fixtures. The V2 generator constructs point and interval expectations from the fixture's explicit known roles and boundaries, and constructs the expected point receipt directly; it does not call the claim, point-absence, or interval-proof evaluator to produce expected answers.
+`pnpm generate:fixtures` rebuilds the production world, V2 request/expected-result fixtures, and the worked workspace demo. The V2 generator constructs point and interval expectations from the fixture's explicit known roles and boundaries, and constructs the expected point receipt directly; it does not call the claim, point-absence, or interval-proof evaluator to produce expected answers.
 
 ## Roster-bound coverage
 
@@ -79,6 +79,44 @@ These are interval-operation limits, not changes to `absence.query`, wall-clock 
 
 The snapshot argument must come from an adapter that has verified the snapshot manifest, record identities, semantic allowlist, and reference closure. The pure kernel does not accept an imported receipt as the authority for its own snapshot. Replay does not authenticate an author or confer commit permission.
 
+## U1/U2 durable workspace contract
+
+The terminal components, plain/JSON gateway, and machine clients use the same application service and wire operations. `packages/core` owns pure draft actions and dependency/selection calculations; `packages/application` admits operations against the captured base and constructs readable effects; `packages/ports` defines `WorkspaceStore`; `packages/store-authoring-sqlite` supplies durable draft storage. The UI neither computes canonical identities nor evaluates historical truth. See [WORKSPACE.md](WORKSPACE.md) for runnable commands and the controller's actual shortcuts.
+
+### Captured base and transactional persistence
+
+- Creation loads a verified WMM bundle once and captures its snapshot, exported world data, and exact document bytes in the authoring database. A normal world starts without demo proposals/pins; only explicit `succession-demo` mode seeds the worked alternatives.
+- The base is pinned by `{worldId, snapshotDigest}` and cannot change in place. This is a snapshot digest, **not** a domain revision ID or Git revision; output labels it as the base snapshot. Resume and historical reads use the captured base, not the original directory, and survive source movement, mutation, or removal.
+- `authoring.sqlite` uses WAL, `synchronous=FULL`, foreign keys, and `BEGIN IMMEDIATE` transactions. Bases, state versions, and idempotent outcomes are append-only through the store and guarded against update/delete by SQLite triggers. Each successful mutation adds one workspace version; failed admission/stale writes roll back without consuming an outcome key.
+- Mutations require `expectedVersion` and an `idempotencyKey`. The application canonicalizes normalized intent without the transport `requestId`. A matching saved outcome is replayed **before** the current-version check and returns its original state version; reusing a key for a different intent returns `IDEMPOTENCY_CONFLICT`. CLI open/demo presentation reads the latest state after a create replay.
+- `workspace.read` accepts optional `atVersion`; all saved state versions, including their proposal contents, remain retained. There is no workspace-list/fork operation, separate historical-proposal API, in-place rebase, or history-pruning operation. A new independent workspace is not a linked rebase or alternate-canon branch.
+
+The trusted host selects the database directory using `json --workspace-dir <directory>` or its application-service configuration. Database paths are not request-payload authority. The CLI requires source and authoring directories to be separate, neither containing the other, and rejects storage inside a world bundle, symlink database paths/sidecars, and incompatible database identities/schemas. Use a private stable directory: these guards are not an adversarial-filesystem sandbox or a coordinated backup protocol. Draft operations never write the source world or move a Git branch. Node's built-in SQLite can emit an experimental warning on stderr; JSON stdout remains a single response object.
+
+### Explicit operation admission, not narrative inference
+
+`write-prose` admits portable relative Markdown paths confined to `prose/` (including nested paths), with case/file-directory/traversal collision checks. Replacing an existing Markdown document requires its exact captured `beforeSha256`; a new document requires `null`. The service supplies hashes, never the UI's possibly truncated text. These operations are saved proposals, not writes into the source or arbitrary vault import. Prose is not interpreted into claims.
+
+Machine `put-proposal` actions can also carry `activate-assertion` and `deactivate-assertion`. Admission checks the closed schema, canonical assertion identity, world/profile identity, immutable-ID consistency, semantic/reference closure for additions, and active pinned-base identity for deactivation. This is real operation admission, not full combined-candidate historical conflict/impact validation. The generic human form authors explicit prose; the labelled `add-regency` template exists only in succession-demo mode and also produces explicit prose. Neither route auto-selects its new proposal.
+
+Proposal revisions retain prior contents in saved workspace versions. Changing operations/dependencies/exclusions on a selected group returns it to undecided; editing rationale alone preserves structured effects. Rejection remains durable, not deletion, and restoration must explicitly return to undecided before selection. Prerequisites are displayed, never silently selected or restored.
+
+### Exact pins and selected-draft diagnostics
+
+Document pins bind an exact captured path/hash; assertion pins bind an active pinned-base assertion. Selected-draft diagnostics include missing/rejected prerequisites, explicit exclusions, conflicting prose replacements, changed pinned document bytes, pinned-assertion deactivation, and an admitted opposite-polarity assertion with the same proposition and scope. Byte-identical document writes do not count as pin changes. Diagnostics can remain in a saved unresolved selection; saving/selecting does not establish validity or override a pin.
+
+These are exact supported protections, not arbitrary constraints over narrative meaning, a temporal contradiction solver, or a guarantee that prose preserves every asserted fact. Advisory direction such as “prefer diplomacy” is stored prose, not an executable rule. The demo's neutrality pin protects document bytes, not every possible claim about foreign policy.
+
+Every workspace view explicitly returns `validation.status: not-run`, `approval: unavailable`, and `canon: unchanged`. Review aggregates service-supplied selected effects and draft diagnostics; it does not run a fixture-specific imitation validator. Full combined historical validation (U3), host approval receipts (U4), and canonical commit/recovery (V4) remain unavailable.
+
+### Presentation and save recovery
+
+The editor has five views, an 80x24 baseline, split panes at 100+ columns, and a compact too-small state that retains input. Non-TTY/`TERM=dumb` and `--plain` select a linear rendering without prompts; `--json` uses the existing envelope. Base record labels are derived from IDs when authored display names are absent; no names, timeline, or provenance are invented. Long Markdown previews are explicitly truncated while complete base bytes remain stored.
+
+Imported text is sanitized only for presentation: active terminal controls/escape sequences and directional controls are removed, with Unicode/grapheme-aware editing and cell-width bounds. Stored source bytes are not rewritten. Keyboard, paste, resize, and `NO_COLOR` paths have tests; this is not screen-reader certification. Ctrl+E uses the trusted host's `VISUAL`/`EDITOR` executable and parsed arguments without a shell (falling back to `vi`); external edits only update the buffer and need a separate explicit save.
+
+“Saved vN” follows an acknowledged transaction. Failed saves retain the form and outgoing action/key/version. Unknown outcomes can be explicitly retried identically; stale outcomes refresh without automatic merge and require an explicit new-version/new-key retry. A changed structured proposal blocks a stale rationale overwrite until the author explicitly loads/reviews the current structure. Esc never implicitly saves.
+
 ## Input and storage limits
 
 | Boundary | Limit |
@@ -93,22 +131,51 @@ The snapshot argument must come from an adapter that has verified the snapshot m
 | Observed directories | 1,000 |
 | Payload directory depth | 32 |
 
+### Additional workspace bounds
+
+| Boundary | Limit |
+| --- | --- |
+| Base read-model record summaries / documents | 256 each; no pagination |
+| Proposal groups / pins | 256 each |
+| Operations per group / group-ID lists | 256 each; a group must contain at least one operation |
+| Decision-history entries | 2,000 |
+| Prose operation text | 65,536 UTF-16 code units |
+| Direction / goal / rationale / rejection reason | 16,000 UTF-16 code units each |
+| Base Markdown preview | 16,000 UTF-16 code units before an explicit truncation notice; full bytes retained |
+| Workspace response | 4 MiB canonical JSON, also subject to the 200,000-value-node plain-data preflight |
+
+These are intersecting bounds, not guaranteed usable capacities. Response shape/size, accumulated history, or the shared preflight may reject a workspace or mutation **earlier** than an individual item/text limit. Admission checks the bounded read model before storing a new version; it does not silently truncate proposals, history, or selected effects. When limits are reached, use a new workspace rather than expecting history to be pruned; prior versions remain retained. There is no history pagination, database-size quota, or general large-world performance guarantee. The separate interval-receipt limits above are unchanged.
+
 File allocation follows opened-inode size checks, not manifest declarations. Reads cannot grow past that observed size. Manifest cardinality is checked before the expensive schema pass. Unknown reserved `records/` families are rejected rather than silently omitted.
 
 File opens use no-follow/nonblocking flags and metadata/inode consistency checks. **Node does not provide `openat`-style atomic parent confinement here.** Load bundles from a private, stable directory if another process could change parent directories. These checks do not establish safety against an adversary concurrently swapping directory ancestors.
 
-Under-limit stdin still waits for EOF. Apart from the deterministic interval-proof work/cell/output bounds above, general query resource characterization remains deferred. Operation deadlines, query pagination, cancellation, CPU/memory isolation, and large-world performance guarantees are not implemented. Size/count limits do not imply constant-time schema validation or a fixed peak heap size.
+Under-limit stdin still waits for EOF. Beyond the deterministic interval-proof budgets and workspace admission/read-model bounds above, general query resource characterization remains deferred. Operation deadlines, query pagination, cancellation, CPU/memory isolation, and large-world performance guarantees are not implemented. Size/count limits do not imply constant-time schema validation or a fixed peak heap size.
 
 ## Errors and export
 
 Loader errors distinguish `INVALID_WORLD`, `FILESYSTEM_ERROR`, and `INTERNAL_ERROR`. The application maps filesystem failures to `STORAGE_FAILURE`, preserves explicit input rejection, and reports unexpected failures as incomplete internal errors. Symlinks intentionally rejected by the loader are invalid bundle input.
 
-Every success operation has a matching payload schema. JSON-mode failures, including Unicode and serialization failures, stay in `wmm.response/1` and its documented exit-code classes.
+Every success operation has a matching payload schema. JSON-mode failures, including Unicode and serialization failures, stay in `wmm.response/1` and its documented exit-code classes. Workspace domain errors (`STALE_WORKSPACE`, `IDEMPOTENCY_CONFLICT`, `WORKSPACE_NOT_FOUND`, `WORKSPACE_EXISTS`, `INVALID_WORKSPACE_ACTION`) use exit `3`; malformed wire requests use `2`, and storage/internal failures use `4`. An unconfigured workspace service is `UNSUPPORTED_FEATURE` (exit `2`). Resume/read/mutate do not initialize a missing authoring database; the CLI reports a storage failure rather than creating an empty one.
 
-`world.export` is a deterministic record/document-metadata view. It does not contain document bytes or a restorable manifest and must not be advertised as a portable backup. Coordinated backup and lossless exchange remain V6 work.
+`world.export` is a deterministic record/document-metadata view. It does not contain document bytes or a restorable manifest and must not be advertised as a portable backup. Capturing base document bytes inside the authoring database does not change that export contract or supply a lossless portable workspace export. Coordinated backup and lossless exchange remain V6 work.
 
 ## Verification and remaining work
 
-`pnpm check` passed locally: seed vectors, strict source/test typechecks, and 535 tests across 33 files. The compiled `verify:v0`, `verify:seed`, `verify:v1`, and `verify:v2` commands also passed. V2 includes claim, point-absence, and interval-proof requests (`fixtures/v2/interval-request.json`). Regenerating fixtures produced no byte drift, and `git diff --check` was clean. Independent review findings were fixed and retained as regressions, including byte amplification and receipt-node boundary cases. CI is configured for Linux and macOS; no hosted CI run is claimed.
+Local `pnpm check` passed 793 tests across 42 files, seed vectors, and strict source/test typechecks. Four real-PTY scenarios also passed on macOS. Coverage includes exact state recovery, source-loss independence, replay/stale-write behavior, source/storage separation, operation admission, terminal fallbacks, resize, and signal cleanup. Linux PTY execution and screen-reader certification are not claimed; neither are hosted CI results.
 
-The existing [original RFC](../plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md) is now visible after removing the `plans/` ignore rule. [STATUS.md](STATUS.md) compares the implemented boundary with its milestone gates; it does not declare the contracts frozen. Remaining product work includes pinned domain revisions and byte-preserving prose export, certified interval change providers beyond recorded applicability, general historical conflict validation, durable steering/approval, domain revision crash recovery, branches, and coordinated backups.
+Validation entrypoints (commands to run, not promises of success):
+
+```sh
+pnpm check
+pnpm verify:contracts
+pnpm verify:v0
+pnpm verify:seed
+pnpm verify:v1
+pnpm verify:v2
+pnpm verify:workspace
+```
+
+`pnpm verify:workspace` builds and then runs `python3 tools/workspace-terminal-smoke.py`, which uses only Python's standard library. The smoke supports macOS/Linux; only local macOS execution is reported. [WORKSPACE.md](WORKSPACE.md#validation) lists the focused Vitest command and the four PTY scenarios. Existing engine regression targets include independent fixtures, interval byte-amplification and receipt-node boundary cases, and deterministic fixture regeneration; the existing CI workflow targets Linux and macOS.
+
+The existing [original RFC](../plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md) is now visible after removing the `plans/` ignore rule. [STATUS.md](STATUS.md) compares the implemented boundary with its milestone gates; it does not declare the contracts frozen. Durable U1/U2 steering is now implemented, but full V3 is not complete. Remaining product work includes pinned domain revision resolution/storage and byte-preserving portable prose export, certified interval change providers beyond recorded applicability, full combined historical conflict/impact validation (U3), durable host-only approval (U4), V4 expected-head acceptance/idempotency/journal recovery and its fault matrix, alternate-canon branches/forks/retcons/comparison/promotion, and coordinated backup/restore. A pinned workspace snapshot and captured prose bytes do not close those RFC gaps.

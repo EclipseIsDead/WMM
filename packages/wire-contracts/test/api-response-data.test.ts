@@ -17,6 +17,7 @@ import type {
   WorldRecordV1,
 } from "../src/index.js";
 import { validateApiResponse } from "../src/index.js";
+import { workspaceView } from "./workspace-fixtures.js";
 
 const fixtureRoot = new URL("../../../fixtures/v1/complete-world/", import.meta.url);
 function fixtureJson(path: string): unknown {
@@ -170,6 +171,9 @@ const results = {
   "claims.query": claims,
   "absence.query": absence,
   "absence.proveThroughout": interval,
+  "workspace.create": workspaceView,
+  "workspace.read": workspaceView,
+  "workspace.mutate": workspaceView,
 } satisfies ApiResultByOperationV1;
 const operations = Object.keys(results) as ApiOperationV1[];
 
@@ -199,10 +203,14 @@ function without(value: object, key: string): object {
 }
 
 describe("operation-specific API response data", () => {
-  it.each(operations)("accepts the %s result only for its own operation", (operation) => {
+  it.each(operations)("accepts %s data only for operations with its result contract", (operation) => {
     expectValid(operation, results[operation]);
     for (const other of operations) {
-      if (other !== operation) expectInvalid(other, results[operation]);
+      if (operation.startsWith("workspace.") && other.startsWith("workspace.")) {
+        expectValid(other, results[operation]);
+      } else if (other !== operation) {
+        expectInvalid(other, results[operation]);
+      }
     }
   });
 

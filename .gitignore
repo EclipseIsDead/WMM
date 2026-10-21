@@ -5,4 +5,5 @@ coverage/
 .cache/
 *.tsbuildinfo
 .DS_Store
+/wmm-workspaces/
 /plans/

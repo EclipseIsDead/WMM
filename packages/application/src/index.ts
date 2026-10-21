@@ -1,3 +1,9 @@
+import { WorkspaceStoreError } from "@wmm/ports";
+import { WorkspaceActionError } from "@wmm/core";
+import type { WorkspaceRequestV1 } from "@wmm/wire-contracts";
+import { WorkspaceApplication } from "./workspaces.js";
+export { WorkspaceApplication, workspaceView } from "./workspaces.js";
+
 import {
   ClaimQueryInputError,
   IntervalAbsenceBudgetError,
@@ -32,6 +38,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
+    "workspace.create", "workspace.read", "workspace.mutate",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -85,7 +92,9 @@ function ownScalarString(input: unknown, key: string): string | null {
   return typeof value === "string" && value.isWellFormed() ? value : null;
 }
 
-export function executeApiRequest(input: unknown): ApiResponseV1 {
+export interface ApplicationServices { readonly workspaces?: WorkspaceApplication }
+
+export function executeApiRequest(input: unknown, services: ApplicationServices = {}): ApiResponseV1 {
   let requestId: string | null = null;
   let operation: string | null = null;
   try {
@@ -117,7 +126,13 @@ export function executeApiRequest(input: unknown): ApiResponseV1 {
       );
     }
 
-    const request = input as ApiRequestV1;
+    const admitted = input as ApiRequestV1;
+    if (admitted.operation === "workspace.create" || admitted.operation === "workspace.read" || admitted.operation === "workspace.mutate") {
+      if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
+      const data = services.workspaces.execute(admitted as WorkspaceRequestV1);
+      return successResponse(admitted.requestId, data.workspace.base, { operation: admitted.operation, data });
+    }
+    const request = admitted;
     const world = loadBundledV1WorldBundle(request.payload.bundlePath);
     const resolved: ResolvedSnapshotV1 = {
       worldId: world.world.worldId,
@@ -203,6 +218,9 @@ export function executeApiRequest(input: unknown): ApiResponseV1 {
         });
     }
   } catch (error) {
+    if (error instanceof WorkspaceStoreError || error instanceof WorkspaceActionError) {
+      return apiErrorResponse(error.code, error.message, requestId, operation);
+    }
     if (error instanceof IntervalAbsenceBudgetError) {
       return apiErrorResponse("BUDGET_EXCEEDED", error.message, requestId, operation, "incomplete");
     }
@@ -238,6 +256,11 @@ export function operationExitCode(operation: ApiOperationV1, response: ApiRespon
     case "UNSUPPORTED_FEATURE":
     case "INVALID_REQUEST":
       return 2;
+    case "STALE_WORKSPACE":
+    case "IDEMPOTENCY_CONFLICT":
+    case "WORKSPACE_NOT_FOUND":
+    case "WORKSPACE_EXISTS":
+    case "INVALID_WORKSPACE_ACTION":
     case "INVALID_WORLD":
     case "UNKNOWN_RECORD":
       return 3;

@@ -14,6 +14,8 @@
     { "path": "packages/schema" },
     { "path": "packages/core" },
     { "path": "packages/exchange" },
+    { "path": "packages/ports" },
+    { "path": "packages/store-authoring-sqlite" },
     { "path": "packages/application" },
     { "path": "apps/cli" }
   ],

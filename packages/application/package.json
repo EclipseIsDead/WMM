@@ -15,8 +15,10 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@wmm/canonical": "workspace:*",
     "@wmm/core": "workspace:*",
     "@wmm/exchange": "workspace:*",
+    "@wmm/ports": "workspace:*",
     "@wmm/wire-contracts": "workspace:*"
   }
 }

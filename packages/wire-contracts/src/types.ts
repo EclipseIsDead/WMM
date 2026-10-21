@@ -1,3 +1,5 @@
+import type { WorkspaceErrorCodeV1, WorkspaceRequestV1, WorkspaceViewV1 } from "./workspace.js";
+
 export type DigestHex = string;
 export type WorldId = string;
 export type RecordId = string;
@@ -598,7 +600,10 @@ export type ApiOperationV1 =
   | "world.export"
   | "claims.query"
   | "absence.query"
-  | "absence.proveThroughout";
+  | "absence.proveThroughout"
+  | "workspace.create"
+  | "workspace.read"
+  | "workspace.mutate";
 
 interface ApiRequestBaseV1 {
   readonly format: "wmm.request/1";
@@ -648,7 +653,8 @@ export type ApiRequestV1 =
         readonly temporal: ThroughoutTemporalQueryV1;
         readonly limits?: Partial<IntervalAbsenceLimitsV1>;
       };
-    });
+    })
+  | WorkspaceRequestV1;
 
 export type ApiErrorCodeV1 =
   | "UNSUPPORTED_API_VERSION"
@@ -658,7 +664,8 @@ export type ApiErrorCodeV1 =
   | "UNKNOWN_RECORD"
   | "BUDGET_EXCEEDED"
   | "STORAGE_FAILURE"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | WorkspaceErrorCodeV1;
 
 export interface ResolvedSnapshotV1 {
   readonly worldId: WorldId;
@@ -713,6 +720,9 @@ export interface ApiResultByOperationV1 {
   readonly "claims.query": ClaimQueryResultV1;
   readonly "absence.query": AbsenceQueryResultV1;
   readonly "absence.proveThroughout": IntervalAbsenceResultV1;
+  readonly "workspace.create": WorkspaceViewV1;
+  readonly "workspace.read": WorkspaceViewV1;
+  readonly "workspace.mutate": WorkspaceViewV1;
 }
 
 export type ApiSuccessResponseV1 = {

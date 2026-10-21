@@ -2,6 +2,7 @@ import { canonicalJson } from "@wmm/canonical";
 import {
   apiErrorResponse,
   executeApiRequest,
+  type ApplicationServices,
 } from "@wmm/application";
 import type {
   ApiErrorCodeV1,
@@ -25,6 +26,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
+    "workspace.create", "workspace.read", "workspace.mutate",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -60,6 +62,11 @@ function errorExitCode(code: ApiErrorCodeV1): number {
     case "UNSUPPORTED_FEATURE":
     case "INVALID_REQUEST":
       return 2;
+    case "STALE_WORKSPACE":
+    case "IDEMPOTENCY_CONFLICT":
+    case "WORKSPACE_NOT_FOUND":
+    case "WORKSPACE_EXISTS":
+    case "INVALID_WORKSPACE_ACTION":
     case "INVALID_WORLD":
     case "UNKNOWN_RECORD":
       return 3;
@@ -129,7 +136,7 @@ export function serializeJsonTransportResult(result: JsonTransportResult): {
   }
 }
 
-export function runJsonTransport(bytes: Uint8Array): JsonTransportResult {
+export function runJsonTransport(bytes: Uint8Array, services: ApplicationServices = {}): JsonTransportResult {
   if (bytes.length > MAX_REQUEST_BYTES) {
     return checkedResponse(
       apiErrorResponse(
@@ -197,7 +204,7 @@ export function runJsonTransport(bytes: Uint8Array): JsonTransportResult {
       );
     }
 
-    return checkedResponse(executeApiRequest(input as ApiRequestV1));
+    return checkedResponse(executeApiRequest(input as ApiRequestV1, services));
   } catch {
     return jsonTransportError(
       "INTERNAL_ERROR",

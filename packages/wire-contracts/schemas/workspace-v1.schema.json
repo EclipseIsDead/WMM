@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:workspace:v1",
+  "$comment": "maxUtf16Length is registered by the wire validator: limits count UTF-16 code units, not only JSON Schema Unicode code points. Adapter-verified WorkspaceBaseV1 is deliberately not a client contract.",
+  "$defs": {
+    "StableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "maxUtf16Length": 256
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "Title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "maxUtf16Length": 160
+    },
+    "Direction": {
+      "type": "string",
+      "maxLength": 16000,
+      "maxUtf16Length": 16000
+    },
+    "Prose": {
+      "type": "string",
+      "maxLength": 65536,
+      "maxUtf16Length": 65536
+    },
+    "DocumentPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*$(?![\\s\\S])",
+      "$comment": "Portable relative path syntax only; the terminal lookahead rejects trailing line terminators. The application must separately verify traversal, containment and document authority."
+    },
+    "Digest": { "$ref": "urn:wmm:world-records:v1#/$defs/Digest" },
+    "AssertionId": {
+      "$ref": "urn:wmm:world-records:v1#/$defs/AssertionId",
+      "maxLength": 256
+    },
+    "GroupIds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StableId" },
+      "maxItems": 256
+    },
+    "ProseLines": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Prose" },
+      "maxItems": 256
+    },
+    "Mode": { "enum": ["world", "succession-demo"] },
+    "Decision": { "enum": ["undecided", "selected", "rejected"] },
+    "WorkspaceOperation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "write-prose" },
+            "path": { "$ref": "#/$defs/DocumentPath" },
+            "text": { "$ref": "#/$defs/Prose" },
+            "beforeSha256": {
+              "oneOf": [{ "$ref": "#/$defs/Digest" }, { "type": "null" }]
+            }
+          },
+          "required": ["kind", "path", "text", "beforeSha256"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "activate-assertion" },
+            "assertion": { "$ref": "urn:wmm:world-records:v1#/$defs/AssertionRecord" }
+          },
+          "required": ["kind", "assertion"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "deactivate-assertion" },
+            "assertionId": { "$ref": "#/$defs/AssertionId" }
+          },
+          "required": ["kind", "assertionId"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/WorkspaceOperation" },
+      "maxItems": 256
+    },
+    "ProposalInput": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/StableId" },
+        "title": { "$ref": "#/$defs/Title" },
+        "author": { "$ref": "#/$defs/StableId" },
+        "rationale": { "$ref": "#/$defs/Direction" },
+        "dependencies": { "$ref": "#/$defs/GroupIds" },
+        "exclusions": { "$ref": "#/$defs/GroupIds" },
+        "operations": { "$ref": "#/$defs/Operations" }
+      },
+      "required": ["id", "title", "author", "rationale", "dependencies", "exclusions", "operations"],
+      "additionalProperties": false
+    },
+    "ProposalGroup": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/StableId" },
+        "version": { "$ref": "#/$defs/Version" },
+        "title": { "$ref": "#/$defs/Title" },
+        "author": { "$ref": "#/$defs/StableId" },
+        "rationale": { "$ref": "#/$defs/Direction" },
+        "dependencies": { "$ref": "#/$defs/GroupIds" },
+        "exclusions": { "$ref": "#/$defs/GroupIds" },
+        "operations": { "$ref": "#/$defs/Operations" },
+        "decision": { "$ref": "#/$defs/Decision" },
+        "rejectionReason": {
+          "oneOf": [{ "$ref": "#/$defs/Direction" }, { "type": "null" }]
+        }
+      },
+      "required": ["id", "version", "title", "author", "rationale", "dependencies", "exclusions", "operations", "decision", "rejectionReason"],
+      "additionalProperties": false
+    },
+    "WorkspacePin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/$defs/StableId" },
+            "kind": { "const": "document" },
+            "path": { "$ref": "#/$defs/DocumentPath" },
+            "sha256": { "$ref": "#/$defs/Digest" },
+            "active": { "type": "boolean" }
+          },
+          "required": ["id", "kind", "path", "sha256", "active"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/$defs/StableId" },
+            "kind": { "const": "assertion" },
+            "assertionId": { "$ref": "#/$defs/AssertionId" },
+            "active": { "type": "boolean" }
+          },
+          "required": ["id", "kind", "assertionId", "active"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WorkspaceAction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "decide" },
+            "groupId": { "$ref": "#/$defs/StableId" },
+            "decision": { "$ref": "#/$defs/Decision" },
+            "reason": { "$ref": "#/$defs/Direction" }
+          },
+          "required": ["kind", "groupId", "decision"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "select" },
+            "groupIds": { "$ref": "#/$defs/GroupIds" }
+          },
+          "required": ["kind", "groupIds"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "put-proposal" },
+            "proposal": { "$ref": "#/$defs/ProposalInput" }
+          },
+          "required": ["kind", "proposal"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "set-direction" },
+            "text": { "$ref": "#/$defs/Direction" }
+          },
+          "required": ["kind", "text"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "put-pin" },
+            "pin": { "$ref": "#/$defs/WorkspacePin" }
+          },
+          "required": ["kind", "pin"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "add-regency" },
+            "title": { "$ref": "#/$defs/Title" },
+            "rationale": { "$ref": "#/$defs/Direction" }
+          },
+          "required": ["kind", "title", "rationale"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WorkspaceDecision": {
+      "type": "object",
+      "properties": {
+        "version": { "$ref": "#/$defs/Version" },
+        "action": { "$ref": "#/$defs/WorkspaceAction" }
+      },
+      "required": ["version", "action"],
+      "additionalProperties": false
+    },
+    "WorkspaceState": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.workspace/1" },
+        "id": { "$ref": "#/$defs/StableId" },
+        "version": { "$ref": "#/$defs/Version" },
+        "title": { "$ref": "#/$defs/Title" },
+        "worldTitle": { "$ref": "#/$defs/Title" },
+        "goal": { "$ref": "#/$defs/Direction" },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "base": {
+          "type": "object",
+          "properties": {
+            "worldId": {
+              "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId",
+              "maxLength": 256
+            },
+            "snapshotDigest": { "$ref": "#/$defs/Digest" }
+          },
+          "required": ["worldId", "snapshotDigest"],
+          "additionalProperties": false
+        },
+        "proposals": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProposalGroup" },
+          "maxItems": 256
+        },
+        "pins": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspacePin" },
+          "maxItems": 256
+        },
+        "direction": { "$ref": "#/$defs/Direction" },
+        "history": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceDecision" },
+          "maxItems": 2000
+        }
+      },
+      "required": ["format", "id", "version", "title", "worldTitle", "goal", "mode", "base", "proposals", "pins", "direction", "history"],
+      "additionalProperties": false
+    },
+    "WorkspaceSelection": {
+      "type": "object",
+      "properties": {
+        "requested": { "$ref": "#/$defs/GroupIds" },
+        "required": { "$ref": "#/$defs/GroupIds" },
+        "missing": { "$ref": "#/$defs/GroupIds" },
+        "rejectedRequired": { "$ref": "#/$defs/GroupIds" },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "$ref": "#/$defs/StableId" },
+              "groupIds": { "$ref": "#/$defs/GroupIds" },
+              "message": { "$ref": "#/$defs/Prose" }
+            },
+            "required": ["code", "groupIds", "message"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        }
+      },
+      "required": ["requested", "required", "missing", "rejectedRequired", "diagnostics"],
+      "additionalProperties": false
+    },
+    "WorkspaceView": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.workspace-view/1" },
+        "workspace": { "$ref": "#/$defs/WorkspaceState" },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "$ref": "#/$defs/StableId" },
+              "kind": { "$ref": "#/$defs/StableId" },
+              "title": { "$ref": "#/$defs/Title" },
+              "summary": { "$ref": "#/$defs/Prose" }
+            },
+            "required": ["id", "kind", "title", "summary"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "$ref": "#/$defs/DocumentPath" },
+              "text": { "$ref": "#/$defs/Prose" },
+              "truncated": { "type": "boolean" },
+              "sha256": { "$ref": "#/$defs/Digest" }
+            },
+            "required": ["path", "text", "truncated"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "groupId": { "$ref": "#/$defs/StableId" },
+              "representation": { "enum": ["explicit-prose", "explicit-claims", "mixed"] },
+              "before": { "$ref": "#/$defs/ProseLines" },
+              "proposed": { "$ref": "#/$defs/ProseLines" }
+            },
+            "required": ["groupId", "representation", "before", "proposed"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "groupId": { "$ref": "#/$defs/StableId" },
+              "required": { "$ref": "#/$defs/GroupIds" },
+              "missing": { "$ref": "#/$defs/GroupIds" },
+              "rejected": { "$ref": "#/$defs/GroupIds" }
+            },
+            "required": ["groupId", "required", "missing", "rejected"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "selection": { "$ref": "#/$defs/WorkspaceSelection" },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "status": { "const": "not-run" },
+            "message": { "$ref": "#/$defs/Prose" }
+          },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        },
+        "approval": { "const": "unavailable" },
+        "canon": { "const": "unchanged" }
+      },
+      "required": ["format", "workspace", "records", "documents", "changes", "prerequisites", "selection", "validation", "approval", "canon"],
+      "additionalProperties": false
+    },
+    "CreateRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "$ref": "#/$defs/StableId" },
+        "operation": { "const": "workspace.create" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/StableId" },
+            "bundlePath": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "title": { "$ref": "#/$defs/Title" },
+            "goal": { "$ref": "#/$defs/Direction" },
+            "mode": { "$ref": "#/$defs/Mode" },
+            "idempotencyKey": { "$ref": "#/$defs/StableId" }
+          },
+          "required": ["workspaceId", "bundlePath", "title", "goal", "mode", "idempotencyKey"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "ReadRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "$ref": "#/$defs/StableId" },
+        "operation": { "const": "workspace.read" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/StableId" },
+            "atVersion": { "$ref": "#/$defs/Version" }
+          },
+          "required": ["workspaceId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "MutateRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "$ref": "#/$defs/StableId" },
+        "operation": { "const": "workspace.mutate" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/StableId" },
+            "expectedVersion": { "$ref": "#/$defs/Version" },
+            "idempotencyKey": { "$ref": "#/$defs/StableId" },
+            "action": { "$ref": "#/$defs/WorkspaceAction" }
+          },
+          "required": ["workspaceId", "expectedVersion", "idempotencyKey", "action"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "WorkspaceRequest": {
+      "oneOf": [
+        { "$ref": "#/$defs/CreateRequest" },
+        { "$ref": "#/$defs/ReadRequest" },
+        { "$ref": "#/$defs/MutateRequest" }
+      ]
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/WorkspaceRequest" },
+    { "$ref": "#/$defs/WorkspaceView" }
+  ]
+}
