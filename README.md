@@ -1,121 +1,82 @@
 # World Master's Manual
 
-A worldbuilding engine prototype with deterministic identities, verified directory bundles, scoped historical queries, roster-bound exact-point absence evaluation, and a certified exact-interval absence subset. A durable terminal workspace now implements the U1/U2 inspect-and-persist authoring slices over the same versioned `wmm/1` application API. Draft decisions are saved; canonical worlds remain read-only. Full candidate historical validation, host approval, and canonical commits are not implemented, and the contracts remain pre-release drafts.
+World Master's Manual (WMM) is a worldbuilding tool for inspecting a world's records, exploring alternative prose, and keeping track of draft decisions in a terminal workspace.
 
-Implementation is guided by [RFC WMM-001 v0.3](plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md). See the [workspace guide](docs/WORKSPACE.md), [implementation status](docs/STATUS.md), and [stabilization contracts and limitations](docs/STABILIZATION.md) for the narrower implemented boundary. The original plans were hidden by a `plans/` ignore rule; that rule has been removed so the existing originals can be versioned.
+**Pre-release:** draft decisions are saved locally, but the original world stays unchanged. Full historical validation, approval, and committing drafts to canon are not available yet.
 
-## Current packages
+## Quick start
 
-- `packages/wire-contracts`: closed core, semantic, production world-record, and workspace shapes with Draft 2020-12 validators.
-- `packages/canonical`: restricted safe-integer canonical JSON, domain-separated SHA-256, and domain identity helpers.
-- `packages/temporal`: exact and uncertain local applicability over integer chronons, including correlated interval endpoints and certified exact applicability change positions.
-- `packages/schema`: the bounded first-release semantic-definition/profile vocabulary and structural checks.
-- `packages/core`: scope comparison, evidence/family aggregation, immutable semantic admission, world-reference validation, active-claim queries, roster-bound point/partitioned-interval absence, and snapshot-backed receipt replay.
-- `packages/exchange`: fixture-scoped compatibility loading plus production bundle verification, loading, inspection, and deterministic JSON export.
-- `packages/ports`: the durable `WorkspaceStore` boundary, separate from canonical-world storage.
-- `packages/store-authoring-sqlite`: transactional draft workspaces with immutable captured bases, retained state versions, optimistic concurrency, and idempotent outcomes.
-- `packages/application`: versioned read-only world operations plus `workspace.create`, `workspace.read`, and `workspace.mutate`, with runtime admission and operation-discriminated responses shared by human and machine clients.
-- `apps/cli`: development commands, duplicate-key-safe `wmm/1` JSON stdin processing, and a React/Ink workspace editor with plain/JSON output modes.
-- `fixtures/v0`: golden scope, evidence, temporal, and result-algebra cases.
-- `fixtures/v1/complete-world`: a fully referenced portable world with descriptors, source, assertions, supports, profile, definitions, manifest, and prose.
-- `fixtures/v2`: independently constructed before/after/scope query expectations, point-absence receipts, and interval-proof requests/expectations.
-- `fixtures/v3/succession-world`: a verified worked-demo bundle with explicit authored-prose alternatives, not a historical-validation substitute.
-- `wmm-v0.3-contract-kit`: immutable seed vectors and independent Node/Python verifiers supplied with the RFC.
+WMM currently runs from source; there is no published installable release. You'll need:
 
-## Toolchain
+- **Node.js 24.3.0 or newer**
+- **pnpm 10.12.4** (the version pinned by this repository)
 
-- Node.js >=24.3.0
-- pnpm 10.12.4
-- TypeScript 7.0.2
-- Vitest 5.0.5
-- React 19.3.1, Ink 8.0.0, and string-width 8.3.0 (pinned workspace UI dependencies)
-
-Exact package versions are recorded in `pnpm-lock.yaml`. Workspace storage uses Node's built-in SQLite, which can emit an experimental-feature warning on stderr; it does not belong to JSON stdout. The terminal smoke command also requires Python 3 (standard library only).
-
-## Try the durable workspace
-
-From the repository root, build and launch the worked succession demo:
+From a local checkout, run these commands in the repository root:
 
 ```sh
-pnpm build
-node apps/cli/dist/main.js workspace demo --workspace-dir ./wmm-workspaces/succession
+pnpm install --frozen-lockfile
+pnpm workspace:demo
 ```
 
-Or run `pnpm workspace:demo`, which builds and launches the same demo. Repeating the demo command resumes the saved workspace rather than reseeding its proposals or decisions.
+The demo command builds WMM and opens a worked succession scenario with draft alternatives ready to explore. Run it again to return to your saved workspace—your decisions won't be reset.
 
-For a normal verified bundle, start without demo proposals or pins, then resume the captured base:
+### Your first session
+
+Use a terminal at least **80 columns × 24 rows**. The editor has five views: **Changes, World, Constraints, History, and Review**.
+
+- **Tab** switches views; **↑ / ↓** moves through items.
+- **Enter** inspects an item; **Esc** returns or cancels.
+- **Space** selects or unselects a draft change in Changes.
+- **a** adds a prose proposal; **Ctrl+S** saves a form.
+- **?** shows keyboard help; **q** quits outside a form.
+
+Saved decisions live in `wmm-workspaces/succession`, separate from the source world. Selecting a change saves a draft decision; it does **not** validate history or change canon.
+
+For more controls and a guided walkthrough, see the [workspace guide](docs/WORKSPACE.md).
+
+## Open a world or resume your work
+
+After the initial build, open the included example bundle without the demo's proposals:
 
 ```sh
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
+```
+
+Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+
+Resume that workspace later:
+
+```sh
 node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/my-world
 ```
 
-`--id` defaults to `main`. All three workspace commands accept `--plain` or `--json` (mutually exclusive); non-TTY execution and `TERM=dumb` use linear plain output by default. The interactive editor has Changes, World, Constraints, History, and Review views, an 80x24 baseline, and split panes at 100+ columns—not a chat panel.
+WMM captures the base world when creating the workspace. Resume uses that saved snapshot, even if the original bundle moves or changes. The source bundle is never modified.
 
-The separate workspace directory holds `authoring.sqlite` in WAL mode, the immutable verified base including captured document bytes, and all saved workspace state versions. The source bundle is untouched. `resume` does not reload it and works even after it is moved or removed. The base identity is a **pinned snapshot digest**, not a stored domain revision or a Git revision, even where plain output labels it “Base revision”. Selection is not historical validity or canon acceptance: U3 validation is `not-run`, U4 approval is unavailable, and V4 commit is unavailable.
+## Plain output and automation
 
-See [WORKSPACE.md](docs/WORKSPACE.md) for the actual shortcuts, typed prose forms, machine API, limits, and recovery behavior.
-
-## Commands
+Add `--plain` to inspect a workspace without the interactive editor:
 
 ```sh
-pnpm install
-pnpm check
-pnpm verify:contracts
-pnpm verify:v0
-pnpm verify:seed
-pnpm generate:fixtures
-pnpm verify:v1
-pnpm verify:v2
-pnpm verify:workspace
-node apps/cli/dist/main.js json < fixtures/v1/validate-request.json
-node apps/cli/dist/main.js json < fixtures/v2/absence-request.json
-node apps/cli/dist/main.js json < fixtures/v2/interval-request.json
+node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/succession --plain
 ```
 
-`pnpm check` runs the original Node verifier, strict source/test TypeScript checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` executes bounded semantic fixtures. `pnpm verify:seed` verifies the intentionally incomplete v0.3 seed payload. `pnpm generate:fixtures` regenerates the production world, V2 examples, and workspace demo; `pnpm verify:v1` and `pnpm verify:v2` exercise the compiled stdin API. The existing engine CI workflow targets Linux and macOS and checks regenerated fixture bytes; that is not a claim that the workspace PTY smoke has run on both platforms.
+Non-interactive terminals use plain output automatically. Workspace commands also accept `--json`; machine clients can use the versioned `wmm/1` JSON stdin API. See the [workspace API documentation](docs/WORKSPACE.md) for details.
 
-`pnpm verify:workspace` builds, then runs `tools/workspace-terminal-smoke.py`, a Python-standard-library smoke with four real-PTY scenarios. Local macOS execution is reported; Linux execution is not yet verified. Focused workspace validation commands and scoped results are in [WORKSPACE.md](docs/WORKSPACE.md#validation). The commands here are validation targets, not promises of success or a current full-suite test total.
+Node's built-in SQLite may print an experimental-feature warning on stderr. This is separate from JSON output.
 
-The independent Python verifier additionally requires `jsonschema`. It is intentionally not a runtime dependency of WMM.
+## Documentation
 
-### JSON API exit codes
+- [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
+- [Release notes](docs/RELEASE-NOTES.md) — the current unreleased capability inventory, technical details, and validation commands.
+- [Implementation status](docs/STATUS.md) — what works today and what remains planned.
+- [Contracts and limitations](docs/STABILIZATION.md) — supported semantics and safety boundaries.
+- [Engineering plan](plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md) — the underlying RFC; its version is separate from a WMM package release.
 
-- `0`: completed successful operation, including an evaluated but `not-established` interval proof
-- `2`: invalid request, unsupported API version, or unsupported operation
-- `3`: invalid world/unknown record, or a workspace domain error such as stale version, idempotency conflict, unknown/existing workspace, or invalid workspace action
-- `4`: storage/internal failure or incomplete `BUDGET_EXCEEDED` interval proof
+## Development
 
-JSON stdout contains exactly one canonical response object. Development/progress output and runtime warnings belong on stderr. Existing read-only JSON commands are unchanged. Workspace machine clients use `json --workspace-dir <directory>` with the same `wmm/1` envelope and `workspace.create` / `workspace.read` / `workspace.mutate`; the host controls the database directory, not a field in the request payload.
+```sh
+pnpm build    # Compile the engine and CLI
+pnpm check    # Run the identity verifier, TypeScript checks, and tests
+```
 
-## Implemented boundary
-
-The implementation and checked-in validation targets cover:
-
-- seed canonical-byte and identity vectors;
-- positive and negative core schema cases;
-- expected identity differences;
-- seed snapshot manifest closure;
-- restricted canonicalization behavior for Unicode, UTF-16 key ordering, safe integers, sparse arrays, and cycles;
-- tri-state scope comparison, documentary evidence status, and explicit-polarity family support;
-- the closed response/validation result algebra;
-- exact, bounded-unknown, unknown, and unbounded temporal applicability against exact point/interval queries;
-- trusted allowlist admission for the bounded semantic operation vocabulary, including default rejection of fixture-only definitions;
-- fixture-scoped compatibility verification for the intentionally incomplete v0.3 identity kit;
-- production descriptor/source/assertion/support/world/snapshot records;
-- release-owned bundled semantic trust rather than trust derived from imported bytes;
-- complete catalog, identity, definition-role, temporal-input, source, and historical-reference validation;
-- production manifest closure, canonical JSON, size/path/symlink/case-collision controls, deterministic inspection/export, and integrity-preserving semantic corruption tests;
-- operation-discriminated `wmm/1` request/response schemas for `world.validate`, `record.inspect`, `world.export`, `claims.query`, `absence.query`, `absence.proveThroughout`, and the three workspace operations;
-- strict JSON/own-property/Unicode admission, bounded reads, request correlation, resolved snapshot identifiers, typed errors, canonical one-line output, and documented exit-code classes;
-- roster-bound population coverage, preservation of positive witness support under contrary claims, certified exact-interval partitions, and separate integrity/replay verification of absence receipts;
-- U1/U2 component, application, and SQLite paths for explicit proposal versions, selections, rejections, exact base-document/active-assertion pins, advisory direction, restart recovery, and historical workspace reads via `atVersion`;
-- typed `write-prose` proposals and machine assertion-operation schema/identity/reference admission, with selected-draft diagnostics—not a combined historical validator or arbitrary narrative-constraint engine.
-
-### Exact interval absence subset
-
-`absence.query` remains an independent exact-point (`at`) operation. `absence.proveThroughout` accepts a finite exact half-open interval `[start,endExclusive)` on one integer axis. It constructs a complete, numerically sorted partition from the query endpoints and certified relevant primitive changes, then reuses point evaluation only after constancy is certified over each nonempty cell. Point premises contribute both their position and successor, clipped to the query range; this does not turn stored events into durations. Exhaustive roster-bound absence must be established in every cell; an authorial declaration alone is not an exhaustive proof, and a definite witness in any cell blocks interval absence.
-
-Potentially relevant uncertain changes, unresolved scope, or unmapped axes produce completed `not-established` results rather than guessed partitions. Missing/stale coverage or unresolved membership/eligibility also cannot establish absence. Deterministic work/cell budgets and bounded output construction produce incomplete `BUDGET_EXCEEDED` errors on exhaustion, with no result/receipt. Interval receipt integrity checking is not proof: snapshot replay independently reconstructs the partition and cell evaluations against adapter-verified content. See [the detailed contract](docs/STABILIZATION.md#exact-interval-absence-subset).
-
-This is the recorded-applicability subset of RFC §5.6, not a general temporal solver, computed age/eligibility thresholds, or arbitrary rule execution. The remaining gates include general historical conflict/impact analysis and full combined candidate validation (U3), host authorization (U4), domain revision storage and safe canonical acceptance/recovery (V4), branches, and backups. Durable U1/U2 workspaces do not complete the full V3 milestone. `world.export` is a metadata view, not a lossless backup. Load bundles from stable/private directories; no-follow file checks do not provide atomic confinement against concurrent parent-directory swaps. Queries remain synchronous and have no deadline/cancellation/pagination contract. These limitations remain explicit gates rather than implied completed capabilities.
+Additional fixture and terminal validation commands are recorded in the [release notes](docs/RELEASE-NOTES.md).
