@@ -4,6 +4,9 @@ World Master's Manual (WMM) is a worldbuilding tool for inspecting a world's rec
 
 **Pre-release:** draft decisions are saved locally, but the original world stays unchanged. Full historical validation, approval, and committing drafts to canon are not available yet.
 
+<img width="1388" height="847" alt="Screenshot 2026-10-21 at 9 05 56 PM" src="https://github.com/user-attachments/assets/3d0e4354-b61f-4342-a07e-6ec2d22d6ba7" />
+
+
 ## Quick start
 
 To build the archive yourself, follow the [release guide](docs/RELEASING.md).
