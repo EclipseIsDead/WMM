@@ -31,6 +31,8 @@ jobs:
       - run: pnpm verify:v1
       - run: pnpm verify:v2
       - run: pnpm verify:workspace
+      - run: pnpm release:pack
+      - run: pnpm release:verify
       - name: Check reproducible fixture bytes
         run: |
           pnpm generate:fixtures

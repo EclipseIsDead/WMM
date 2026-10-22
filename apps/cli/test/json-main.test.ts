@@ -72,7 +72,7 @@ function invokeJson(
 
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [
-      "--no-warnings", "--input-type=module", "--eval", bootstrap,
+      "--no-warnings", "--input-type=module", "--eval", bootstrap, "--",
       ...options.args ?? ["json"],
     ], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
@@ -119,6 +119,22 @@ function expectProtocolResponse(result: SpawnResult, exitCode: number): unknown 
   expect(result.stdout).toBe(`${canonicalJson(response as JsonValue)}\n`);
   return response;
 }
+
+describe("CLI product information", () => {
+  it("reports the product prerelease without reading stdin", async () => {
+    const result = await invokeJson(new Uint8Array(), { args: ["--version"], keepStdinOpen: true });
+    expect(result).toEqual({ code: 0, stdout: "0.1.0-alpha.1\n", stderr: "" });
+  });
+
+  it.each(["--help", "-h"])("prints %s successfully without reading stdin", async (flag) => {
+    const result = await invokeJson(new Uint8Array(), { args: [flag], keepStdinOpen: true });
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("Usage:");
+    expect(result.stdout).toContain("wmm workspace demo");
+    expect(result.stdout).toContain("wmm --version");
+  });
+});
 
 describe("JSON CLI process boundary", () => {
   it("rejects the first byte over 1 MiB and exits while stdin is still open", async () => {

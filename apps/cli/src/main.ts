@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+
 import { canonicalJson } from "@wmm/canonical";
 import type { JsonValue } from "@wmm/wire-contracts";
 import { validateApiRequest } from "@wmm/wire-contracts";
@@ -25,10 +27,11 @@ import {
 import { verifyContractKit } from "./verify-contract-kit.js";
 import { verifyV0Contracts } from "./verify-v0.js";
 
-function usage(): never {
-  throw new Error(
-    [
+function helpText(): string {
+  return [
       "Usage:",
+      "  wmm --version",
+      "  wmm --help",
       "  wmm json [--workspace-dir <directory>] < request.json",
       "  wmm workspace demo --workspace-dir <directory>",
       "  wmm workspace open <bundle-directory> --workspace-dir <directory>",
@@ -41,8 +44,11 @@ function usage(): never {
       "  wmm world validate <bundle-directory>",
       "  wmm world inspect <bundle-directory> <identifier>",
       "  wmm world export <bundle-directory>",
-    ].join("\n"),
-  );
+    ].join("\n");
+}
+
+function usage(): never {
+  throw new Error(helpText());
 }
 
 function execute(args: readonly string[]): unknown {
@@ -93,6 +99,15 @@ function writeJsonTransport(result: JsonTransportResult): void {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
+    process.stdout.write(`${helpText()}\n`);
+    return;
+  }
+  if (args.length === 1 && args[0] === "--version") {
+    const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+    process.stdout.write(`${manifest.version}\n`);
+    return;
+  }
   if (args[0] === "workspace") {
     const { runWorkspaceCommand } = await import("./workspace-command.js");
     await runWorkspaceCommand(args.slice(1));

@@ -1,6 +1,9 @@
 {
   "name": "@wmm/cli",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
+    "engines": {
+      "node": ">=24.3.0"
+    },
   "private": true,
   "type": "module",
   "bin": {

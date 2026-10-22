@@ -1,6 +1,16 @@
 # Release notes
 
-## Unreleased — CLI and durable authoring workspace
+## 0.1.0-alpha.1 — first product prerelease (prepared, not published)
+
+- Portable macOS/Linux archive with the compiled CLI, production dependencies, and the worked succession demo. Node.js >=24.3.0 remains a prerequisite; no package installation or checkout is needed to run the archive.
+- `wmm --version` reports the product version; `wmm --help` lists commands.
+- Demo creation, repeat launch, and resume work outside the repository. Saved proposals and decisions remain in a separate local workspace directory.
+- `pnpm release:pack` builds the archive; `pnpm release:verify` checks an isolated extraction, JSON mutation persistence, plain output, and UI runtime imports. CI runs these checks on macOS and Linux; local results do not imply the remote matrix has passed.
+- The product version is separate from RFC v0.3 and the `wmm/1` API. Internal workspace packages remain private implementation details.
+
+This alpha supports durable drafts, not full historical validation, approval, or committing to canon. No registry publication, release upload, or Git tag is performed by the packaging tools. See the [release guide](RELEASING.md) for installation, verification, and platform limits.
+
+## Pre-release implementation baseline — CLI and durable authoring workspace
 
 This pre-release implementation snapshot preserves the former README's technical inventory. It is not a published release or a claim of completed RFC milestones. Commands below run from the repository root. For setup, start with the [quick start](../README.md).
 
