@@ -36,6 +36,7 @@ function helpText(): string {
       "  wmm workspace demo --workspace-dir <directory>",
       "  wmm workspace open <bundle-directory> --workspace-dir <directory>",
       "  wmm workspace resume --workspace-dir <directory> [--plain | --json]",
+      "  wmm workspace review --workspace-dir <directory> [--id main] [--plain | --json]",
       "  wmm contract-kit verify <kit-directory>",
       "  wmm v0 verify <kit-directory> <semantic-cases-file>",
       "  wmm seed validate <kit-directory>",

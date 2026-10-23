@@ -132,6 +132,7 @@ describe("CLI product information", () => {
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Usage:");
     expect(result.stdout).toContain("wmm workspace demo");
+    expect(result.stdout).toContain("wmm workspace review");
     expect(result.stdout).toContain("wmm --version");
   });
 });
