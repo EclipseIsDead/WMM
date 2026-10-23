@@ -1,15 +1,15 @@
 import { isDeepStrictEqual } from "node:util";
 import { resolve } from "node:path";
 
-import { assertionId, canonicalJson, sha256Hex } from "@wmm/canonical";
-import { applyWorkspaceAction, workspacePrerequisites, workspaceSelection, WorkspaceActionError, validateWorldSemantics } from "@wmm/core";
+import { assertionId, canonicalJson, sha256Hex, workspaceCandidateDigest, workspaceReviewDigest } from "@wmm/canonical";
+import { applyWorkspaceAction, workspacePrerequisites, workspaceSelection, WorkspaceActionError, validateWorldSemantics, reviewWorkspace, workspaceReviewBinding, WorkspaceReviewBudgetError } from "@wmm/core";
 import { exportWorldBundle, loadBundledV1WorldBundle } from "@wmm/exchange";
-import type { WorkspaceStore } from "@wmm/ports";
+import { WorkspaceStoreError, type WorkspaceStore } from "@wmm/ports";
 import type {
   JsonValue, ProposalGroupV1, WorkspaceActionV1, WorkspaceBaseV1, WorkspaceOperationV1,
-  WorkspaceRequestV1, WorkspaceStateV1, WorkspaceViewV1,
+  WorkspaceRequestV1, WorkspaceStateV1, WorkspaceViewV1, WorkspaceReviewV1,
 } from "@wmm/wire-contracts";
-import { validateApiResponse } from "@wmm/wire-contracts";
+import { validateApiResponse, validateWorkspaceReviewReceipt } from "@wmm/wire-contracts";
 
 function invalid(message: string): never { throw new WorkspaceActionError(message); }
 function json(value: unknown): string { return canonicalJson(value as JsonValue); }
@@ -137,7 +137,27 @@ function selectionView(state: WorkspaceStateV1, base: WorkspaceBaseV1): Workspac
   return { ...selection, diagnostics };
 }
 
-export function workspaceView(state: WorkspaceStateV1, base: WorkspaceBaseV1): WorkspaceViewV1 {
+function boundReview(state: WorkspaceStateV1, base: WorkspaceBaseV1, receipt?: WorkspaceReviewV1): Pick<WorkspaceViewV1, "validation" | "review"> {
+  if (receipt === undefined) return { validation: { status: "not-run", message: "Run Review checks for this exact selection. Prose meaning and general historical reasoning are not evaluated." } };
+  if (!validateWorkspaceReviewReceipt(receipt).valid) return { validation: { status: "stale", message: "Stored review is outside the current receipt contract; run checks again." } };
+  const { evaluationDigest, ...body } = receipt;
+  if (evaluationDigest !== workspaceReviewDigest(body)) return { validation: { status: "stale", message: "Stored review integrity failed; run checks again." } };
+  let current = false;
+  try {
+    const binding = workspaceReviewBinding(state, base);
+    current = isDeepStrictEqual(binding, receipt.binding) && receipt.candidateDigest === workspaceCandidateDigest(binding);
+  } catch (error) {
+    if (!(error instanceof WorkspaceReviewBudgetError)) throw error;
+  }
+  return {
+    review: receipt,
+    validation: current
+      ? { status: "current", message: `Completed ${receipt.validity} result for the exact current candidate, within ${receipt.binding.evaluator}. Narrative truth is not inferred.` }
+      : { status: "stale", message: `Review belongs to workspace v${receipt.binding.workspaceVersion}, not the current selection/steering/evaluator binding. Run checks again.` },
+  };
+}
+
+export function workspaceView(state: WorkspaceStateV1, base: WorkspaceBaseV1, receipt?: WorkspaceReviewV1): WorkspaceViewV1 {
   const definitions = new Map(base.world.definitions.map((entry) => [entry.digest, entry.body]));
   const records: WorkspaceViewV1["records"][number][] = [
     ...base.world.descriptors.map((record) => ({ id: record.id, kind: definitions.get(record.birthTypeDefinitionDigest)?.key ?? "descriptor", title: label(record.id), summary: "Stable identity in the pinned base. Display label is derived from its ID; no authored name has been inferred." })),
@@ -158,13 +178,15 @@ export function workspaceView(state: WorkspaceStateV1, base: WorkspaceBaseV1): W
       return { groupId: group.id, representation: prose && claims ? "mixed" : prose ? "explicit-prose" : "explicit-claims", before: summaries.map((summary) => summary.before), proposed: summaries.map((summary) => summary.proposed) };
     }),
     prerequisites: workspacePrerequisites(state), selection: selectionView(state, base),
-    validation: { status: "not-run", message: "Candidate historical validation is not implemented (U3). Selection checks are not historical validity." },
+    ...boundReview(state, base, receipt),
     approval: "unavailable", canon: "unchanged",
   };
 }
-function checkView(state: WorkspaceStateV1, base: WorkspaceBaseV1): void {
-  const view = workspaceView(state, base);
-  const response = { format: "wmm.response/1", apiVersion: "wmm/1", requestId: "workspace-bound-check", operation: "workspace.read", outcome: "success", execution: "completed", resolved: state.base, diagnostics: [], data: view };
+function checkView(state: WorkspaceStateV1, base: WorkspaceBaseV1, receipt?: WorkspaceReviewV1): void {
+  const view = workspaceView(state, base, receipt);
+  // Reserve the longest workspace operation and worst-case JSON escaping for any
+  // permitted correlation ID, including retries that carry a different requestId.
+  const response = { format: "wmm.response/1", apiVersion: "wmm/1", requestId: "\u0000".repeat(256), operation: "workspace.review", outcome: "success", execution: "completed", resolved: state.base, diagnostics: [], data: view };
   if (!validateApiResponse(response).valid || Buffer.byteLength(json(response)) > 4 * 1024 * 1024) invalid("Workspace read model exceeds the bounded draft contract; split the authoring work into smaller workspaces");
 }
 
@@ -221,6 +243,22 @@ export class WorkspaceApplication {
         break;
       }
       case "workspace.read": state = this.store.read(payload.workspaceId, request.payload.atVersion); break;
+      case "workspace.review": {
+        const value = request.payload;
+        state = this.store.read(value.workspaceId);
+        if (state.version !== value.expectedVersion) throw new WorkspaceStoreError("STALE_WORKSPACE", `Workspace ${state.id} is at v${state.version}, not v${value.expectedVersion}`);
+        const base = this.store.readBase(state.id);
+        const { review } = reviewWorkspace(state, base, value.limits);
+        if (!validateWorkspaceReviewReceipt(review).valid) throw new Error("Kernel produced an invalid workspace review receipt");
+        try { checkView(state, base, review); }
+        catch (error) {
+          if (error instanceof WorkspaceActionError) throw new WorkspaceReviewBudgetError("Combined workspace/review response exceeds its bounded output contract");
+          throw error;
+        }
+        // Store performs a second expected-version check under its write lock.
+        this.store.putReview(state.id, value.expectedVersion, review);
+        return workspaceView(state, base, review);
+      }
       case "workspace.mutate": {
         const value = request.payload;
         const action = normalizedAction(value.action);
@@ -230,12 +268,18 @@ export class WorkspaceApplication {
             const next = applyWorkspaceAction(current, action);
             const base = this.store.readBase(current.id);
             validateOperations(next, base);
-            checkView(next, base);
+            checkView(next, base, this.store.readReview(current.id));
             return next;
           });
         break;
       }
     }
-    return workspaceView(state, this.store.readBase(state.id));
+    // Mutation retries replay the original associated control view, not a review saved later.
+    const receipt = request.operation === "workspace.mutate"
+      ? this.store.readOutcomeReview(state.id, request.payload.idempotencyKey)
+      : request.operation === "workspace.read"
+        ? this.store.readReview(state.id, state.version) ?? this.store.readReview(state.id)
+        : undefined;
+    return workspaceView(state, this.store.readBase(state.id), receipt);
   }
 }

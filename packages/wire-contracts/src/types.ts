@@ -603,6 +603,7 @@ export type ApiOperationV1 =
   | "absence.proveThroughout"
   | "workspace.create"
   | "workspace.read"
+  | "workspace.review"
   | "workspace.mutate";
 
 interface ApiRequestBaseV1 {
@@ -722,6 +723,7 @@ export interface ApiResultByOperationV1 {
   readonly "absence.proveThroughout": IntervalAbsenceResultV1;
   readonly "workspace.create": WorkspaceViewV1;
   readonly "workspace.read": WorkspaceViewV1;
+  readonly "workspace.review": WorkspaceViewV1;
   readonly "workspace.mutate": WorkspaceViewV1;
 }
 

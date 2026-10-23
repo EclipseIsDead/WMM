@@ -1,4 +1,4 @@
-import type { WorkspaceBaseV1, WorkspaceStateV1, WorkspaceErrorCodeV1 } from "@wmm/wire-contracts";
+import type { WorkspaceBaseV1, WorkspaceStateV1, WorkspaceReviewV1, WorkspaceErrorCodeV1 } from "@wmm/wire-contracts";
 
 export interface WorkspaceIntent {
   readonly idempotencyKey: string;
@@ -10,6 +10,12 @@ export interface WorkspaceStore {
   read(id: string, atVersion?: number): WorkspaceStateV1;
   readBase(id: string): WorkspaceBaseV1;
   mutate(id: string, expectedVersion: number, intent: WorkspaceIntent, apply: (state: WorkspaceStateV1) => WorkspaceStateV1): WorkspaceStateV1;
+  /** Trusted, hash-verified receipt; saving it does not advance semantic state or idempotency outcomes. */
+  putReview(id: string, expectedVersion: number, review: WorkspaceReviewV1): void;
+  /** Latest receipt across all states, or the latest receipt at exactly atVersion when specified. */
+  readReview(id: string, atVersion?: number): WorkspaceReviewV1 | undefined;
+  /** Receipt frozen with the original mutation outcome; absent for creates and legacy outcomes. */
+  readOutcomeReview(id: string, idempotencyKey: string): WorkspaceReviewV1 | undefined;
   close(): void;
 }
 export class WorkspaceStoreError extends Error {

@@ -231,6 +231,7 @@
     },
     "WorkspaceCreateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/CreateRequest" },
     "WorkspaceReadRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/ReadRequest" },
+    "WorkspaceReviewRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/ReviewRequest" },
     "WorkspaceMutateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/MutateRequest" },
     "WorkspaceView": { "$ref": "urn:wmm:workspace:v1#/$defs/WorkspaceView" },
     "Request": {
@@ -255,6 +256,7 @@
         },
         { "$ref": "#/$defs/WorkspaceCreateRequest" },
         { "$ref": "#/$defs/WorkspaceReadRequest" },
+        { "$ref": "#/$defs/WorkspaceReviewRequest" },
         { "$ref": "#/$defs/WorkspaceMutateRequest" }
       ]
     },
@@ -546,6 +548,7 @@
             "absence.proveThroughout",
             "workspace.create",
             "workspace.read",
+            "workspace.review",
             "workspace.mutate"
           ]
         },
@@ -654,7 +657,7 @@
           }
         },
         {
-          "if": { "properties": { "operation": { "enum": ["workspace.create", "workspace.read", "workspace.mutate"] } } },
+          "if": { "properties": { "operation": { "enum": ["workspace.create", "workspace.read", "workspace.review", "workspace.mutate"] } } },
           "then": { "properties": { "data": { "$ref": "#/$defs/WorkspaceView" } } }
         }
       ]

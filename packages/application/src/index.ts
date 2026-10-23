@@ -7,6 +7,7 @@ export { WorkspaceApplication, workspaceView } from "./workspaces.js";
 import {
   ClaimQueryInputError,
   IntervalAbsenceBudgetError,
+  WorkspaceReviewBudgetError,
   proveAbsenceThroughout,
   queryAbsence,
   queryActiveClaims,
@@ -38,7 +39,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
-    "workspace.create", "workspace.read", "workspace.mutate",
+    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -127,7 +128,7 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
     }
 
     const admitted = input as ApiRequestV1;
-    if (admitted.operation === "workspace.create" || admitted.operation === "workspace.read" || admitted.operation === "workspace.mutate") {
+    if (admitted.operation === "workspace.create" || admitted.operation === "workspace.read" || admitted.operation === "workspace.review" || admitted.operation === "workspace.mutate") {
       if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
       const data = services.workspaces.execute(admitted as WorkspaceRequestV1);
       return successResponse(admitted.requestId, data.workspace.base, { operation: admitted.operation, data });
@@ -221,7 +222,7 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
     if (error instanceof WorkspaceStoreError || error instanceof WorkspaceActionError) {
       return apiErrorResponse(error.code, error.message, requestId, operation);
     }
-    if (error instanceof IntervalAbsenceBudgetError) {
+    if (error instanceof IntervalAbsenceBudgetError || error instanceof WorkspaceReviewBudgetError) {
       return apiErrorResponse("BUDGET_EXCEEDED", error.message, requestId, operation, "incomplete");
     }
     if (error instanceof WorldBundleError) {

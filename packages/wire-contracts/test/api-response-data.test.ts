@@ -17,7 +17,7 @@ import type {
   WorldRecordV1,
 } from "../src/index.js";
 import { validateApiResponse } from "../src/index.js";
-import { workspaceView } from "./workspace-fixtures.js";
+import { workspaceReviewedView, workspaceView } from "./workspace-fixtures.js";
 
 const fixtureRoot = new URL("../../../fixtures/v1/complete-world/", import.meta.url);
 function fixtureJson(path: string): unknown {
@@ -173,6 +173,7 @@ const results = {
   "absence.proveThroughout": interval,
   "workspace.create": workspaceView,
   "workspace.read": workspaceView,
+  "workspace.review": workspaceReviewedView,
   "workspace.mutate": workspaceView,
 } satisfies ApiResultByOperationV1;
 const operations = Object.keys(results) as ApiOperationV1[];

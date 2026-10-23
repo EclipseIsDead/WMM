@@ -4,6 +4,8 @@ import type { WorkspaceActionV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
 export interface WorkspaceClient {
   read(atVersion?: number): WorkspaceViewV1;
   mutate(action: WorkspaceActionV1, expectedVersion: number, idempotencyKey: string): WorkspaceViewV1;
+  /** Explicit combined-candidate build/check; absent on older gateways. */
+  review?(expectedVersion: number): WorkspaceViewV1;
   /** Optional trusted host editor. Called only while Ink has released the terminal. */
   editText?(text: string): string;
 }

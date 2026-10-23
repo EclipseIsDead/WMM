@@ -4,6 +4,7 @@ import type {
   WorkspaceActionV1,
   WorkspacePinV1,
   WorkspaceRequestV1,
+  WorkspaceReviewV1,
   WorkspaceViewV1,
 } from "../src/index.js";
 
@@ -129,6 +130,67 @@ export const workspaceView: WorkspaceViewV1 = {
   validation: { status: "not-run", message: "Candidate validation has not run." },
   approval: "unavailable",
   canon: "unchanged",
+};
+
+// Hand-authored wire shapes, not canonical digest vectors or evaluator output.
+export const workspaceReview: WorkspaceReviewV1 = {
+  format: "wmm.workspace-review/1",
+  binding: {
+    worldId: workspaceView.workspace.base.worldId,
+    workspaceId: workspaceView.workspace.id,
+    workspaceVersion: workspaceView.workspace.version,
+    baseSnapshotDigest: workspaceDigest,
+    semanticProfileDigest: workspaceDigest,
+    evaluator: "bundled-workspace-review-v1",
+    selectedGroups: [{ id: workspaceProposal.id, version: 1 }],
+    operationsDigest: "b".repeat(64),
+    steeringDigest: "c".repeat(64),
+  },
+  candidateDigest: "d".repeat(64),
+  candidateSnapshotDigest: "e".repeat(64),
+  limits: { maxWorkUnits: 2_000_000 },
+  execution: "completed",
+  validity: "valid",
+  checks: [
+    { id: "selection", status: "passed" },
+    { id: "operations", status: "passed" },
+    { id: "references", status: "passed" },
+    { id: "pins", status: "passed" },
+    { id: "explicit-opposition", status: "passed" },
+  ],
+  diff: {
+    documents: [{
+      path: "documents/succession.md", kind: "modified",
+      beforeSha256: workspaceDigest, afterSha256: "b".repeat(64),
+      before: "The crown is disputed.", after: "A regent governs.",
+      truncated: false, groupIds: [workspaceProposal.id],
+    }],
+    assertions: [{
+      id: workspaceAssertion.id, kind: "activated", body: workspaceAssertion.body,
+      groupIds: [workspaceProposal.id],
+    }],
+  },
+  diagnostics: [{
+    code: "EXPLICIT_OPERATIONS_ONLY", severity: "warning",
+    groupIds: [workspaceProposal.id], assertionIds: [workspaceAssertion.id],
+    message: "Review covers explicit operations only.",
+  }],
+  limitations: ["Narrative implications are not inferred."],
+  evaluationDigest: "f".repeat(64),
+};
+export const workspaceReviewedView: WorkspaceViewV1 = {
+  ...workspaceView,
+  workspace: {
+    ...workspaceView.workspace,
+    proposals: workspaceView.workspace.proposals.map((proposal) => ({ ...proposal, dependencies: [] })),
+    pins: [],
+  },
+  prerequisites: [],
+  selection: {
+    requested: [workspaceProposal.id], required: [], missing: [], rejectedRequired: [], diagnostics: [],
+  },
+  validation: { status: "current", message: "Candidate review is current." },
+  review: workspaceReview,
 };
 
 export function workspaceResponse(

@@ -17,6 +17,7 @@ import type {
   SemanticContractV1,
   WorldRecordV1,
 } from "./types.js";
+import type { WorkspaceReviewV1 } from "./workspace.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -86,6 +87,9 @@ const validateRequest: ValidateFunction<ApiRequestV1> = ajv.compile({
 const validateResponse: ValidateFunction<ApiResponseV1> = ajv.compile({
   $ref: "urn:wmm:api:v1#/$defs/Response",
 });
+const validateReviewReceipt: ValidateFunction<WorkspaceReviewV1> = ajv.compile({
+  $ref: "urn:wmm:workspace:v1#/$defs/WorkspaceReview",
+});
 
 function validationResult(
   valid: boolean,
@@ -127,6 +131,11 @@ export function validateApiRequest(input: unknown): CoreContractValidationResult
 
 export function validateApiResponse(input: unknown): CoreContractValidationResult {
   return preflight(input) ?? validationResult(validateResponse(input), validateResponse.errors);
+}
+
+/** Shape only; digest integrity, check identity and binding freshness are verified by core. */
+export function validateWorkspaceReviewReceipt(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateReviewReceipt(input), validateReviewReceipt.errors);
 }
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {

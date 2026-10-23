@@ -105,18 +105,18 @@ function unwrap(response: ApiResponseV1): WorkspaceViewV1 {
     error.code = response.error.code;
     throw error;
   }
-  if (response.operation !== "workspace.create" && response.operation !== "workspace.read" && response.operation !== "workspace.mutate") throw new Error("Unexpected workspace operation");
+  if (response.operation !== "workspace.create" && response.operation !== "workspace.read" && response.operation !== "workspace.review" && response.operation !== "workspace.mutate") throw new Error("Unexpected workspace operation");
   return response.data;
 }
 
 export async function runWorkspaceCommand(args: readonly string[]): Promise<void> {
   const [command, ...rest] = args;
-  if (command !== "open" && command !== "demo" && command !== "resume") throw new Error("Usage: wmm workspace open <bundle> | demo | resume --workspace-dir <directory> [--id main] [--plain | --json]");
+  if (command !== "open" && command !== "demo" && command !== "resume" && command !== "review") throw new Error("Usage: wmm workspace open <bundle> | demo | resume | review --workspace-dir <directory> [--id main] [--plain | --json]");
   const bundlePath = command === "open" ? rest[0] : command === "demo" ? fileURLToPath(new URL("../../../fixtures/v3/succession-world/", import.meta.url)) : undefined;
   const options = parseOptions(command === "open" ? rest.slice(1) : rest);
   if (command === "open" && (bundlePath === undefined || bundlePath.startsWith("--"))) throw new Error("Provide a WMM bundle directory to open");
   if (bundlePath !== undefined) assertSeparateWorkspaceDirectory(options.directory, bundlePath);
-  const runtime = openWorkspaceRuntime(options.directory, command !== "resume");
+  const runtime = openWorkspaceRuntime(options.directory, command === "open" || command === "demo");
   try {
     const invoke = (operation: WorkspaceRequestV1): ApiResponseV1 => executeApiRequest(operation, runtime.services);
     const readRequest = (): WorkspaceRequestV1 => ({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.read", payload: { workspaceId: options.id } });
@@ -131,17 +131,21 @@ export async function runWorkspaceCommand(args: readonly string[]): Promise<void
     // The create operation correctly replays its original result; editors display the latest saved state.
     if (response.outcome === "success" && response.operation === "workspace.create") response = invoke(readRequest());
     if (response.outcome === "success" && command === "demo" && unwrap(response).workspace.mode !== "succession-demo") throw new Error("This workspace is not the succession demo; use resume or a separate workspace ID");
+    if (command === "review" && response.outcome === "success") {
+      response = invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.review", payload: { workspaceId: options.id, expectedVersion: unwrap(response).workspace.version } });
+    }
     if (options.json) {
       const serialized = serializeJsonTransportResult({ response, exitCode: operationExitCode(response.operation as WorkspaceRequestV1["operation"], response) });
       process.stdout.write(serialized.output); process.exitCode = serialized.exitCode; return;
     }
     const view = unwrap(response);
-    if (options.plain || !process.stdin.isTTY || !process.stdout.isTTY || process.env["TERM"] === "dumb") {
+    if (command === "review" || options.plain || !process.stdin.isTTY || !process.stdout.isTTY || process.env["TERM"] === "dumb") {
       process.stdout.write(`${renderWorkspacePlain(view)}\n`); return;
     }
     const client: WorkspaceClient = {
       read: (atVersion) => unwrap(invoke({ ...readRequest(), operation: "workspace.read", payload: { workspaceId: options.id, ...(atVersion === undefined ? {} : { atVersion }) } })),
       mutate: (action, expectedVersion, idempotencyKey) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.mutate", payload: { workspaceId: options.id, expectedVersion, idempotencyKey, action } })),
+      review: (expectedVersion) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.review", payload: { workspaceId: options.id, expectedVersion } })),
       editText: editWorkspaceText,
     };
     await runWorkspaceEditor(client, view);

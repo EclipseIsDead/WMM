@@ -1,11 +1,12 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
-import { resolve } from "node:path";
+import { closeSync, constants, copyFileSync, fstatSync, lstatSync, mkdtempSync, openSync, readSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { WorkspaceStoreError } from "@wmm/ports";
 
-const APPLICATION_ID = 0x574d4d41; // WMMA: WMM authoring, not a world or query cache.
-const SCHEMA_VERSION = 1;
+export const APPLICATION_ID = 0x574d4d41; // WMMA: WMM authoring, not a world or query cache.
+const SCHEMA_VERSION = 2;
 const BUSY_TIMEOUT_MS = 1_000;
 
 const TABLES = [
@@ -46,7 +47,8 @@ const TABLES = [
   },
 ];
 
-const SCHEMA = [
+/** Captured v1 DDL, deliberately unchanged: only this exact owned schema may be migrated. */
+export const LEGACY_SCHEMA_V1 = [
   ...TABLES.map((table) => ({ ...table, type: "table" })),
   {
     type: "trigger",
@@ -73,6 +75,91 @@ const SCHEMA = [
   }))),
 ];
 
+const REVIEW_SCHEMA = [
+  {
+    type: "table",
+    name: "workspace_reviews",
+    sql: `CREATE TABLE workspace_reviews (
+      sequence INTEGER PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      evaluation_digest TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      review_json TEXT NOT NULL CHECK (
+        json_valid(review_json)
+        AND json_extract(review_json, '$.format') IS 'wmm.workspace-review/1'
+        AND json_extract(review_json, '$.binding.workspaceId') IS workspace_id
+        AND json_extract(review_json, '$.binding.workspaceVersion') IS version
+        AND json_extract(review_json, '$.evaluationDigest') IS evaluation_digest
+      ),
+      UNIQUE (workspace_id, evaluation_digest),
+      FOREIGN KEY (workspace_id, version) REFERENCES workspace_versions(workspace_id, version)
+    ) STRICT`,
+  },
+  {
+    type: "trigger",
+    name: "workspace_reviews_insert_guard",
+    sql: `CREATE TRIGGER workspace_reviews_insert_guard BEFORE INSERT ON workspace_reviews BEGIN
+      SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM workspace_reviews WHERE sequence = NEW.sequence
+          OR (workspace_id = NEW.workspace_id AND evaluation_digest = NEW.evaluation_digest)
+      ) THEN RAISE(ABORT, 'Workspace records are immutable') END;
+      SELECT CASE WHEN
+        json_extract(NEW.review_json, '$.binding.worldId') IS NOT
+          (SELECT world_id FROM workspace_bases WHERE workspace_id = NEW.workspace_id)
+        OR json_extract(NEW.review_json, '$.binding.baseSnapshotDigest') IS NOT
+          (SELECT snapshot_digest FROM workspace_bases WHERE workspace_id = NEW.workspace_id)
+        OR json_extract(NEW.review_json, '$.binding.semanticProfileDigest') IS NOT
+          (SELECT json_extract(base_json, '$.world.world.semanticProfileDigest') FROM workspace_bases WHERE workspace_id = NEW.workspace_id)
+        THEN RAISE(ABORT, 'Review must match the workspace base') END;
+    END`,
+  },
+  ...["UPDATE", "DELETE"].map((operation) => ({
+    type: "trigger",
+    name: `workspace_reviews_no_${operation.toLowerCase()}`,
+    sql: `CREATE TRIGGER workspace_reviews_no_${operation.toLowerCase()} BEFORE ${operation} ON workspace_reviews BEGIN
+      SELECT RAISE(ABORT, 'Workspace records are immutable');
+    END`,
+  })),
+];
+
+const OUTCOME_REVIEW_SCHEMA = [
+  {
+    type: "table",
+    name: "workspace_outcome_reviews",
+    sql: `CREATE TABLE workspace_outcome_reviews (
+      workspace_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      review_sequence INTEGER REFERENCES workspace_reviews(sequence),
+      PRIMARY KEY (workspace_id, idempotency_key),
+      FOREIGN KEY (workspace_id, idempotency_key) REFERENCES workspace_outcomes(workspace_id, idempotency_key)
+    ) STRICT`,
+  },
+  {
+    type: "trigger",
+    name: "workspace_outcome_reviews_insert_guard",
+    sql: `CREATE TRIGGER workspace_outcome_reviews_insert_guard BEFORE INSERT ON workspace_outcome_reviews BEGIN
+      SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM workspace_outcome_reviews
+          WHERE workspace_id = NEW.workspace_id AND idempotency_key = NEW.idempotency_key
+      ) THEN RAISE(ABORT, 'Workspace records are immutable') END;
+      SELECT CASE WHEN NEW.review_sequence IS NOT NULL AND (
+        EXISTS (SELECT 1 FROM workspace_reviews WHERE sequence = NEW.review_sequence AND workspace_id != NEW.workspace_id)
+        OR (SELECT operation FROM workspace_outcomes
+          WHERE workspace_id = NEW.workspace_id AND idempotency_key = NEW.idempotency_key) IS 'create'
+      ) THEN RAISE(ABORT, 'Review must match a mutation outcome in the same workspace') END;
+    END`,
+  },
+  ...["UPDATE", "DELETE"].map((operation) => ({
+    type: "trigger",
+    name: `workspace_outcome_reviews_no_${operation.toLowerCase()}`,
+    sql: `CREATE TRIGGER workspace_outcome_reviews_no_${operation.toLowerCase()} BEFORE ${operation} ON workspace_outcome_reviews BEGIN
+      SELECT RAISE(ABORT, 'Workspace records are immutable');
+    END`,
+  })),
+];
+
+const SCHEMA = [...LEGACY_SCHEMA_V1, ...REVIEW_SCHEMA, ...OUTCOME_REVIEW_SCHEMA];
+
 export function storageFailure(error: unknown): WorkspaceStoreError {
   if (error instanceof WorkspaceStoreError) return error;
   return new WorkspaceStoreError("STORAGE_FAILURE", `Workspace storage failure: ${error instanceof Error ? error.message : String(error)}`);
@@ -95,7 +182,7 @@ function checkExistingFile(path: string): void {
       offset += length;
     }
     if (offset !== header.length || header.subarray(0, 16).toString("ascii") !== "SQLite format 3\0"
-      || header.readUInt32BE(68) !== APPLICATION_ID || header.readUInt32BE(60) !== SCHEMA_VERSION) {
+      || header.readUInt32BE(68) !== APPLICATION_ID || ![1, SCHEMA_VERSION].includes(header.readUInt32BE(60))) {
       rejectDatabase("Not a compatible WMM authoring database (application_id/user_version)");
     }
   } finally {
@@ -103,15 +190,39 @@ function checkExistingFile(path: string): void {
   }
 }
 
-function checkSchema(db: DatabaseSync): void {
+function checkSchema(db: DatabaseSync): number {
+  const version = db.prepare("PRAGMA user_version").get()?.["user_version"];
   if (db.prepare("PRAGMA application_id").get()?.["application_id"] !== APPLICATION_ID
-    || db.prepare("PRAGMA user_version").get()?.["user_version"] !== SCHEMA_VERSION) {
+    || (version !== 1 && version !== SCHEMA_VERSION)) {
     rejectDatabase("Not a compatible WMM authoring database (application_id/user_version)");
   }
+  const schema = version === 1 ? LEGACY_SCHEMA_V1 : SCHEMA;
   const objects = db.prepare("SELECT type, name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*'").all();
-  if (objects.length !== SCHEMA.length || SCHEMA.some((expected) => !objects.some((actual) =>
+  if (objects.length !== schema.length || schema.some((expected) => !objects.some((actual) =>
     actual["name"] === expected.name && actual["type"] === expected.type && actual["sql"] === expected.sql))) {
     rejectDatabase("Incompatible WMM authoring database schema");
+  }
+  return version;
+}
+
+function probeExistingDatabase(path: string): void {
+  // Even a read-only SQLite connection can write WAL shared-memory read marks. Validate a
+  // private copy (including uncheckpointed DDL), never opening a rejected original in SQLite.
+  const directory = mkdtempSync(join(tmpdir(), "wmm-authoring-probe-"));
+  const snapshot = join(directory, "authoring.sqlite");
+  let probe: DatabaseSync | undefined;
+  try {
+    copyFileSync(path, snapshot);
+    try {
+      copyFileSync(`${path}-wal`, `${snapshot}-wal`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    probe = new DatabaseSync(snapshot, { readOnly: true, allowExtension: false });
+    probe.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}; PRAGMA trusted_schema = OFF`);
+    checkSchema(probe);
+  } finally {
+    try { probe?.close(); } finally { rmSync(directory, { recursive: true, force: true }); }
   }
 }
 
@@ -147,15 +258,7 @@ export function openWorkspaceDatabase(databasePath: string): DatabaseSync {
         rejectDatabase("Workspace database sidecar must not be a symlink");
       }
     }
-    if (!created) {
-      const probe = new DatabaseSync(path, { readOnly: true, allowExtension: false });
-      try {
-        probe.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}; PRAGMA trusted_schema = OFF`);
-        checkSchema(probe);
-      } finally {
-        probe.close();
-      }
-    }
+    if (!created) probeExistingDatabase(path);
     db = new DatabaseSync(path, { enableForeignKeyConstraints: true, allowExtension: false });
     db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}; PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL`);
     if (created) {
@@ -169,7 +272,19 @@ export function openWorkspaceDatabase(databasePath: string): DatabaseSync {
         throw error;
       }
     } else {
-      checkSchema(db);
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        // Recheck under the write lock: another connection may already have migrated v1.
+        if (checkSchema(db) === 1) {
+          for (const object of [...REVIEW_SCHEMA, ...OUTCOME_REVIEW_SCHEMA]) db.exec(object.sql);
+          db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+          checkSchema(db);
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        try { db.exec("ROLLBACK"); } catch { /* Preserve the original migration failure. */ }
+        throw error;
+      }
     }
     if (db.prepare("PRAGMA journal_mode = WAL").get()?.["journal_mode"] !== "wal") {
       rejectDatabase("Workspace storage requires WAL journal mode");

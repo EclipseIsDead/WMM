@@ -1,4 +1,4 @@
-import type { AssertionRecordV1, SnapshotRecordV1, WorldExportV1 } from "./types.js";
+import type { AssertionRecordV1, ClaimBodyV1, SnapshotRecordV1, WorldExportV1 } from "./types.js";
 
 /** U1/U2 draft operations are explicit data, never interpreted narrative instructions. */
 export type WorkspaceOperationV1 =
@@ -77,7 +77,8 @@ export interface WorkspaceViewV1 {
   }[];
   readonly prerequisites: readonly { readonly groupId: string; readonly required: readonly string[]; readonly missing: readonly string[]; readonly rejected: readonly string[] }[];
   readonly selection: WorkspaceSelectionV1;
-  readonly validation: { readonly status: "not-run"; readonly message: string };
+  readonly validation: { readonly status: "not-run" | "current" | "stale"; readonly message: string };
+  readonly review?: WorkspaceReviewV1;
   readonly approval: "unavailable";
   readonly canon: "unchanged";
 }
@@ -91,8 +92,64 @@ export type WorkspaceRequestV1 = {
       readonly goal: string; readonly mode: "world" | "succession-demo"; readonly idempotencyKey: string;
     } }
   | { readonly operation: "workspace.read"; readonly payload: { readonly workspaceId: string; readonly atVersion?: number } }
+  | { readonly operation: "workspace.review"; readonly payload: { readonly workspaceId: string; readonly expectedVersion: number; readonly limits?: Partial<WorkspaceReviewLimitsV1> } }
   | { readonly operation: "workspace.mutate"; readonly payload: {
       readonly workspaceId: string; readonly expectedVersion: number; readonly idempotencyKey: string; readonly action: WorkspaceActionV1;
     } }
 );
+export interface WorkspaceReviewLimitsV1 { readonly maxWorkUnits: number }
+export interface WorkspaceReviewBindingV1 {
+  readonly worldId: string;
+  readonly workspaceId: string;
+  readonly workspaceVersion: number;
+  readonly baseSnapshotDigest: string;
+  readonly semanticProfileDigest: string;
+  readonly evaluator: "bundled-workspace-review-v1";
+  readonly selectedGroups: readonly { readonly id: string; readonly version: number }[];
+  readonly operationsDigest: string;
+  readonly steeringDigest: string;
+}
+export interface WorkspaceReviewDiagnosticV1 {
+  readonly code: string;
+  readonly severity: "error" | "warning";
+  readonly groupIds: readonly string[];
+  readonly assertionIds: readonly string[];
+  readonly message: string;
+}
+export interface WorkspaceReviewDiffV1 {
+  readonly documents: readonly {
+    readonly path: string;
+    readonly kind: "added" | "modified";
+    readonly beforeSha256: string | null;
+    readonly afterSha256: string;
+    readonly before: string | null;
+    readonly after: string;
+    readonly truncated: boolean;
+    readonly groupIds: readonly string[];
+  }[];
+  readonly assertions: readonly {
+    readonly id: string;
+    readonly kind: "activated" | "deactivated";
+    readonly body: ClaimBodyV1;
+    readonly groupIds: readonly string[];
+  }[];
+}
+export interface WorkspaceReviewBodyV1 {
+  readonly format: "wmm.workspace-review/1";
+  readonly binding: WorkspaceReviewBindingV1;
+  readonly candidateDigest: string;
+  readonly candidateSnapshotDigest: string | null;
+  readonly limits: WorkspaceReviewLimitsV1;
+  readonly execution: "completed";
+  readonly validity: "valid" | "invalid" | "undetermined";
+  readonly checks: readonly {
+    readonly id: "selection" | "operations" | "references" | "pins" | "explicit-opposition";
+    readonly status: "passed" | "failed" | "blocked" | "unresolved";
+  }[];
+  readonly diff: WorkspaceReviewDiffV1;
+  readonly diagnostics: readonly WorkspaceReviewDiagnosticV1[];
+  readonly limitations: readonly string[];
+}
+export interface WorkspaceReviewV1 extends WorkspaceReviewBodyV1 { readonly evaluationDigest: string }
+
 export type WorkspaceErrorCodeV1 = "STALE_WORKSPACE" | "IDEMPOTENCY_CONFLICT" | "WORKSPACE_NOT_FOUND" | "WORKSPACE_EXISTS" | "INVALID_WORKSPACE_ACTION";

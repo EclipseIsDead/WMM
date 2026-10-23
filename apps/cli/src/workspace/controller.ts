@@ -4,6 +4,7 @@ import type { WorkspaceClient } from "./client.js";
 import { editText, textBuffer } from "./input.js";
 import type { TextBuffer, TextEdit } from "./input.js";
 import { graphemes } from "./text.js";
+import { reviewStatus } from "./review.js";
 
 export const tabs = ["Changes", "World", "Constraints", "History", "Review"] as const;
 export type WorkspaceTab = typeof tabs[number];
@@ -60,6 +61,8 @@ export interface WorkspaceUiState {
   readonly saveState: "saved" | "saving" | "failed" | "stale";
   readonly quit: boolean;
   readonly externalEditorAvailable: boolean;
+  readonly reviewAvailable: boolean;
+  readonly reviewFailure: string | null;
 }
 export interface EditorKey {
   readonly upArrow?: boolean;
@@ -105,6 +108,7 @@ export class WorkspaceController {
   private state: WorkspaceUiState;
   private scrollLimit = Number.POSITIVE_INFINITY;
   private editingExternally = false;
+  private reviewing = false;
   private readonly listeners = new Set<() => void>();
   constructor(private readonly client: WorkspaceClient, initial: WorkspaceViewV1, private readonly keyFactory: () => string = randomUUID) {
     this.state = {
@@ -112,6 +116,7 @@ export class WorkspaceController {
       detail: false, raw: false, inspectorFocus: false, scroll: 0, modal: null, failure: null, failureOpen: false,
       status: `Saved workspace v${initial.workspace.version}.`, saveState: "saved", quit: false,
       externalEditorAvailable: typeof client.editText === "function",
+      reviewAvailable: typeof client.review === "function", reviewFailure: null,
     };
   }
   getSnapshot = (): WorkspaceUiState => this.state;
@@ -261,7 +266,7 @@ export class WorkspaceController {
     this.update({ saveState: "saving", status: `Saving against v${attempt.expectedVersion}...` });
     try {
       const view = this.client.mutate(attempt.action, attempt.expectedVersion, attempt.key);
-      this.update({ view, saveState: "saved", status: `Saved workspace v${view.workspace.version}.`, modal: null, failure: null, failureOpen: false, scroll: 0 });
+      this.update({ view, saveState: "saved", status: `Saved workspace v${view.workspace.version}.`, modal: null, failure: null, failureOpen: false, reviewFailure: null, scroll: 0 });
     } catch (error) {
       let view = this.state.view;
       let refreshError: string | null = null;
@@ -272,6 +277,51 @@ export class WorkspaceController {
         failure: { attempt, stale, message: errorMessage(error), refreshError },
       });
     }
+  }
+  private checkCombinedSelection(): void {
+    if (this.reviewing) return;
+    const review = this.client.review?.bind(this.client);
+    if (!review) {
+      this.update({ status: "Review NOT RUN: this older client has no review route. Use a gateway supporting WorkspaceClient.review." });
+      return;
+    }
+    const requested = this.state.view.workspace;
+    this.reviewing = true;
+    this.update({ status: `Building/checking combined selection at workspace v${requested.version}...` });
+    try {
+      const view = review(requested.version);
+      const current = this.state.view.workspace;
+      if (view.workspace.id !== current.id || view.workspace.version < Math.max(requested.version, current.version) ||
+        view.workspace.base.worldId !== current.base.worldId || view.workspace.base.snapshotDigest !== current.base.snapshotDigest) {
+        this.discardReviewAndRefresh("Older or mismatched review view discarded.");
+        return;
+      }
+      if (reviewStatus(view) !== "current") {
+        this.update({ reviewFailure: "The service returned no current, matching receipt. No completed result for this attempt.",
+          status: "Review FAILED / INCOMPLETE: no current matching receipt. Workspace and input unchanged." });
+        return;
+      }
+      this.update({ view, reviewFailure: null, scroll: 0,
+        status: `Review execution completed for workspace v${view.workspace.version}; validity: ${view.review!.validity} (service).` });
+    } catch (error) {
+      this.update({ reviewFailure: errorMessage(error),
+        status: `Review FAILED / INCOMPLETE: ${errorMessage(error)}. Workspace and input unchanged.` });
+    } finally {
+      this.reviewing = false;
+    }
+  }
+  private discardReviewAndRefresh(message: string): void {
+    let detail = `${message} No resubmission; input retained.`;
+    try {
+      const view = this.client.read();
+      const current = this.state.view.workspace;
+      if (view.workspace.id === current.id && view.workspace.version >= current.version &&
+        view.workspace.base.worldId === current.base.worldId && view.workspace.base.snapshotDigest === current.base.snapshotDigest) {
+        this.update({ view });
+        detail += ` Refreshed workspace v${view.workspace.version}.`;
+      } else detail += " Refresh was also older or mismatched and was discarded.";
+    } catch (error) { detail += ` Refresh failed: ${errorMessage(error)}.`; }
+    this.update({ reviewFailure: detail, status: `Review FAILED / INCOMPLETE: ${detail}` });
   }
   private refreshAfterFailure(): void {
       const failure = this.state.failure;
@@ -431,6 +481,7 @@ export class WorkspaceController {
     if (/^[1-5]$/.test(input)) { this.setTab(tabs[Number(input) - 1] ?? "Changes"); return; }
     if (key.tab) { this.setTab(tabs[(tabs.indexOf(this.state.tab) + (key.shift ? 4 : 1)) % tabs.length] ?? "Changes"); return; }
     if (input === "v") { this.setTab("Review"); return; }
+    if (input === "c" && this.state.tab === "Review") { this.checkCombinedSelection(); return; }
     if (key.pageDown || key.pageUp) {
       const delta = key.pageDown ? 8 : -8;
       if (!this.state.detail && !this.state.inspectorFocus && this.itemCount() > 0) {

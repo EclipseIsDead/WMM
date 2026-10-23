@@ -15,6 +15,8 @@ import type {
   SemanticProfileV1,
   SnapshotManifestV1,
   SupportBodyV1,
+  WorkspaceReviewBindingV1,
+  WorkspaceReviewBodyV1,
 } from "@wmm/wire-contracts";
 
 export type CanonicalizationErrorCode =
@@ -274,6 +276,14 @@ export function intervalAbsenceEvaluationDigest(evaluation: IntervalAbsenceEvalu
     "wmm.interval-absence-evaluation/v1",
     evaluation as unknown as JsonValue,
   );
+}
+
+export function workspaceCandidateDigest(binding: WorkspaceReviewBindingV1): string {
+  return framedJsonDigest("wmm.workspace-candidate/v1", binding as unknown as JsonValue);
+}
+
+export function workspaceReviewDigest(review: WorkspaceReviewBodyV1): string {
+  return framedJsonDigest("wmm.workspace-review/v1", review as unknown as JsonValue);
 }
 
 export function supportId(support: SupportBodyV1): string {

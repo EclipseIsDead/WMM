@@ -8,3 +8,4 @@ export * from "./query.js";
 export * from "./scope.js";
 export * from "./world-validation.js";
 export * from "./workspace.js";
+export * from "./workspace-review.js";
