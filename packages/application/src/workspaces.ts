@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { assertionId, canonicalJson, sha256Hex, workspaceCandidateDigest, workspaceReviewDigest } from "@wmm/canonical";
 import { applyWorkspaceAction, workspacePrerequisites, workspaceSelection, WorkspaceActionError, validateWorldSemantics, reviewWorkspace, workspaceReviewBinding, WorkspaceReviewBudgetError } from "@wmm/core";
-import { exportWorldBundle, loadBundledV1WorldBundle } from "@wmm/exchange";
+import { exportWorldBundle, loadReleaseWorldBundle } from "@wmm/exchange";
 import { WorkspaceStoreError, type WorkspaceStore } from "@wmm/ports";
 import type {
   JsonValue, ProposalGroupV1, WorkspaceActionV1, WorkspaceBaseV1, WorkspaceOperationV1,
@@ -222,7 +222,7 @@ export class WorkspaceApplication {
         const value = request.payload;
         const { idempotencyKey, ...intent } = value;
         state = this.store.create(value.workspaceId, { idempotencyKey, intent: json({ operation: request.operation, ...intent, bundlePath: resolve(value.bundlePath) }) }, () => {
-          const loaded = loadBundledV1WorldBundle(value.bundlePath);
+          const loaded = loadReleaseWorldBundle(value.bundlePath);
           const base: WorkspaceBaseV1 = {
             snapshot: loaded.snapshot, world: exportWorldBundle(loaded),
             documents: loaded.documents.map((document) => ({ path: document.path, sha256: document.sha256, mediaType: document.mediaType, base64: Buffer.from(document.bytes).toString("base64") })),

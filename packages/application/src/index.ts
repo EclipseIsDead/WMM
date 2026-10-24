@@ -3,6 +3,7 @@ import { WorkspaceActionError } from "@wmm/core";
 import type { WorkspaceRequestV1 } from "@wmm/wire-contracts";
 import { WorkspaceApplication } from "./workspaces.js";
 export { WorkspaceApplication, workspaceView } from "./workspaces.js";
+export * from "./authoring.js";
 
 import {
   ClaimQueryInputError,
@@ -15,7 +16,7 @@ import {
 import {
   exportWorldBundle,
   inspectWorldBundle,
-  loadBundledV1WorldBundle,
+  loadReleaseWorldBundle,
   validateWorldBundle,
   WorldBundleError,
 } from "@wmm/exchange";
@@ -134,7 +135,7 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
       return successResponse(admitted.requestId, data.workspace.base, { operation: admitted.operation, data });
     }
     const request = admitted;
-    const world = loadBundledV1WorldBundle(request.payload.bundlePath);
+    const world = loadReleaseWorldBundle(request.payload.bundlePath);
     const resolved: ResolvedSnapshotV1 = {
       worldId: world.world.worldId,
       snapshotDigest: world.snapshot.snapshotDigest,

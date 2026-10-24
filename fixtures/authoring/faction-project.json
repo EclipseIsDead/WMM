@@ -1,0 +1,73 @@
+{
+  "format": "wmm.authoring-project/1",
+  "worldId": "world:harbor",
+  "title": "Harbor campaign",
+  "sources": [
+    {
+      "id": "source:setting_notes",
+      "title": "Setting notebook",
+      "path": "Setting/Factions.md"
+    }
+  ],
+  "entities": [
+    {
+      "id": "faction:lantern_guild",
+      "name": "Lantern Guild",
+      "sections": [
+        {
+          "id": "overview",
+          "heading": "At a glance",
+          "category": "lore",
+          "context": { "kind": "setting" },
+          "text": "A guild of lamplighters who maintain the harbor beacons.",
+          "references": ["place:north_quay"],
+          "citations": [{ "sourceId": "source:setting_notes", "locator": "Lantern Guild" }]
+        },
+        {
+          "id": "possible_strike",
+          "heading": "A possible strike",
+          "category": "possibility",
+          "context": { "kind": "campaign", "campaignId": "campaign:harbor_watch" },
+          "text": "If wages are withheld again, the guild might extinguish the beacons. This has not happened.",
+          "references": [],
+          "citations": []
+        }
+      ]
+    },
+    {
+      "id": "place:north_quay",
+      "name": "North Quay",
+      "sections": []
+    }
+  ],
+  "facts": [
+    {
+      "subjectId": "faction:lantern_guild",
+      "predicate": "located_in",
+      "objectId": "place:north_quay",
+      "polarity": "positive",
+      "context": { "kind": "setting" },
+      "citations": [{ "sourceId": "source:setting_notes", "locator": "Lantern Guild" }]
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "campaign:harbor_watch",
+      "name": "Harbor Watch",
+      "sections": [],
+      "tracks": [
+        {
+          "id": "track:guild_unrest",
+          "name": "Guild unrest",
+          "subjectId": "faction:lantern_guild",
+          "minimum": 0,
+          "maximum": 6,
+          "entries": [
+            { "value": 1, "note": "Initial preparation state.", "citations": [] },
+            { "value": 2, "note": "The council missed another payment.", "citations": [] }
+          ]
+        }
+      ]
+    }
+  ]
+}

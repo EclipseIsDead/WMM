@@ -18,6 +18,7 @@ import type {
   WorldRecordV1,
 } from "./types.js";
 import type { WorkspaceReviewV1 } from "./workspace.js";
+import type { AuthoringIndex, AuthoringProject } from "./authoring.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -40,6 +41,7 @@ const semanticSchema = JSON.parse(readFileSync(semanticSchemaUrl, "utf8")) as An
 const worldSchema = JSON.parse(readFileSync(worldSchemaUrl, "utf8")) as AnySchema;
 const workspaceSchema = JSON.parse(readFileSync(workspaceSchemaUrl, "utf8")) as AnySchema;
 const apiSchema = JSON.parse(readFileSync(apiSchemaUrl, "utf8")) as AnySchema;
+const authoringSchema = JSON.parse(readFileSync(new URL("../schemas/authoring.schema.json", import.meta.url), "utf8")) as AnySchema;
 
 interface AjvLike {
   addKeyword(definition: KeywordDefinition): AjvLike;
@@ -90,6 +92,9 @@ const validateResponse: ValidateFunction<ApiResponseV1> = ajv.compile({
 const validateReviewReceipt: ValidateFunction<WorkspaceReviewV1> = ajv.compile({
   $ref: "urn:wmm:workspace:v1#/$defs/WorkspaceReview",
 });
+ajv.addSchema(authoringSchema);
+const validateProject = ajv.compile<AuthoringProject>({ $ref: "urn:wmm:authoring#/$defs/Project" });
+const validateIndex = ajv.compile<AuthoringIndex>({ $ref: "urn:wmm:authoring#/$defs/Index" });
 
 function validationResult(
   valid: boolean,
@@ -137,6 +142,16 @@ export function validateApiResponse(input: unknown): CoreContractValidationResul
 export function validateWorkspaceReviewReceipt(input: unknown): CoreContractValidationResult {
   return preflight(input) ?? validationResult(validateReviewReceipt(input), validateReviewReceipt.errors);
 }
+
+export function validateAuthoringProject(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateProject(input), validateProject.errors);
+}
+
+export function validateAuthoringIndex(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateIndex(input), validateIndex.errors);
+}
+
+export const authoringProjectSchema = authoringSchema;
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;

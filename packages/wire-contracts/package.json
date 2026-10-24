@@ -12,7 +12,8 @@
     "./schemas/semantic-contracts.schema.json": "./schemas/semantic-contracts.schema.json",
     "./schemas/world-records.schema.json": "./schemas/world-records.schema.json",
     "./schemas/workspace-v1.schema.json": "./schemas/workspace-v1.schema.json",
-    "./schemas/api-v1.schema.json": "./schemas/api-v1.schema.json"
+    "./schemas/api-v1.schema.json": "./schemas/api-v1.schema.json",
+    "./schemas/authoring.schema.json": "./schemas/authoring.schema.json"
   },
   "files": [
     "dist",

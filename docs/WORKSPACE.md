@@ -129,7 +129,7 @@ The generic human alternative form saves a typed `put-proposal` containing `writ
 
 - Writable draft paths are confined to portable `prose/*.md` paths, including nested subdirectories. Record/asset paths, traversal, case collisions, and file/directory collisions are rejected.
 - Replacing an existing Markdown document requires its exact captured-base `beforeSha256`; a new path requires `null`. The UI uses the service-supplied hash, not a hash of a displayed/truncated excerpt.
-- This opens existing verified WMM bundles, not arbitrary Markdown/Obsidian vaults. Arbitrary vault import is not implemented here.
+- This opens existing verified WMM bundles, including snapshots built by the [structured authoring pipeline](AUTHORING.md), not arbitrary Markdown/Obsidian vaults. Automatic vault import and workspace-to-authoring-project round trips are not implemented here.
 - Machine proposals can additionally use `activate-assertion` and `deactivate-assertion`. Closed-schema, canonical identity, world/profile, immutable-ID, semantic/reference admission, and active-base deactivation checks exist. There is no generic human claim-generation form; admission alone is not full combined-candidate historical validation.
 
 A rationale edit preserves operations, title, authorship, dependencies, and exclusions. A machine proposal revision that changes executable operations/dependencies/exclusions on a selected group returns it to undecided. Earlier contents remain in saved workspace versions.

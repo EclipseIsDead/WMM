@@ -121,6 +121,9 @@ function assertTypedValue(
       "retained-unicode-v1 requires a string literal",
     );
   }
+  if (definition.operation === "safe-integer-literal-v1" && !Number.isSafeInteger(value.data)) {
+    throw new WorldValidationError("INVALID_OPERATION_VALUE", "safe-integer-literal-v1 requires a safe integer");
+  }
 }
 
 function assertExactKeys(
@@ -234,6 +237,12 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
         "predicate",
       );
       assertTypedValue(body.proposition.value, definitionsByDigest, descriptorIds);
+      if (predicate.operation === "integer-value-v1" && (
+        body.proposition.value.kind !== "literal" ||
+        definitionsByDigest[body.proposition.value.valueDefinitionDigest]?.operation !== "safe-integer-literal-v1"
+      )) {
+        throw new WorldValidationError("INVALID_OPERATION_VALUE", "integer-value-v1 requires a safe-integer literal");
+      }
       if (
         (
           predicate.operation === "exact-tuple-multivalue-v1" ||

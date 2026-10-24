@@ -12,9 +12,15 @@ This is an implementation inventory against [RFC WMM-001 v0.3](../plans/WMM-PHAS
 | V3: steer alternatives | U1/U2 and a bounded U3 candidate-review subset: durable fixed-snapshot workspaces, explicit selections, deterministic candidate compilation, candidate-bound diffs/receipts, bounded semantic/reference and protection checks | Broader candidate-bound historical query/conflict/impact validation (full U3), trusted host approval (U4); full V3 is not complete |
 | V4: commit safely | Revision-envelope types/hashing only | Domain revision storage, expected-head acceptance, canonical idempotency, journal recovery, fault-injection matrix |
 | V5: alternate canon | Not implemented | Forks, retcons, comparison, fast-forward promotion |
-| V6: recover/exchange | Metadata export view only | Coordinated backups/restore, portable assets, linked notes and bounded context |
+| V6: recover/exchange | Metadata export plus a bounded structured-project → WMM snapshot → linked DM-note projection | Coordinated backups/restore, portable assets, arbitrary vault import, two-way note sync, and broader bounded context |
 
 The source-code Git repository is not the planned Git-backed domain revision store. Durable draft mutations now exist; accepted canonical-world writes do not. A workspace pins `{worldId, snapshotDigest}`, not a domain revision ID. The editor labels that identity as the base snapshot; it is not a Git revision.
+
+## Agent authoring slice
+
+The [structured authoring guide](AUTHORING.md) describes the first end-to-end data/projection slice. A closed, readable authoring project contains stable named entities, explicitly declared invariant relationships, labelled narrative sections, citations, and campaign-scoped bounded integer tracks. The compiler builds fresh ordinary WMM bundles; the renderer reads a reloaded bundle and verifies correspondence with its captured project before producing deterministic linked DM notes. Imported citations remain distinct from stipulation support and historical truth. Existing profiles/fixtures are not rewritten, and normal world/API/workspace paths accept the additional release-owned profile.
+
+This is not a vault copier, an LLM migration service, a finalized universal world schema, or accepted canonical storage. Private input/derived artifacts stay outside the tooling repository. Workspace-to-project round trips, assets/plugins, custom calendars, dated event history, approval, and canonical commits are not added.
 
 ## Workspace slices
 
@@ -49,7 +55,7 @@ The host-owned directory contains `authoring.sqlite` in WAL mode, the immutable 
 - Terminal-safe Unicode presentation without executing imported controls; grapheme-aware forms, retained failed-save buffers, explicit retries, and host-owned external editing without a shell.
 - Strict source/test typechecking, adversarial regression fixtures, and an existing macOS/Linux engine CI workflow.
 
-These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,010 tests across 47 files, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all four real-PTY smoke scenarios on macOS. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
+These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,061 tests across 50 files, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all four real-PTY smoke scenarios on macOS; release packing and isolated release verification also passed. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
 
 ## RFC §5.6: implemented interval subset
 

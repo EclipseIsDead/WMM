@@ -26,6 +26,8 @@ import {
   AdmissionError,
   admitSemanticProfile,
   bundledV1Semantics,
+  authoringSemantics,
+  MAX_WORLD_BUNDLE_DIRECTORIES,
   validateWorldSemantics,
   WorldValidationError,
 } from "@wmm/core";
@@ -52,7 +54,6 @@ const MAX_FILES = 10_000;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 const MAX_ENTRIES = 20_000;
-const MAX_DIRECTORIES = 1_000;
 const MAX_DEPTH = 32;
 
 export type WorldBundleErrorCode = "INVALID_WORLD" | "FILESYSTEM_ERROR" | "INTERNAL_ERROR";
@@ -183,7 +184,7 @@ class BoundedBundleIO {
   observeDirectory(path: string, stat = statEntry(path)): void {
     if (!stat.isDirectory()) throw invalidWorld(`Bundle directory has an invalid filesystem type: ${path}`);
     this.directories.set(path, stat);
-    if (this.directories.size > MAX_DIRECTORIES) {
+    if (this.directories.size > MAX_WORLD_BUNDLE_DIRECTORIES) {
       throw invalidWorld("Bundle exceeds the directory-count limit");
     }
   }
@@ -651,6 +652,16 @@ export function loadBundledV1WorldBundle(bundlePath: string): LoadedWorldBundle 
       trustedDefinitionDigests: semantics.trustedDefinitionDigests,
       trustedProfileDigests: semantics.trustedProfileDigests,
     });
+  });
+}
+
+/** Release-owned profiles only; the input bundle never chooses its own trust roots. */
+export function loadReleaseWorldBundle(bundlePath: string): LoadedWorldBundle {
+  const legacy = bundledV1Semantics();
+  const authoring = authoringSemantics();
+  return loadWorldBundle(bundlePath, {
+    trustedDefinitionDigests: new Set(Object.keys(authoring.definitionsByDigest)),
+    trustedProfileDigests: new Set([legacy.profileDigest, authoring.profileDigest]),
   });
 }
 

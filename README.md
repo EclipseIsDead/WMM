@@ -1,6 +1,6 @@
 # World Master's Manual
 
-World Master's Manual (WMM) is a worldbuilding tool for inspecting a world's records, exploring alternative prose, and keeping track of draft decisions in a terminal workspace.
+World Master's Manual (WMM) is a worldbuilding tool for authoring structured world/campaign data, generating linked DM notes, inspecting records, and keeping track of draft alternatives in a terminal workspace.
 
 **Pre-release:** draft decisions are saved locally, but the original world stays unchanged. Full historical validation, approval, and committing drafts to canon are not available yet.
 
@@ -70,9 +70,16 @@ node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/suc
 
 Non-interactive terminals use plain output automatically. Workspace commands also accept `--json`; machine clients can use the versioned `wmm/1` JSON stdin API. See the [workspace API documentation](docs/WORKSPACE.md) for details.
 
+## Author data and generate DM notes
+
+An agent can interpret your existing material into a readable structured project, compile a fresh verified WMM snapshot, and generate linked Markdown views for Obsidian. The first slice supports named entities, explicitly declared relationships, labelled narrative, and campaign-scoped integer tracks. It does not infer facts from prose or import an entire vault automatically.
+
+Start with the synthetic `fixtures/authoring/faction-project.json` and the [structured authoring guide](docs/AUTHORING.md). Keep private projects, source material, bundles, and generated notes outside this repository. Each build/render uses a fresh destination; this does not add approval or committing to canon.
+
 ## Documentation
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
+- [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.

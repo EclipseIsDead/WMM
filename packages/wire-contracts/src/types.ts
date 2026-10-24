@@ -500,6 +500,8 @@ export type SemanticOperationV1 =
   | "criterion-satisfaction-atom-v1"
   | "population-coverage-basis-v1"
   | "retained-unicode-v1"
+  | "safe-integer-literal-v1"
+  | "integer-value-v1"
   | "bundled-candidate-membership-v1"
   | "bundled-candidate-selector-v1"
   | "bundled-eligibility-v1"

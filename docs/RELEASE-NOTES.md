@@ -1,5 +1,13 @@
 # Release notes
 
+## Unreleased — structured authoring and DM notes
+
+- `authoring schema`, `authoring check`, and `authoring build` expose a closed agent-editable project format and compile fresh verified WMM snapshots. `notes render` generates deterministic linked DM views from a reloaded snapshot.
+- Stable entity IDs, explicit invariant relationships, labelled narrative, traceable citations, and campaign-scoped bounded integer tracks. Narrative/possibilities are not extracted into claims; citations are not fabricated documentary evidence.
+- An additive release-owned semantic profile and safe-integer literal/value operations. The `wmm/1` operation set/envelope and existing bundled profile/fixture hashes are unchanged. Normal world/claim/API/workspace paths admit both release profiles; input never supplies its own trust roots.
+- Fresh destinations only, bounded input/output, no in-place bundle edits, no plugin execution, and full compiler-correspondence validation before rendering. No approval, canonical acceptance, workspace round-trip, or whole-vault import capability is implied.
+- Reusable tooling and synthetic fixtures remain in the repository; private source material and derived projects/bundles/notes belong outside it. See [AUTHORING.md](AUTHORING.md).
+
 ## 0.1.0-alpha.1 — first product prerelease (prepared, not published)
 
 - Portable macOS/Linux archive with the compiled CLI, production dependencies, and the worked succession demo. Node.js >=24.3.0 remains a prerequisite; no package installation or checkout is needed to run the archive.

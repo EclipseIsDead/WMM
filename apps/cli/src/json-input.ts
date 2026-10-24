@@ -14,10 +14,10 @@ class RequestParseError extends Error {
   }
 }
 
-export function readJsonInput(fd = 0): Uint8Array {
+export function readJsonInput(fd = 0, limit = MAX_REQUEST_BYTES): Uint8Array {
   // The extra byte distinguishes an exactly-at-limit request from an oversized
   // one without consuming the rest of an untrusted (possibly still open) pipe.
-  const buffer = Buffer.allocUnsafe(MAX_REQUEST_BYTES + 1);
+  const buffer = Buffer.allocUnsafe(limit + 1);
   let length = 0;
   while (length < buffer.length) {
     const count = readSync(

@@ -40,11 +40,12 @@ const allowedOperations: Readonly<
   predicate: new Set([
     "exact-tuple-multivalue-v1",
     "text-value-v1",
+    "integer-value-v1",
     "population-coverage-atom-v1",
     "population-membership-atom-v1",
     "criterion-satisfaction-atom-v1",
   ]),
-  literal: new Set(["retained-unicode-v1", "population-coverage-basis-v1"]),
+  literal: new Set(["retained-unicode-v1", "safe-integer-literal-v1", "population-coverage-basis-v1"]),
   population: new Set(["bundled-candidate-membership-v1"]),
   selector: new Set(["bundled-candidate-selector-v1"]),
   criterion: new Set(["bundled-eligibility-v1"]),

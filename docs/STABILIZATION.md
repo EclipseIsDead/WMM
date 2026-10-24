@@ -8,6 +8,12 @@ Older bundles are not silently rewritten or reinterpreted by admission. Recompil
 
 `pnpm generate:fixtures` rebuilds the production world, V2 request/expected-result fixtures, and the worked workspace demo. The V2 generator constructs point and interval expectations from the fixture's explicit known roles and boundaries, and constructs the expected point receipt directly; it does not call the claim, point-absence, or interval-proof evaluator to produce expected answers.
 
+## Structured authoring compatibility
+
+The [authoring slice](AUTHORING.md) adds `wmm.authoring-project/1`, a manifest-covered presentation index, and deterministic DM notes. It introduces a separate release-owned authoring profile and `safe-integer-literal-v1` / `integer-value-v1` operations; the original bundled profile, semantic digests, and fixtures are unchanged. Normal application/workspace loading uses a union of the two code-owned profile allowlists. The narrow `loadBundledV1WorldBundle` compatibility entrypoint remains narrow. A project's imported vocabulary never authorizes itself.
+
+Authoring commands use the development CLI envelope, not new `wmm/1` operations. Builds create fresh snapshots, not accepted domain revisions; they do not write into existing bundles or add approval/commit authority. Rendering requires exact correspondence with the captured authoring project, so arbitrary workspace candidates or directly edited bundles cannot be projected as if they were synchronized with that project. See the authoring guide for data/provenance, output bounds, private-directory separation, and the intentionally absent dated-history/calendar/round-trip capabilities.
+
 ## Roster-bound coverage
 
 A coverage claim is still an ordinary signed `Atom`, with normal scope, applicability, evidence, activation, and retraction. Its subject is the population descriptor. Its value is the bundled coverage-basis literal:
