@@ -5,17 +5,17 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loadBundledV1WorldBundle, WorldBundleError } from "@wmm/exchange";
+import { loadReleaseWorldBundle, WorldBundleError } from "@wmm/exchange";
 import { validateApiResponse } from "@wmm/wire-contracts";
 import { executeApiRequest, operationExitCode } from "../src/index.js";
 
 vi.mock("@wmm/exchange", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@wmm/exchange")>();
-  return { ...actual, loadBundledV1WorldBundle: vi.fn(actual.loadBundledV1WorldBundle) };
+  return { ...actual, loadReleaseWorldBundle: vi.fn(actual.loadReleaseWorldBundle) };
 });
 
 const realExchange = await vi.importActual<typeof import("@wmm/exchange")>("@wmm/exchange");
-const loader = vi.mocked(loadBundledV1WorldBundle);
+const loader = vi.mocked(loadReleaseWorldBundle);
 const bundlePath = fileURLToPath(new URL("../../../fixtures/v1/complete-world/", import.meta.url));
 const validRequest = {
   format: "wmm.request/1",
@@ -27,7 +27,7 @@ const validRequest = {
 const temporaryDirectories: string[] = [];
 
 beforeEach(() => {
-  loader.mockReset().mockImplementation(realExchange.loadBundledV1WorldBundle);
+  loader.mockReset().mockImplementation(realExchange.loadReleaseWorldBundle);
 });
 
 afterEach(() => {

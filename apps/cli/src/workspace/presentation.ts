@@ -3,6 +3,10 @@ import { documentHash, groupTitle, tabs, worldItems } from "./controller.js";
 import type { EditorForm, WorkspaceUiState } from "./controller.js";
 import { textWithCursor } from "./input.js";
 import { crop, ellipsis, fit, graphemes, viewport, wrap } from "./text.js";
+import { reviewLines, reviewValidationLabel } from "./review.js";
+import { renderAtlasBody } from "./atlas-renderer.js";
+import type { AtlasPaint } from "./atlas-shader.js";
+export { reviewLines } from "./review.js";
 
 const decisionTag = (group: ProposalGroupV1): string => group.decision === "selected" ? "[x] Selected" : group.decision === "rejected" ? "[-] Rejected" : "[ ] Undecided";
 const prose = (lines: readonly string[], width: number): string[] => lines.flatMap(line => wrap(line, width));
@@ -62,29 +66,20 @@ function historyLines(view: WorkspaceViewV1, width: number): string[] {
   if (view.workspace.history.length === 0) lines.push("No saved decisions reported.");
   return prose(lines, width);
 }
-export function reviewLines(view: WorkspaceViewV1, width: number): string[] {
-  const selected = view.workspace.proposals.filter(group => group.decision === "selected");
-  return prose(["REVIEW / DRAFT CANDIDATE", `Workspace v${view.workspace.version}`, "",
-    `Validation: ${view.validation.status === "not-run" ? "NOT RUN" : view.validation.status}`, view.validation.message,
-    `Approval: ${view.approval}`, `Canon: ${view.canon}`, "Selection diagnostics are not historical validity. No validation or authorization is performed by this editor.", "",
-    "SELECTED GROUPS", ...(selected.length ? selected.map(group => group.title) : ["Nothing selected."]), "",
-    "SELECTION DIAGNOSTICS (service)", ...(view.selection.diagnostics.length ? view.selection.diagnostics.map(item => `${item.code}: ${item.message}`) : ["No selection diagnostics reported. This does NOT mean historically valid."]),
-    "", "MISSING PREREQUISITES", ...(view.selection.missing.length ? view.selection.missing.map(id => groupTitle(view, id)) : ["None reported."]),
-    "", "REJECTED PREREQUISITES", ...(view.selection.rejectedRequired.length ? view.selection.rejectedRequired.map(id => groupTitle(view, id)) : ["None reported."]),
-    "", "HARD PINS", ...view.workspace.pins.map(pinLabel), "", "ADVISORY DIRECTION", view.workspace.direction || "No direction supplied.",
-    "", "READABLE SELECTED EFFECTS — SERVICE VIEW", ...selected.flatMap(group => changeLines(view, group, width)),
-  ], width);
-}
 
-const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "Up/Down (j/k): move rows; Enter: full readable inspector; Esc: back/cancel",
+const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "World m: map subview / return to World. Reference atlas reads do not mutate or review.",
+  "MAP: j/k or Up/Down select semantic features; Enter inspects; Esc returns. [ ] switch reference/physical layers; { } switch service-listed atlases.",
+  "Map f: explicit canvas focus; arrows/hjkl move cells; Enter selects or opens a stable mixed-feature chooser. Empty cells never inherit the persistent semantic selection. f/Esc returns to features.",
+  "Map is undated captured-base geometry: selected proposals are not shown, political facts are not projected, candidate view unavailable. p never pins a hidden World row.",
+  "Up/Down (j/k): move rows; Enter: full readable inspector; Esc: back/cancel",
   "At 100+ columns: Right focuses inspector scroll, Left returns to list. PgUp/PgDn move through the focused list or inspector.", "PgUp/PgDn: scroll prose, diagnostics, history, dialogs or inspector", "Space: select/unselect focused change; review prerequisites explicitly",
   "r: reject with an optional reason, or explicitly restore to undecided", "a: add an explicit write-prose proposal; succession-demo also offers a labelled regency template",
   "e: edit rationale without changing structured operations", "n: advisory direction; p: pin/unpin selected World item or Constraints pin (confirmation)",
-  "d: raw secondary inspector; v: review; ?: help; q / Ctrl+C: quit", "", "TEXT FORMS", "Tab / Shift+Tab: next/previous field; arrows/Home/End: move cursor; PgUp/PgDn: page through text", "Enter: newline in multiline fields; next field in single-line fields",
+  "d: raw secondary inspector; v: navigate to Review; c: build/check combined selection ONLY in Review; ?: help; q / Ctrl+C: quit", "", "TEXT FORMS", "Tab / Shift+Tab: next/previous field; arrows/Home/End: move cursor; PgUp/PgDn: page through text", "Enter: newline in multiline fields; next field in single-line fields",
   "Ctrl+Enter: save; Ctrl+S: save on terminals that cannot distinguish Ctrl+Enter", "Backspace/Delete: remove a grapheme; Ctrl+A: start of buffer", "Ctrl+E: external editor when a host callback is configured; otherwise end of buffer. External edits stay unsaved until Ctrl+Enter/Ctrl+S.", "Paste inserts text; shortcut letters never act while typing.",
   "Esc: cancel editing (no implicit save). A failed save retains the buffer.", "", "SAVE FAILURES", "Esc: return to retained buffer. r: refresh only. Enter/y: explicitly confirm the displayed retry.",
   "Unknown result: identical action, expected version and idempotency key are retained.", "Stale result: refresh only; no automatic retry/merge. Explicit retry submits the displayed original action at the refreshed version, with a new key.",
-  "A changed structured proposal blocks stale rationale retry. In that failure dialog, b explicitly loads current structure into the retained rationale form, without saving; inspect then save separately.", "", "U1/U2 ONLY", "Validation NOT RUN; approval unavailable; canon unchanged, as reported by the service.", "Plain output has no prompts. Terminal-native foreground/background; no animation or color-only status."];
+  "A changed structured proposal blocks stale rationale retry. In that failure dialog, b explicitly loads current structure into the retained rationale form, without saving; inspect then save separately.", "", "COMBINED CANDIDATE REVIEW", "c explicitly calls the service at the displayed workspace version. Navigation never runs checks. Older clients show NOT RUN with an upgrade hint.", "Execution completed is separate from validity: valid, invalid or undetermined. Valid for bounded checks does not mean all history is true.", "Edits make previous receipts stale. Current selected intent is shown separately from receipt effects and provenance.", "Review failures are incomplete, not success. Older responses are discarded and refreshed without resubmission or lost buffers.", "The service validates the bound semantic profile; this editor only displays it. Approval unavailable; canon unchanged. No approval or commit route.", "Plain output has no prompts. Terminal-native foreground/background; no animation or color-only status."];
 
 function formBody(form: EditorForm, height: number, width: number): string[] {
   const field = form.fields[form.focused];
@@ -129,8 +124,9 @@ function listPane(rows: readonly string[], index: number, title: string, height:
   const offset = Math.max(0, startOfFocus + 3 - Math.max(1, height - 3));
   return viewport(lines, offset, height, width);
 }
-function mainBody(state: WorkspaceUiState, height: number, width: number, columns: number, reportLimit?: (limit: number) => void): string[] {
+function mainBody(state: WorkspaceUiState, height: number, width: number, columns: number, reportLimit?: (limit: number) => void, reportPaint?: (paint: AtlasPaint) => void): string[] {
   const { view, tab, indices } = state;
+  if (tab === "World" && state.atlas.open) return renderAtlasBody(state, height, width, reportLimit, reportPaint);
   let rows: readonly string[] = [];
   let title = "";
   let details: string[];
@@ -140,7 +136,7 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
     rows = view.workspace.proposals.map(item => `${decisionTag(item)} | ${item.title}`);
     details = group ? state.raw ? raw({ base: view.workspace.base, workspaceId: view.workspace.id, workspaceTitle: view.workspace.title, worldTitle: view.workspace.worldTitle, proposal: group, change: view.changes.find(item => item.groupId === group.id), prerequisites: view.prerequisites.find(item => item.groupId === group.id) }, width) : changeLines(view, group, width) : ["No proposals supplied. a: add an explicit proposal."];
   } else if (tab === "World") {
-    title = "BASE WORLD / READ-ONLY";
+    title = "BASE WORLD / READ-ONLY | m: map";
     rows = worldItems(view).map(item => item.kind === "document" ? `Document | ${item.document.path}` : `${item.record.kind} | ${item.record.title}`);
     details = worldLines(view, indices.World, width, state.raw);
   } else if (tab === "Constraints") {
@@ -148,7 +144,9 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
     rows = [...view.workspace.pins.map(pinLabel), "ADVISORY direction (not a pin)"];
     details = constraintLines(view, indices.Constraints, width, state.raw);
   } else if (tab === "History") return viewport(state.raw ? raw(view.workspace.history, width) : historyLines(view, width), state.scroll, height, width, reportLimit);
-  else return viewport(state.raw ? raw({ selection: view.selection, changes: view.changes, validation: view.validation, approval: view.approval, canon: view.canon }, width) : reviewLines(view, width), state.scroll, height, width, reportLimit);
+  else return viewport(state.raw ? [...prose([`RAW REVIEW — ${reviewValidationLabel(view, state.reviewFailure)}`, ...(state.reviewFailure ? [`REVIEW FAILED / INCOMPLETE: ${state.reviewFailure}`] : [])], width),
+    ...raw({ workspace: { id: view.workspace.id, version: view.workspace.version, base: view.workspace.base }, review: view.review ?? null, selection: view.selection, changes: view.changes, validation: view.validation, approval: view.approval, canon: view.canon }, width)]
+    : reviewLines(view, width, state.reviewFailure, state.reviewAvailable), state.scroll, height, width, reportLimit);
   if (state.detail) return viewport(details, state.scroll, height, width, reportLimit);
   if (columns < 100) return listPane(rows, indices[tab], title, height, width);
   const leftWidth = Math.floor((width - 3) * 0.4);
@@ -160,19 +158,23 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
   return Array.from({ length: height }, (_, index) => `${fit(left[index] ?? "", leftWidth)} | ${fit(right[index] ?? "", rightWidth)}`);
 }
 
-export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, rows: number, reportLimit?: (limit: number) => void): string {
+export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, rows: number, reportLimit?: (limit: number) => void, reportPaint?: (paint: AtlasPaint) => void): string {
   const width = Math.max(1, Math.floor(columns) - 1);
   if (columns < 80 || rows < 24) return ["WMM / WORKSPACE", "Terminal too small: use 80x24 or larger, or plain output.", `Saved/read workspace v${state.view.workspace.version}; CANON READ-ONLY`, "Input is retained on resize. q quits outside a form; Ctrl+C quits."].slice(0, Math.max(1, rows - 1)).map(line => crop(line, width)).join("\n");
   const { view } = state;
   const height = rows - 11;
-  const body = modalBody(state, height, width, reportLimit) ?? mainBody(state, height, width, columns, reportLimit);
+  const body = modalBody(state, height, width, reportLimit) ?? mainBody(state, height, width, columns, reportLimit, paint => reportPaint?.({ ...paint, row: paint.row + 5 }));
   const save = state.saveState === "saved" ? `Saved v${view.workspace.version}` : `${state.saveState.toUpperCase()} | read v${view.workspace.version}`;
   const shortcuts = state.failureOpen ? "Enter/y: confirm retry | r: refresh only | Esc: buffer | PgUp/PgDn: details"
     : state.modal?.kind === "form" ? "Enter: newline/next field | Tab: fields | Ctrl+Enter/Ctrl+S: save | Esc: cancel"
     : state.modal?.kind === "choice" ? "Up/Down/Tab: choose | Enter: explicit confirmation | Esc: cancel | PgDn: more"
     : state.modal?.kind === "help" ? "Up/Down/PgUp/PgDn: scroll help | Esc: return"
     : state.tab === "Changes" ? "Space: select | r: reject/restore | a: proposal | e: rationale | v: review"
-    : state.tab === "World" || state.tab === "Constraints" ? "p: confirm pin change | n: advisory direction | d: raw | v: review" : "PgUp/PgDn: scroll | d: raw | v: review";
+    : state.tab === "World" && state.atlas.open ? "m: World | [ ]: layer | { }: atlas | d: raw | v: review"
+    : state.tab === "World" ? "m: map | p: confirm pin | n: direction | d: raw | v: review"
+    : state.tab === "Constraints" ? "p: confirm pin change | n: advisory direction | d: raw | v: review"
+    : state.tab === "Review" ? state.reviewAvailable ? "c: build/check combined selection | d: raw receipt | PgUp/PgDn: more" : "c: review unavailable (older client) | d: raw | PgUp/PgDn: more"
+    : "PgUp/PgDn: scroll | d: raw | v: review";
   const navigation = state.modal?.kind === "form" || state.failureOpen
     ? state.externalEditorAvailable && !state.failureOpen ? "Ctrl+E: external editor (buffer only) | Esc: cancel | Ctrl+C: quit" : "Input is local until save | Esc: cancel/return | Ctrl+C: quit"
     : state.modal ? "PgUp/PgDn: more | Esc: cancel/return | q/Ctrl+C: quit" : "1-5/Tab: views | Enter: inspect | Esc: back | PgUp/PgDn: more | ?: help | q: quit";
@@ -180,7 +182,7 @@ export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, 
     `Base ${crop(view.workspace.base.snapshotDigest, 12)} | ${save} | CANON READ-ONLY`,
     tabs.map((tab, index) => `${state.tab === tab ? "[" : " "}${index + 1} ${tab}${state.tab === tab ? "]" : " "}`).join(" "), "-".repeat(width),
     ...Array.from({ length: height }, (_, index) => body[index] ?? ""), "-".repeat(width),
-    ellipsis(state.status, width), `Validation: ${view.validation.status === "not-run" ? "NOT RUN" : view.validation.status} | Approval: ${view.approval} | Canon: ${view.canon}`,
+    ellipsis(state.status, width), `Validation: ${reviewValidationLabel(view, state.reviewFailure)} | Approval: ${view.approval} | Canon: ${view.canon}`,
     ellipsis(shortcuts, width), navigation,
   ];
   return output.map(line => crop(line, width)).join("\n");

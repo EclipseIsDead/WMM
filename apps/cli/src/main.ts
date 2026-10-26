@@ -11,7 +11,7 @@ import {
   exportWorldBundle,
   inspectSeedFixture,
   inspectWorldBundle,
-  loadBundledV1WorldBundle,
+  loadReleaseWorldBundle,
   loadSeedFixture,
   validateSeedFixture,
   validateWorldBundle,
@@ -36,6 +36,8 @@ function helpText(): string {
       "  wmm workspace demo --workspace-dir <directory>",
       "  wmm workspace open <bundle-directory> --workspace-dir <directory>",
       "  wmm workspace resume --workspace-dir <directory> [--plain | --json]",
+      "  wmm workspace review --workspace-dir <directory> [--id main] [--plain | --json]",
+      "  wmm workspace map --workspace-dir <directory> [--atlas id] [--geometry-version id] [--plain | --json]",
       "  wmm contract-kit verify <kit-directory>",
       "  wmm v0 verify <kit-directory> <semantic-cases-file>",
       "  wmm seed validate <kit-directory>",
@@ -44,6 +46,10 @@ function helpText(): string {
       "  wmm world validate <bundle-directory>",
       "  wmm world inspect <bundle-directory> <identifier>",
       "  wmm world export <bundle-directory>",
+      "  wmm authoring schema",
+      "  wmm authoring check <project.json>",
+      "  wmm authoring build <project.json> --out <new-directory>",
+      "  wmm notes render <bundle-directory> --out <new-directory>",
     ].join("\n");
 }
 
@@ -75,7 +81,7 @@ function execute(args: readonly string[]): unknown {
     }
   }
   if (group === "world" && first !== undefined) {
-    const world = loadBundledV1WorldBundle(first);
+    const world = loadReleaseWorldBundle(first);
     if (command === "validate") return validateWorldBundle(world);
     if (command === "export") return exportWorldBundle(world);
     if (command === "inspect" && second !== undefined) {
@@ -106,6 +112,11 @@ async function main(): Promise<void> {
   if (args.length === 1 && args[0] === "--version") {
     const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
     process.stdout.write(`${manifest.version}\n`);
+    return;
+  }
+  if (args[0] === "authoring" || args[0] === "notes") {
+    const { runAuthoringCommand } = await import("./authoring-command.js");
+    writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runAuthoringCommand(args) });
     return;
   }
   if (args[0] === "workspace") {

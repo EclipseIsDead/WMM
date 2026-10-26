@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -66,6 +66,28 @@ try {
   assert.deepEqual(view('demo'), mutation.data);
   assert.match(cli('workspace', 'resume', '--workspace-dir', workspace, '--plain'), /Release smoke: preserve the saved author direction/);
   console.log('PASS demo, resume, JSON mutation, repeat demo preserves saved state, plain rendering');
+  const atlasBundle = join(temporary, 'atlas bundle');
+  const atlasWorkspace = join(temporary, 'atlas workspace');
+  cli('authoring', 'build', join(release, 'fixtures/authoring/atlas-project.json'), '--out', atlasBundle);
+  const atlasInitial = JSON.parse(cli('workspace', 'open', atlasBundle, '--workspace-dir', atlasWorkspace, '--json')).data;
+  const atlasRead = () => JSON.parse(cli('workspace', 'map', '--workspace-dir', atlasWorkspace, '--atlas', 'reference_demo', '--json'));
+  const atlasBefore = atlasRead();
+  assert.equal(atlasBefore.outcome, 'success');
+  assert.equal(atlasBefore.operation, 'workspace.map.read');
+  assert.equal(atlasBefore.data.selectedProposalsIncluded, false);
+  assert.equal(atlasBefore.data.factProjection, 'not-run');
+  assert.equal(atlasBefore.data.candidateView, 'unavailable');
+  assert.equal(atlasBefore.data.atlas.geometryVersion, 'reference_v1');
+  renameSync(atlasBundle, join(temporary, 'moved atlas bundle'));
+  assert.deepEqual(atlasRead().data, atlasBefore.data);
+  const atlasPlain = cli('workspace', 'map', '--workspace-dir', atlasWorkspace, '--plain');
+  assert.match(atlasPlain, /REFERENCE ATLAS/);
+  assert.match(atlasPlain, /Selected proposals are not shown/);
+  assert.match(atlasPlain, /Tiny Islet/);
+  assert.ok(!atlasPlain.includes('\x1b'));
+  assert.equal(cli('workspace', 'map', '--workspace-dir', atlasWorkspace, '--plain'), atlasPlain);
+  assert.deepEqual(JSON.parse(cli('workspace', 'resume', '--workspace-dir', atlasWorkspace, '--json')).data, atlasInitial);
+  console.log('PASS isolated atlas authoring, captured-base source loss, deterministic plain/JSON, unchanged workspace');
   const imports = [
     './apps/cli/dist/workspace/presentation.js',
     './apps/cli/dist/workspace/app.js',

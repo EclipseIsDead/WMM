@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 
 import { WorkspaceStoreError, type WorkspaceIntent, type WorkspaceStore } from "@wmm/ports";
-import type { WorkspaceBaseV1, WorkspaceStateV1 } from "@wmm/wire-contracts";
+import type { WorkspaceBaseV1, WorkspaceReviewV1, WorkspaceStateV1 } from "@wmm/wire-contracts";
 
 import { openWorkspaceDatabase, storageFailure } from "./database.js";
 
@@ -45,6 +45,42 @@ function baseIdentity(base: WorkspaceBaseV1): BaseIdentity {
     invalid("Workspace base snapshot and exported world must identify the same world and snapshot");
   }
   return { worldId, snapshotDigest };
+}
+
+function isDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+function validateReview(review: WorkspaceReviewV1, state: WorkspaceStateV1, base: WorkspaceBaseV1): void {
+  const binding = review?.binding;
+  const identity = baseIdentity(base);
+  if (review?.format !== "wmm.workspace-review/1" || binding == null
+    || binding.workspaceId !== state.id || binding.workspaceVersion !== state.version
+    || binding.worldId !== state.base.worldId || binding.worldId !== identity.worldId
+    || binding.baseSnapshotDigest !== state.base.snapshotDigest || binding.baseSnapshotDigest !== identity.snapshotDigest
+    || binding.semanticProfileDigest !== base.world.world.semanticProfileDigest
+    || binding.evaluator !== "bundled-workspace-review-v1") {
+    invalid("Review must bind to the exact workspace version, base, world, profile and evaluator");
+  }
+  // This authority port receives kernel/application-verified hashes. Do not duplicate canonical
+  // hashing here: the adapter checks stored structural bindings and digest collisions instead.
+  if (![binding.baseSnapshotDigest, binding.semanticProfileDigest, binding.operationsDigest,
+    binding.steeringDigest, review.candidateDigest, review.evaluationDigest].every(isDigest)
+    || (review.candidateSnapshotDigest !== null && !isDigest(review.candidateSnapshotDigest))) {
+    invalid("Review digests must be lowercase SHA-256 strings (or a null candidate snapshot)");
+  }
+  const selected = new Map(state.proposals.filter((group) => group.decision === "selected")
+    .map((group) => [group.id, group.version]));
+  if (!Array.isArray(binding.selectedGroups) || binding.selectedGroups.length !== selected.size
+    || binding.selectedGroups.some((group) => group == null || !selected.has(group.id)
+      || selected.get(group.id) !== group.version)
+    || new Set(binding.selectedGroups.map((group) => group.id)).size !== selected.size) {
+    invalid("Review selected groups and proposal versions must match the stored workspace");
+  }
+  if (review.execution !== "completed" || !["valid", "invalid", "undetermined"].includes(review.validity)
+    || !Number.isSafeInteger(review.limits?.maxWorkUnits) || review.limits.maxWorkUnits < 1) {
+    invalid("Review must be a completed evaluation with valid execution limits");
+  }
 }
 
 /** Durable draft authoring only. No source-world filesystem or Git operations are performed. */
@@ -113,6 +149,41 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
     });
   }
 
+  putReview(id: string, expectedVersion: number, review: WorkspaceReviewV1): void {
+    this.#transaction(() => {
+      const current = this.read(id);
+      if (current.version !== expectedVersion) {
+        throw new WorkspaceStoreError("STALE_WORKSPACE", `Workspace ${id} is at version ${current.version}, not ${expectedVersion}`);
+      }
+      const reviewJson = serialize(review);
+      const receipt = JSON.parse(reviewJson) as WorkspaceReviewV1;
+      validateReview(receipt, current, this.readBase(id));
+      const existing = this.#sql(() => this.#db.prepare(`SELECT review_json FROM workspace_reviews
+        WHERE workspace_id = ? AND evaluation_digest = ?`).get(id, receipt.evaluationDigest));
+      if (existing !== undefined) {
+        if (existing["review_json"] !== reviewJson) invalid("Evaluation digest already identifies a different review receipt");
+        return;
+      }
+      this.#sql(() => this.#db.prepare(`INSERT INTO workspace_reviews
+        (workspace_id, evaluation_digest, version, review_json) VALUES (?, ?, ?, ?)`)
+        .run(id, receipt.evaluationDigest, current.version, reviewJson));
+    });
+  }
+
+  readReview(id: string, atVersion?: number): WorkspaceReviewV1 | undefined {
+    const row = this.#sql(() => atVersion === undefined
+      ? this.#db.prepare("SELECT review_json FROM workspace_reviews WHERE workspace_id = ? ORDER BY sequence DESC LIMIT 1").get(id)
+      : this.#db.prepare("SELECT review_json FROM workspace_reviews WHERE workspace_id = ? AND version = ? ORDER BY sequence DESC LIMIT 1").get(id, atVersion));
+    return row === undefined ? undefined : this.#decode<WorkspaceReviewV1>(row["review_json"]);
+  }
+
+  readOutcomeReview(id: string, idempotencyKey: string): WorkspaceReviewV1 | undefined {
+    const row = this.#sql(() => this.#db.prepare(`SELECT review.review_json FROM workspace_outcome_reviews AS outcome
+      JOIN workspace_reviews AS review ON review.sequence = outcome.review_sequence
+      WHERE outcome.workspace_id = ? AND outcome.idempotency_key = ?`).get(id, idempotencyKey));
+    return row === undefined ? undefined : this.#decode<WorkspaceReviewV1>(row["review_json"]);
+  }
+
   close(): void {
     if (this.#closed) return;
     this.#sql(() => this.#db.close());
@@ -134,6 +205,13 @@ export class SqliteWorkspaceStore implements WorkspaceStore {
       this.#db.prepare("INSERT INTO workspace_versions (workspace_id, version, state_json) VALUES (?, ?, ?)").run(id, version, stateJson);
       this.#db.prepare(`INSERT INTO workspace_outcomes
         (workspace_id, idempotency_key, operation, intent, version) VALUES (?, ?, ?, ?, ?)`).run(id, intent.idempotencyKey, operation, intent.intent, version);
+      if (operation === "mutate") {
+        // Freeze even the absence of a receipt. Replays never reach this insert, so later
+        // reviews cannot change the controls returned for an already committed mutation.
+        this.#db.prepare(`INSERT INTO workspace_outcome_reviews (workspace_id, idempotency_key, review_sequence)
+          VALUES (?, ?, (SELECT sequence FROM workspace_reviews WHERE workspace_id = ? ORDER BY sequence DESC LIMIT 1))`)
+          .run(id, intent.idempotencyKey, id);
+      }
     });
   }
 

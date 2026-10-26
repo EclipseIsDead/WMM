@@ -1,6 +1,6 @@
 # World Master's Manual
 
-World Master's Manual (WMM) is a worldbuilding tool for inspecting a world's records, exploring alternative prose, and keeping track of draft decisions in a terminal workspace.
+World Master's Manual (WMM) is a worldbuilding tool for authoring structured world/campaign data, generating linked DM notes, inspecting records, and keeping track of draft alternatives in a terminal workspace.
 
 **Pre-release:** draft decisions are saved locally, but the original world stays unchanged. Full historical validation, approval, and committing drafts to canon are not available yet.
 
@@ -33,6 +33,7 @@ The editor has five views: **Changes, World, Constraints, History, and Review**.
 
 - **Tab** switches views; **↑ / ↓** moves through items.
 - **Enter** inspects an item; **Esc** returns or cancels.
+- **m**, in World, opens the read-only colour reference atlas when the captured world includes one; monochrome fallback is supported.
 - **Space** selects or unselects a draft change in Changes.
 - **a** adds a prose proposal; **Ctrl+S** saves a form.
 - **?** shows keyboard help; **q** quits outside a form.
@@ -53,7 +54,7 @@ From a source checkout after the initial build, open the included example bundle
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
 ```
 
-For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo, not the other example fixtures. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic atlas authoring input, not the other example bundles. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
 
 Resume that workspace later:
 
@@ -73,9 +74,17 @@ node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/suc
 
 Non-interactive terminals use plain output automatically. Workspace commands also accept `--json`; machine clients can use the versioned `wmm/1` JSON stdin API. See the [workspace API documentation](docs/WORKSPACE.md) for details.
 
+## Author data and generate DM notes
+
+An agent can interpret your existing material into a readable structured project, compile a fresh verified WMM snapshot, and generate linked Markdown views for Obsidian. The first slice supports named entities, explicitly declared relationships, labelled narrative, and campaign-scoped integer tracks. It does not infer facts from prose or import an entire vault automatically.
+
+Start with the synthetic `fixtures/authoring/faction-project.json` and the [structured authoring guide](docs/AUTHORING.md). Keep private projects, source material, bundles, and generated notes outside this repository. Each build/render uses a fresh destination; this does not add approval or committing to canon.
+
 ## Documentation
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
+- [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
+- [ASCII reference atlas](docs/ATLAS.md) — runnable map example, World → Map controls, physical coverage, and the opt-in wire operation.
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.

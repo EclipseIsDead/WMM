@@ -291,6 +291,195 @@
       "required": ["requested", "required", "missing", "rejectedRequired", "diagnostics"],
       "additionalProperties": false
     },
+    "WorkspaceReviewLimits": {
+      "type": "object",
+      "properties": {
+        "maxWorkUnits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000000,
+          "default": 2000000
+        }
+      },
+      "required": ["maxWorkUnits"],
+      "additionalProperties": false
+    },
+    "WorkspaceReviewBinding": {
+      "$comment": "Shape only: binding freshness, selected-group ordering/uniqueness and digest integrity are verified by core. Versions are data, not approval or authority.",
+      "type": "object",
+      "properties": {
+        "worldId": {
+          "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId",
+          "maxLength": 256
+        },
+        "workspaceId": { "$ref": "#/$defs/StableId" },
+        "workspaceVersion": { "$ref": "#/$defs/Version" },
+        "baseSnapshotDigest": { "$ref": "#/$defs/Digest" },
+        "semanticProfileDigest": { "$ref": "#/$defs/Digest" },
+        "evaluator": { "const": "bundled-workspace-review-v1" },
+        "selectedGroups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "$ref": "#/$defs/StableId" },
+              "version": { "$ref": "#/$defs/Version" }
+            },
+            "required": ["id", "version"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "operationsDigest": { "$ref": "#/$defs/Digest" },
+        "steeringDigest": { "$ref": "#/$defs/Digest" }
+      },
+      "required": ["worldId", "workspaceId", "workspaceVersion", "baseSnapshotDigest", "semanticProfileDigest", "evaluator", "selectedGroups", "operationsDigest", "steeringDigest"],
+      "additionalProperties": false
+    },
+    "WorkspaceReviewCheck": {
+      "type": "object",
+      "properties": {
+        "id": { "enum": ["selection", "operations", "references", "pins", "explicit-opposition"] },
+        "status": { "enum": ["passed", "failed", "blocked", "unresolved"] }
+      },
+      "required": ["id", "status"],
+      "additionalProperties": false
+    },
+    "WorkspaceReviewDiagnostic": {
+      "type": "object",
+      "properties": {
+        "code": { "$ref": "#/$defs/StableId" },
+        "severity": { "enum": ["error", "warning"] },
+        "groupIds": { "$ref": "#/$defs/GroupIds" },
+        "assertionIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AssertionId" },
+          "maxItems": 1024
+        },
+        "message": { "$ref": "#/$defs/Prose" }
+      },
+      "required": ["code", "severity", "groupIds", "assertionIds", "message"],
+      "additionalProperties": false
+    },
+    "WorkspaceReviewDiff": {
+      "type": "object",
+      "properties": {
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "$ref": "#/$defs/DocumentPath" },
+              "kind": { "enum": ["added", "modified"] },
+              "beforeSha256": {
+                "oneOf": [{ "$ref": "#/$defs/Digest" }, { "type": "null" }]
+              },
+              "afterSha256": { "$ref": "#/$defs/Digest" },
+              "before": {
+                "oneOf": [{ "$ref": "#/$defs/Prose" }, { "type": "null" }]
+              },
+              "after": { "$ref": "#/$defs/Prose" },
+              "truncated": { "type": "boolean" },
+              "groupIds": { "$ref": "#/$defs/GroupIds" }
+            },
+            "required": ["path", "kind", "beforeSha256", "afterSha256", "before", "after", "truncated", "groupIds"],
+            "additionalProperties": false
+          },
+          "maxItems": 256
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "$ref": "#/$defs/AssertionId" },
+              "kind": { "enum": ["activated", "deactivated"] },
+              "body": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/ClaimBody" },
+              "groupIds": { "$ref": "#/$defs/GroupIds" }
+            },
+            "required": ["id", "kind", "body", "groupIds"],
+            "additionalProperties": false
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": ["documents", "assertions"],
+      "additionalProperties": false
+    },
+    "WorkspaceReviewFields": {
+      "$comment": "Shared fields for the closed body and receipt below. Exactly five checks use fixed IDs; core verifies their uniqueness and deterministic order.",
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.workspace-review/1" },
+        "binding": { "$ref": "#/$defs/WorkspaceReviewBinding" },
+        "candidateDigest": { "$ref": "#/$defs/Digest" },
+        "candidateSnapshotDigest": {
+          "oneOf": [{ "$ref": "#/$defs/Digest" }, { "type": "null" }]
+        },
+        "limits": { "$ref": "#/$defs/WorkspaceReviewLimits" },
+        "execution": { "const": "completed" },
+        "validity": { "enum": ["valid", "invalid", "undetermined"] },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceReviewCheck" },
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "diff": { "$ref": "#/$defs/WorkspaceReviewDiff" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceReviewDiagnostic" },
+          "maxItems": 1024
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Prose" },
+          "maxItems": 256
+        }
+      },
+      "required": ["format", "binding", "candidateDigest", "candidateSnapshotDigest", "limits", "execution", "validity", "checks", "diff", "diagnostics", "limitations"],
+      "allOf": [
+        {
+          "if": { "properties": { "validity": { "const": "valid" } } },
+          "then": {
+            "properties": {
+              "candidateSnapshotDigest": { "$ref": "#/$defs/Digest" },
+              "checks": { "items": { "properties": { "status": { "const": "passed" } } } },
+              "diagnostics": { "items": { "properties": { "severity": { "const": "warning" } } } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "validity": { "const": "invalid" } } },
+          "then": {
+            "anyOf": [
+              { "properties": { "checks": { "contains": { "properties": { "status": { "const": "failed" } }, "required": ["status"] } } } },
+              { "properties": { "diagnostics": { "contains": { "properties": { "severity": { "const": "error" } }, "required": ["severity"] } } } }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "validity": { "const": "undetermined" } } },
+          "then": {
+            "properties": {
+              "checks": { "contains": { "properties": { "status": { "const": "unresolved" } }, "required": ["status"] } },
+              "diagnostics": { "items": { "properties": { "severity": { "const": "warning" } } } }
+            }
+          }
+        }
+      ]
+    },
+    "WorkspaceReviewBody": {
+      "$ref": "#/$defs/WorkspaceReviewFields",
+      "unevaluatedProperties": false
+    },
+    "WorkspaceReview": {
+      "$ref": "#/$defs/WorkspaceReviewFields",
+      "type": "object",
+      "properties": { "evaluationDigest": { "$ref": "#/$defs/Digest" } },
+      "required": ["evaluationDigest"],
+      "unevaluatedProperties": false
+    },
     "WorkspaceView": {
       "type": "object",
       "properties": {
@@ -360,17 +549,28 @@
         "validation": {
           "type": "object",
           "properties": {
-            "status": { "const": "not-run" },
+            "status": { "enum": ["not-run", "current", "stale"] },
             "message": { "$ref": "#/$defs/Prose" }
           },
           "required": ["status", "message"],
           "additionalProperties": false
         },
+        "review": { "$ref": "#/$defs/WorkspaceReview" },
         "approval": { "const": "unavailable" },
         "canon": { "const": "unchanged" }
       },
       "required": ["format", "workspace", "records", "documents", "changes", "prerequisites", "selection", "validation", "approval", "canon"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "validation": { "properties": { "status": { "const": "current" } } } } },
+          "then": { "properties": { "review": {} }, "required": ["review"] }
+        },
+        {
+          "if": { "properties": { "validation": { "properties": { "status": { "const": "not-run" } } } } },
+          "then": { "properties": { "review": false } }
+        }
+      ]
     },
     "CreateRequest": {
       "type": "object",
@@ -416,6 +616,33 @@
       "required": ["format", "apiVersion", "requestId", "operation", "payload"],
       "additionalProperties": false
     },
+    "ReviewRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "$ref": "#/$defs/StableId" },
+        "operation": { "const": "workspace.review" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/StableId" },
+            "expectedVersion": { "$ref": "#/$defs/Version" },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "maxWorkUnits": { "$ref": "#/$defs/WorkspaceReviewLimits/properties/maxWorkUnits" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": ["workspaceId", "expectedVersion"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
     "MutateRequest": {
       "type": "object",
       "properties": {
@@ -442,12 +669,15 @@
       "oneOf": [
         { "$ref": "#/$defs/CreateRequest" },
         { "$ref": "#/$defs/ReadRequest" },
+        { "$ref": "#/$defs/ReviewRequest" },
         { "$ref": "#/$defs/MutateRequest" }
       ]
     }
   },
   "oneOf": [
     { "$ref": "#/$defs/WorkspaceRequest" },
-    { "$ref": "#/$defs/WorkspaceView" }
+    { "$ref": "#/$defs/WorkspaceView" },
+    { "$ref": "#/$defs/WorkspaceReviewBody" },
+    { "$ref": "#/$defs/WorkspaceReview" }
   ]
 }

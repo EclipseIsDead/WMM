@@ -1,4 +1,5 @@
 import type { WorkspaceErrorCodeV1, WorkspaceRequestV1, WorkspaceViewV1 } from "./workspace.js";
+import type { WorkspaceMapReadRequest, WorkspaceMapView } from "./atlas.js";
 
 export type DigestHex = string;
 export type WorldId = string;
@@ -500,6 +501,8 @@ export type SemanticOperationV1 =
   | "criterion-satisfaction-atom-v1"
   | "population-coverage-basis-v1"
   | "retained-unicode-v1"
+  | "safe-integer-literal-v1"
+  | "integer-value-v1"
   | "bundled-candidate-membership-v1"
   | "bundled-candidate-selector-v1"
   | "bundled-eligibility-v1"
@@ -603,6 +606,8 @@ export type ApiOperationV1 =
   | "absence.proveThroughout"
   | "workspace.create"
   | "workspace.read"
+  | "workspace.map.read"
+  | "workspace.review"
   | "workspace.mutate";
 
 interface ApiRequestBaseV1 {
@@ -654,7 +659,8 @@ export type ApiRequestV1 =
         readonly limits?: Partial<IntervalAbsenceLimitsV1>;
       };
     })
-  | WorkspaceRequestV1;
+  | WorkspaceRequestV1
+  | WorkspaceMapReadRequest;
 
 export type ApiErrorCodeV1 =
   | "UNSUPPORTED_API_VERSION"
@@ -722,6 +728,8 @@ export interface ApiResultByOperationV1 {
   readonly "absence.proveThroughout": IntervalAbsenceResultV1;
   readonly "workspace.create": WorkspaceViewV1;
   readonly "workspace.read": WorkspaceViewV1;
+  readonly "workspace.map.read": WorkspaceMapView;
+  readonly "workspace.review": WorkspaceViewV1;
   readonly "workspace.mutate": WorkspaceViewV1;
 }
 

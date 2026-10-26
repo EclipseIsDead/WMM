@@ -231,6 +231,8 @@
     },
     "WorkspaceCreateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/CreateRequest" },
     "WorkspaceReadRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/ReadRequest" },
+    "WorkspaceMapReadRequest": { "$ref": "urn:wmm:atlas:v1#/$defs/WorkspaceMapReadRequest" },
+    "WorkspaceReviewRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/ReviewRequest" },
     "WorkspaceMutateRequest": { "$ref": "urn:wmm:workspace:v1#/$defs/MutateRequest" },
     "WorkspaceView": { "$ref": "urn:wmm:workspace:v1#/$defs/WorkspaceView" },
     "Request": {
@@ -255,6 +257,8 @@
         },
         { "$ref": "#/$defs/WorkspaceCreateRequest" },
         { "$ref": "#/$defs/WorkspaceReadRequest" },
+        { "$ref": "#/$defs/WorkspaceMapReadRequest" },
+        { "$ref": "#/$defs/WorkspaceReviewRequest" },
         { "$ref": "#/$defs/WorkspaceMutateRequest" }
       ]
     },
@@ -356,6 +360,8 @@
             "criterion-satisfaction-atom-v1",
             "population-coverage-basis-v1",
             "retained-unicode-v1",
+            "safe-integer-literal-v1",
+            "integer-value-v1",
             "bundled-candidate-membership-v1",
             "bundled-candidate-selector-v1",
             "bundled-eligibility-v1",
@@ -546,6 +552,8 @@
             "absence.proveThroughout",
             "workspace.create",
             "workspace.read",
+            "workspace.map.read",
+            "workspace.review",
             "workspace.mutate"
           ]
         },
@@ -654,8 +662,12 @@
           }
         },
         {
-          "if": { "properties": { "operation": { "enum": ["workspace.create", "workspace.read", "workspace.mutate"] } } },
+          "if": { "properties": { "operation": { "enum": ["workspace.create", "workspace.read", "workspace.review", "workspace.mutate"] } } },
           "then": { "properties": { "data": { "$ref": "#/$defs/WorkspaceView" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "workspace.map.read" } } },
+          "then": { "properties": { "data": { "$ref": "urn:wmm:atlas:v1#/$defs/WorkspaceMapView" } } }
         }
       ]
     },

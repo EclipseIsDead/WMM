@@ -1,12 +1,15 @@
 import { WorkspaceStoreError } from "@wmm/ports";
-import { WorkspaceActionError } from "@wmm/core";
+import { AtlasError, WorkspaceActionError } from "@wmm/core";
 import type { WorkspaceRequestV1 } from "@wmm/wire-contracts";
 import { WorkspaceApplication } from "./workspaces.js";
+import { WorkspaceMapError } from "./atlas.js";
 export { WorkspaceApplication, workspaceView } from "./workspaces.js";
+export * from "./authoring.js";
 
 import {
   ClaimQueryInputError,
   IntervalAbsenceBudgetError,
+  WorkspaceReviewBudgetError,
   proveAbsenceThroughout,
   queryAbsence,
   queryActiveClaims,
@@ -14,7 +17,7 @@ import {
 import {
   exportWorldBundle,
   inspectWorldBundle,
-  loadBundledV1WorldBundle,
+  loadReleaseWorldBundle,
   validateWorldBundle,
   WorldBundleError,
 } from "@wmm/exchange";
@@ -38,7 +41,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
-    "workspace.create", "workspace.read", "workspace.mutate",
+    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate", "workspace.map.read",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -127,13 +130,18 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
     }
 
     const admitted = input as ApiRequestV1;
-    if (admitted.operation === "workspace.create" || admitted.operation === "workspace.read" || admitted.operation === "workspace.mutate") {
+    if (admitted.operation === "workspace.map.read") {
+      if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
+      const data = services.workspaces.readMap(admitted.payload);
+      return successResponse(admitted.requestId, data.base, { operation: admitted.operation, data });
+    }
+    if (admitted.operation === "workspace.create" || admitted.operation === "workspace.read" || admitted.operation === "workspace.review" || admitted.operation === "workspace.mutate") {
       if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
       const data = services.workspaces.execute(admitted as WorkspaceRequestV1);
       return successResponse(admitted.requestId, data.workspace.base, { operation: admitted.operation, data });
     }
     const request = admitted;
-    const world = loadBundledV1WorldBundle(request.payload.bundlePath);
+    const world = loadReleaseWorldBundle(request.payload.bundlePath);
     const resolved: ResolvedSnapshotV1 = {
       worldId: world.world.worldId,
       snapshotDigest: world.snapshot.snapshotDigest,
@@ -218,10 +226,14 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
         });
     }
   } catch (error) {
+    if (error instanceof AtlasError || error instanceof WorkspaceMapError) {
+      const code = error.code === "INVALID_ATLAS" ? "INVALID_WORLD" : error.code;
+      return apiErrorResponse(code, error.message, requestId, operation, code === "BUDGET_EXCEEDED" ? "incomplete" : "completed");
+    }
     if (error instanceof WorkspaceStoreError || error instanceof WorkspaceActionError) {
       return apiErrorResponse(error.code, error.message, requestId, operation);
     }
-    if (error instanceof IntervalAbsenceBudgetError) {
+    if (error instanceof IntervalAbsenceBudgetError || error instanceof WorkspaceReviewBudgetError) {
       return apiErrorResponse("BUDGET_EXCEEDED", error.message, requestId, operation, "incomplete");
     }
     if (error instanceof WorldBundleError) {

@@ -1,4 +1,6 @@
 export * from "./world-bundle.js";
+export { buildAuthoringBundle } from "./authoring.js";
+export * from "./dm-notes.js";
 
 import {
   lstatSync,

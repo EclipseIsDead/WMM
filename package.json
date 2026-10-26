@@ -11,7 +11,7 @@
     "build": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core packages/exchange packages/ports packages/store-authoring-sqlite packages/application apps/cli",
     "typecheck": "tsc -b packages/wire-contracts packages/canonical packages/temporal packages/schema packages/core packages/exchange packages/ports packages/store-authoring-sqlite packages/application apps/cli --pretty false",
     "typecheck:tests": "pnpm typecheck && tsc -p tsconfig.tests.json --pretty false",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=4",
     "verify:kit": "node wmm-v0.3-contract-kit/verify-vectors.mjs",
     "verify:contracts": "pnpm build && node apps/cli/dist/main.js contract-kit verify wmm-v0.3-contract-kit",
     "verify:v0": "pnpm build && node apps/cli/dist/main.js v0 verify wmm-v0.3-contract-kit fixtures/v0/semantic-contract-cases.json",

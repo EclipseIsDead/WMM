@@ -20,8 +20,12 @@ export function terminalText(value: string): string {
 export const cells = (text: string): number => stringWidth(text);
 
 export function crop(text: string, width: number): string {
+  const safe = terminalText(text).replace(/\n/g, " ");
+  // Framebuffer rows are printable ASCII. Do not segment/recount every prefix
+  // quadratically; non-ASCII still takes the existing grapheme-aware path.
+  if (/^[\x20-\x7e]*$/.test(safe)) return Number.isNaN(width) ? safe : safe.slice(0, Math.max(0, width));
   let result = "";
-  for (const part of graphemes(terminalText(text).replace(/\n/g, " "))) {
+  for (const part of graphemes(safe)) {
     if (cells(result + part) > Math.max(0, width)) break;
     result += part;
   }
@@ -43,6 +47,11 @@ export function wrap(text: string, width: number): string[] {
   if (width < 1) return [];
   const lines: string[] = [];
   for (const source of terminalText(text).split("\n")) {
+    if (/^[\x20-\x7e]*$/.test(source)) {
+      if (!source.length || !Number.isFinite(width) || source.length <= width) lines.push(source);
+      else for (let start = 0; start < source.length; start += Math.floor(width)) lines.push(source.slice(start, start + Math.floor(width)));
+      continue;
+    }
     let line = "";
     for (const part of graphemes(source)) {
       if (cells(line + part) > width && line) { lines.push(line); line = ""; }

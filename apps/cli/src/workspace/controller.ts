@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { ProposalGroupV1, WorkspaceActionV1, WorkspacePinV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
+import type { AtlasPoint, ProposalGroupV1, WorkspaceActionV1, WorkspaceMapView, WorkspacePinV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
+import * as atlasCore from "@wmm/core";
 import type { WorkspaceClient } from "./client.js";
 import { editText, textBuffer } from "./input.js";
 import type { TextBuffer, TextEdit } from "./input.js";
 import { graphemes } from "./text.js";
+import { reviewStatus } from "./review.js";
+import { atlasViewError } from "./atlas-view.js";
+import { atlasCellPosition, atlasLayout, projectAtlasViewport } from "./atlas-renderer.js";
 
 export const tabs = ["Changes", "World", "Constraints", "History", "Review"] as const;
 export type WorkspaceTab = typeof tabs[number];
@@ -47,6 +51,7 @@ export interface SaveFailure {
 }
 export interface WorkspaceUiState {
   readonly view: WorkspaceViewV1;
+  readonly atlas: WorkspaceAtlasState;
   readonly tab: WorkspaceTab;
   readonly indices: Readonly<Record<WorkspaceTab, number>>;
   readonly detail: boolean;
@@ -60,6 +65,18 @@ export interface WorkspaceUiState {
   readonly saveState: "saved" | "saving" | "failed" | "stale";
   readonly quit: boolean;
   readonly externalEditorAvailable: boolean;
+  readonly reviewAvailable: boolean;
+  readonly reviewFailure: string | null;
+}
+export interface WorkspaceAtlasState {
+  readonly open: boolean;
+  readonly view: WorkspaceMapView | null;
+  readonly error: string | null;
+  readonly selectedFeatureId: string | null;
+  readonly layer: "reference" | "physical";
+  readonly canvasFocus: boolean;
+  readonly cursor: AtlasPoint | null;
+  readonly chooser: { readonly featureIds: readonly string[]; readonly focused: number } | null;
 }
 export interface EditorKey {
   readonly upArrow?: boolean;
@@ -105,6 +122,7 @@ export class WorkspaceController {
   private state: WorkspaceUiState;
   private scrollLimit = Number.POSITIVE_INFINITY;
   private editingExternally = false;
+  private reviewing = false;
   private readonly listeners = new Set<() => void>();
   constructor(private readonly client: WorkspaceClient, initial: WorkspaceViewV1, private readonly keyFactory: () => string = randomUUID) {
     this.state = {
@@ -112,6 +130,8 @@ export class WorkspaceController {
       detail: false, raw: false, inspectorFocus: false, scroll: 0, modal: null, failure: null, failureOpen: false,
       status: `Saved workspace v${initial.workspace.version}.`, saveState: "saved", quit: false,
       externalEditorAvailable: typeof client.editText === "function",
+      reviewAvailable: typeof client.review === "function", reviewFailure: null,
+      atlas: { open: false, view: null, error: null, selectedFeatureId: null, layer: "reference", canvasFocus: false, cursor: null, chooser: null },
     };
   }
   getSnapshot = (): WorkspaceUiState => this.state;
@@ -124,6 +144,11 @@ export class WorkspaceController {
     this.update({ scroll: Math.max(0, Math.min(this.scrollLimit, this.state.scroll + delta)) });
   }
   private update(patch: Partial<WorkspaceUiState>): void {
+    if (patch.view) {
+      const atlas = patch.atlas ?? this.state.atlas;
+      const error = atlas.view ? atlasViewError(atlas.view, patch.view.workspace) : null;
+      if (error) patch = { ...patch, atlas: { ...atlas, view: null, error, chooser: null } };
+    }
     if (patch.modal !== undefined || patch.tab !== undefined || patch.detail !== undefined || patch.failureOpen !== undefined) this.scrollLimit = Number.POSITIVE_INFINITY;
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener();
@@ -133,6 +158,104 @@ export class WorkspaceController {
   }
   private setTab(tab: WorkspaceTab): void {
     this.update({ tab, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+  }
+  private toggleAtlas(): void {
+    if (this.state.atlas.open) {
+      this.update({ atlas: { ...this.state.atlas, open: false }, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+      return;
+    }
+    this.readAtlas();
+  }
+  private readAtlas(options: { readonly atlasId?: string; readonly geometryVersion?: string } = {}): void {
+    const read = this.client.readMap?.bind(this.client);
+    let view: WorkspaceMapView | null = null;
+    let error: string | null = null;
+    try {
+      if (!read) throw new Error("Map unavailable: older client has no WorkspaceClient.readMap capability.");
+      const requested = this.state.view.workspace;
+      const response = read({ ...options, atVersion: requested.version });
+      error = atlasViewError(response, requested, options) ?? atlasViewError(response, this.state.view.workspace, options);
+      if (!error) view = response;
+    } catch (failure) { error = `Map unavailable: ${errorMessage(failure)}`; }
+    const previous = this.state.atlas;
+    const features = [...(view?.atlas?.features ?? [])].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    const retained = previous.view?.atlas?.id === view?.atlas?.id && features.some(item => item.id === previous.selectedFeatureId);
+    this.update({ atlas: { ...previous, open: true, view, error, selectedFeatureId: retained ? previous.selectedFeatureId : features[0]?.id ?? null, canvasFocus: false, chooser: null, cursor: retained ? previous.cursor : null }, detail: false, raw: false, inspectorFocus: false, scroll: 0,
+      status: error ?? (view?.atlas ? "Read captured-base reference atlas; workspace unchanged." : "No reference atlas in the captured base world."),
+    });
+  }
+  private atlasInput(input: string, key: EditorKey, columns: number, rows: number): boolean {
+    const current = this.state.atlas;
+    const view = current.view;
+    if (current.chooser) {
+      const chooser = current.chooser;
+      if (key.escape) this.update({ atlas: { ...current, chooser: null }, scroll: 0 });
+      else if (key.upArrow || key.downArrow || input === "j" || input === "k") this.update({ atlas: { ...current, chooser: { ...chooser, focused: (chooser.focused + (key.upArrow || input === "k" ? chooser.featureIds.length - 1 : 1)) % chooser.featureIds.length } } });
+      else if (key.return) this.update({ atlas: { ...current, chooser: null, selectedFeatureId: chooser.featureIds[chooser.focused] ?? null }, detail: true, raw: false, inspectorFocus: true, scroll: 0 });
+      else if (key.pageUp || key.pageDown) this.scrollBy(key.pageDown ? 8 : -8);
+      return true;
+    }
+    if (input === "a" || input === "n") return false; // Preserve existing explicit forms.
+    if (key.escape) {
+      if (this.state.detail || this.state.inspectorFocus) this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+      else if (current.canvasFocus) this.update({ atlas: { ...current, canvasFocus: false }, scroll: 0 });
+      else this.toggleAtlas();
+    } else if (input === "f" && view?.atlas) {
+      const extent = view.atlas.frame.extent;
+      this.update({ atlas: { ...current, canvasFocus: !current.canvasFocus, cursor: current.cursor ?? [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2] }, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+    } else if (current.canvasFocus && !this.state.detail && !this.state.inspectorFocus && this.canvasInput(input, key, columns, rows)) {
+      return true;
+    } else if (input === "p") this.update({ status: "Map is read-only. No hidden World row can be pinned; m returns to World." });
+    else if ((input === "{" || input === "}") && view?.atlas) {
+      const catalog = [...view.availableAtlases].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      const index = catalog.findIndex(item => item.id === view.atlas!.id);
+      const next = catalog[(index + (input === "{" ? catalog.length - 1 : 1)) % catalog.length];
+      if (next && catalog.length > 1) this.readAtlas({ atlasId: next.id, geometryVersion: next.geometryVersion });
+    } else if (input === "[" || input === "]") this.update({ atlas: { ...current, layer: current.layer === "reference" ? "physical" : "reference" } });
+    else if (input === "d") this.update({ raw: !this.state.raw, detail: true, inspectorFocus: true, scroll: 0 });
+    else if (key.return) this.update({ detail: !this.state.detail, raw: false, inspectorFocus: !this.state.detail, scroll: 0 });
+    else if (key.leftArrow) this.update({ detail: false, inspectorFocus: false, scroll: 0 });
+    else if (key.rightArrow) this.update({ detail: columns < 100 || this.state.detail, inspectorFocus: true });
+    else if (key.pageUp || key.pageDown || key.upArrow || key.downArrow || input === "j" || input === "k") {
+      const direction = key.upArrow || key.pageUp || input === "k" ? -1 : 1;
+      const delta = direction * (key.pageUp || key.pageDown ? 8 : 1);
+      if (this.state.detail || this.state.inspectorFocus || !view?.atlas) this.scrollBy(delta);
+      else {
+        const features = [...view.atlas.features].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        const index = features.findIndex(item => item.id === current.selectedFeatureId);
+        const feature = features[Math.max(0, Math.min(features.length - 1, index + delta))];
+        this.update({ atlas: { ...current, selectedFeatureId: feature?.id ?? null }, scroll: 0 });
+      }
+    }
+    return true;
+  }
+  private canvasInput(input: string, key: EditorKey, columns: number, rows: number): boolean {
+    if (!key.return && !key.upArrow && !key.downArrow && !key.leftArrow && !key.rightArrow && !key.home && !key.end && !["j", "k", "h", "l"].includes(input)) return false;
+    const current = this.state.atlas;
+    const atlas = current.view?.atlas;
+    if (!atlas || !current.cursor) return true;
+    try {
+      const layout = atlasLayout(Math.max(1, columns - 1), Math.max(1, rows - 11));
+      const grid = projectAtlasViewport(atlas, Math.min(160, layout.mapWidth), layout.mapRows);
+      let [x, y] = atlasCellPosition(grid, current.cursor);
+      if (key.return) {
+        const cell = grid.cells[y]![x]!;
+        const choice = atlasCore.selectAtlasCell(cell, current.selectedFeatureId);
+        if (choice.kind === "choose") this.update({ atlas: { ...current, chooser: { featureIds: choice.featureIds, focused: 0 } }, scroll: 0 });
+        else if (choice.kind === "selected") this.update({ atlas: { ...current, selectedFeatureId: choice.featureId }, detail: true, raw: false, inspectorFocus: true, scroll: 0 });
+        else this.update({ status: `Empty cell: ${cell.surfaces.join(" / ")}. Persistent semantic selection is separate; no feature occupies this cell.` });
+        return true;
+      }
+      if (key.home) { x = 0; y = 0; }
+      else if (key.end) { x = grid.columns - 1; y = grid.rows - 1; }
+      else {
+        x = Math.max(0, Math.min(grid.columns - 1, x + (key.leftArrow || input === "h" ? -1 : key.rightArrow || input === "l" ? 1 : 0)));
+        y = Math.max(0, Math.min(grid.rows - 1, y + (key.upArrow || input === "k" ? -1 : key.downArrow || input === "j" ? 1 : 0)));
+      }
+      const cell = grid.cells[y]![x]!;
+      this.update({ atlas: { ...current, cursor: [(cell.bounds[0] + cell.bounds[2]) / 2, (cell.bounds[1] + cell.bounds[3]) / 2] }, scroll: 0 });
+    } catch (failure) { this.update({ status: `Map cell unavailable: ${errorMessage(failure)}. No workspace changes.` }); }
+    return true;
   }
   private itemCount(): number {
     const { view, tab } = this.state;
@@ -261,7 +384,7 @@ export class WorkspaceController {
     this.update({ saveState: "saving", status: `Saving against v${attempt.expectedVersion}...` });
     try {
       const view = this.client.mutate(attempt.action, attempt.expectedVersion, attempt.key);
-      this.update({ view, saveState: "saved", status: `Saved workspace v${view.workspace.version}.`, modal: null, failure: null, failureOpen: false, scroll: 0 });
+      this.update({ view, saveState: "saved", status: `Saved workspace v${view.workspace.version}.`, modal: null, failure: null, failureOpen: false, reviewFailure: null, scroll: 0 });
     } catch (error) {
       let view = this.state.view;
       let refreshError: string | null = null;
@@ -272,6 +395,51 @@ export class WorkspaceController {
         failure: { attempt, stale, message: errorMessage(error), refreshError },
       });
     }
+  }
+  private checkCombinedSelection(): void {
+    if (this.reviewing) return;
+    const review = this.client.review?.bind(this.client);
+    if (!review) {
+      this.update({ status: "Review NOT RUN: this older client has no review route. Use a gateway supporting WorkspaceClient.review." });
+      return;
+    }
+    const requested = this.state.view.workspace;
+    this.reviewing = true;
+    this.update({ status: `Building/checking combined selection at workspace v${requested.version}...` });
+    try {
+      const view = review(requested.version);
+      const current = this.state.view.workspace;
+      if (view.workspace.id !== current.id || view.workspace.version < Math.max(requested.version, current.version) ||
+        view.workspace.base.worldId !== current.base.worldId || view.workspace.base.snapshotDigest !== current.base.snapshotDigest) {
+        this.discardReviewAndRefresh("Older or mismatched review view discarded.");
+        return;
+      }
+      if (reviewStatus(view) !== "current") {
+        this.update({ reviewFailure: "The service returned no current, matching receipt. No completed result for this attempt.",
+          status: "Review FAILED / INCOMPLETE: no current matching receipt. Workspace and input unchanged." });
+        return;
+      }
+      this.update({ view, reviewFailure: null, scroll: 0,
+        status: `Review execution completed for workspace v${view.workspace.version}; validity: ${view.review!.validity} (service).` });
+    } catch (error) {
+      this.update({ reviewFailure: errorMessage(error),
+        status: `Review FAILED / INCOMPLETE: ${errorMessage(error)}. Workspace and input unchanged.` });
+    } finally {
+      this.reviewing = false;
+    }
+  }
+  private discardReviewAndRefresh(message: string): void {
+    let detail = `${message} No resubmission; input retained.`;
+    try {
+      const view = this.client.read();
+      const current = this.state.view.workspace;
+      if (view.workspace.id === current.id && view.workspace.version >= current.version &&
+        view.workspace.base.worldId === current.base.worldId && view.workspace.base.snapshotDigest === current.base.snapshotDigest) {
+        this.update({ view });
+        detail += ` Refreshed workspace v${view.workspace.version}.`;
+      } else detail += " Refresh was also older or mismatched and was discarded.";
+    } catch (error) { detail += ` Refresh failed: ${errorMessage(error)}.`; }
+    this.update({ reviewFailure: detail, status: `Review FAILED / INCOMPLETE: ${detail}` });
   }
   private refreshAfterFailure(): void {
       const failure = this.state.failure;
@@ -356,7 +524,7 @@ export class WorkspaceController {
     const edit = action.kind === "insert" && !field.multiline ? { ...action, text: action.text.replace(/\r\n?|\n/g, " ") } : action;
     this.update({ modal: { ...form, error: null, fields: form.fields.map((item, index) => index === form.focused ? { ...item, buffer: editText(item.buffer, edit) } : item) } });
   }
-  input(input: string, key: EditorKey = {}, columns = 80): void {
+  input(input: string, key: EditorKey = {}, columns = 80, rows = 24): void {
     if (this.state.quit || this.state.saveState === "saving" || this.editingExternally) return;
     if (key.ctrl && input === "c") { this.update({ quit: true }); return; }
     if (input === "q" && !key.ctrl && !key.meta && this.state.modal?.kind !== "form") { this.update({ quit: true }); return; }
@@ -425,12 +593,14 @@ export class WorkspaceController {
     }
     // Multi-character input is paste, never a sequence of global shortcuts.
     if (key.ctrl || key.meta || (input.length > 1 && !key.return && !key.tab)) return;
-    if (key.escape) { this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 }); return; }
-
+    if (input === "m" && this.state.tab === "World") { this.toggleAtlas(); return; }
     if (input === "?") { this.update({ modal: { kind: "help" }, scroll: 0 }); return; }
     if (/^[1-5]$/.test(input)) { this.setTab(tabs[Number(input) - 1] ?? "Changes"); return; }
     if (key.tab) { this.setTab(tabs[(tabs.indexOf(this.state.tab) + (key.shift ? 4 : 1)) % tabs.length] ?? "Changes"); return; }
     if (input === "v") { this.setTab("Review"); return; }
+    if (this.state.tab === "World" && this.state.atlas.open && this.atlasInput(input, key, columns, rows)) return;
+    if (key.escape) { this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 }); return; }
+    if (input === "c" && this.state.tab === "Review") { this.checkCombinedSelection(); return; }
     if (key.pageDown || key.pageUp) {
       const delta = key.pageDown ? 8 : -8;
       if (!this.state.detail && !this.state.inspectorFocus && this.itemCount() > 0) {

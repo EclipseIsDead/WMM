@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:authoring",
+  "$ref": "#/$defs/Project",
+  "$defs": {
+    "Slug": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "maxLength": 80 },
+    "Name": { "type": "string", "minLength": 1, "maxUtf16Length": 240, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+    "Text": { "type": "string", "maxUtf16Length": 65536 },
+    "EntityId": { "type": "string", "pattern": "^(person|faction|place|item|event|concept):[a-z][a-z0-9_-]*$", "maxLength": 100 },
+    "CampaignId": { "type": "string", "pattern": "^campaign:[a-z][a-z0-9_-]*$", "maxLength": 100 },
+    "TrackId": { "type": "string", "pattern": "^track:[a-z][a-z0-9_-]*$", "maxLength": 100 },
+    "NoteId": { "anyOf": [{ "$ref": "#/$defs/EntityId" }, { "$ref": "#/$defs/CampaignId" }, { "$ref": "#/$defs/TrackId" }] },
+    "SourceId": { "type": "string", "pattern": "^source:[a-z][a-z0-9_-]*$", "maxLength": 100 },
+    "AssertionId": { "type": "string", "pattern": "^asrt:[0-9a-f]{64}$" },
+    "Integer": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "Context": {
+      "oneOf": [
+        { "type": "object", "properties": { "kind": { "const": "setting" } }, "required": ["kind"], "additionalProperties": false },
+        { "type": "object", "properties": { "kind": { "const": "campaign" }, "campaignId": { "$ref": "#/$defs/CampaignId" } }, "required": ["kind", "campaignId"], "additionalProperties": false }
+      ]
+    },
+    "Citation": {
+      "type": "object", "properties": { "sourceId": { "$ref": "#/$defs/SourceId" }, "locator": { "$ref": "#/$defs/Name" } },
+      "required": ["sourceId", "locator"], "additionalProperties": false
+    },
+    "Citations": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/Citation" } },
+    "Source": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/SourceId" }, "title": { "$ref": "#/$defs/Name" },
+        "path": { "type": "string", "minLength": 1, "maxUtf16Length": 1024, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" }
+      }, "required": ["id", "title", "path"], "additionalProperties": false
+    },
+    "Sources": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/Source" } },
+    "Section": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/Slug" }, "heading": { "$ref": "#/$defs/Name" },
+        "category": { "enum": ["lore", "dm-note", "possibility", "session"] }, "context": { "$ref": "#/$defs/Context" },
+        "text": { "$ref": "#/$defs/Text" },
+        "references": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/NoteId" } },
+        "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["id", "heading", "category", "context", "text", "references", "citations"], "additionalProperties": false
+    },
+    "Sections": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Section" } },
+    "Entity": {
+      "type": "object", "properties": { "id": { "$ref": "#/$defs/EntityId" }, "name": { "$ref": "#/$defs/Name" }, "sections": { "$ref": "#/$defs/Sections" } },
+      "required": ["id", "name", "sections"], "additionalProperties": false
+    },
+    "Fact": {
+      "type": "object", "properties": {
+        "subjectId": { "$ref": "#/$defs/EntityId" }, "predicate": { "enum": ["related_to", "located_in", "member_of", "allied_with", "opposed_to"] },
+        "objectId": { "$ref": "#/$defs/EntityId" }, "polarity": { "enum": ["positive", "negative"] },
+        "context": { "$ref": "#/$defs/Context" }, "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["subjectId", "predicate", "objectId", "polarity", "context", "citations"], "additionalProperties": false
+    },
+    "TrackEntry": {
+      "type": "object", "properties": { "value": { "$ref": "#/$defs/Integer" }, "note": { "$ref": "#/$defs/Text" }, "citations": { "$ref": "#/$defs/Citations" } },
+      "required": ["value", "note", "citations"], "additionalProperties": false
+    },
+    "Track": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/TrackId" }, "name": { "$ref": "#/$defs/Name" }, "subjectId": { "$ref": "#/$defs/EntityId" },
+        "minimum": { "$ref": "#/$defs/Integer" }, "maximum": { "$ref": "#/$defs/Integer" },
+        "entries": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/TrackEntry" } }
+      }, "required": ["id", "name", "subjectId", "minimum", "maximum", "entries"], "additionalProperties": false
+    },
+    "Campaign": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/CampaignId" }, "name": { "$ref": "#/$defs/Name" }, "sections": { "$ref": "#/$defs/Sections" },
+        "tracks": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Track" } }
+      }, "required": ["id", "name", "sections", "tracks"], "additionalProperties": false
+    },
+    "WorldId": { "type": "string", "pattern": "^world:[a-z][a-z0-9_-]*$", "maxLength": 100 },
+    "Digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "Project": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.authoring-project/1" }, "worldId": { "$ref": "#/$defs/WorldId" }, "title": { "$ref": "#/$defs/Name" },
+        "sources": { "$ref": "#/$defs/Sources" },
+        "entities": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/Entity" } },
+        "facts": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/Fact" } },
+        "campaigns": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Campaign" } },
+        "atlases": { "type": "array", "maxItems": 8, "items": { "$ref": "urn:wmm:atlas:v1#/$defs/Atlas" } }
+      }, "required": ["format", "worldId", "title", "sources", "entities", "facts", "campaigns"], "additionalProperties": false
+    },
+    "SectionIndex": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/Slug" }, "heading": { "$ref": "#/$defs/Name" },
+        "category": { "enum": ["lore", "dm-note", "possibility", "session"] }, "context": { "$ref": "#/$defs/Context" },
+        "path": { "type": "string", "pattern": "^prose/[a-z]+/[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*\\.md$" },
+        "references": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/NoteId" } }, "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["id", "heading", "category", "context", "path", "references", "citations"], "additionalProperties": false
+    },
+    "FactIndex": {
+      "type": "object", "properties": { "assertionId": { "$ref": "#/$defs/AssertionId" }, "citations": { "$ref": "#/$defs/Citations" } },
+      "required": ["assertionId", "citations"], "additionalProperties": false
+    },
+    "EntryIndex": {
+      "type": "object", "properties": { "assertionId": { "$ref": "#/$defs/AssertionId" }, "citations": { "$ref": "#/$defs/Citations" }, "note": { "$ref": "#/$defs/Text" } },
+      "required": ["assertionId", "citations", "note"], "additionalProperties": false
+    },
+    "TrackIndex": {
+      "type": "object", "properties": {
+        "subjectAssertionId": { "$ref": "#/$defs/AssertionId" }, "minimumAssertionId": { "$ref": "#/$defs/AssertionId" }, "maximumAssertionId": { "$ref": "#/$defs/AssertionId" },
+        "entries": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/EntryIndex" } }
+      }, "required": ["subjectAssertionId", "minimumAssertionId", "maximumAssertionId", "entries"], "additionalProperties": false
+    },
+    "NoteIndex": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/NoteId" }, "name": { "$ref": "#/$defs/Name" },
+        "campaignId": { "anyOf": [{ "$ref": "#/$defs/CampaignId" }, { "type": "null" }] },
+        "sections": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/SectionIndex" } },
+        "facts": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/FactIndex" } },
+        "track": { "anyOf": [{ "$ref": "#/$defs/TrackIndex" }, { "type": "null" }] }
+      }, "required": ["id", "name", "campaignId", "sections", "facts", "track"], "additionalProperties": false
+    },
+    "Index": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.authoring-index/1" }, "worldId": { "$ref": "#/$defs/WorldId" }, "title": { "$ref": "#/$defs/Name" }, "inputDigest": { "$ref": "#/$defs/Digest" },
+        "sources": { "$ref": "#/$defs/Sources" }, "notes": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/NoteIndex" } }
+      }, "required": ["format", "worldId", "title", "inputDigest", "sources", "notes"], "additionalProperties": false
+    }
+  }
+}

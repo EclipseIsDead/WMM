@@ -7,9 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceStoreError, type WorkspaceIntent } from "@wmm/ports";
-import type { WorkspaceBaseV1, WorkspaceStateV1 } from "@wmm/wire-contracts";
+import type { WorkspaceBaseV1, WorkspaceReviewV1, WorkspaceStateV1 } from "@wmm/wire-contracts";
 
 import { SqliteWorkspaceStore } from "../src/index.js";
+import { APPLICATION_ID, LEGACY_SCHEMA_V1 } from "../src/database.js";
 
 const directories: string[] = [];
 const stores: SqliteWorkspaceStore[] = [];
@@ -75,6 +76,54 @@ function steer(text: string): (state: WorkspaceStateV1) => WorkspaceStateV1 {
     ...state, version: state.version + 1, direction: text,
     history: [...state.history, { version: state.version + 1, action: { kind: "set-direction", text } }],
   });
+}
+
+function review(state: WorkspaceStateV1, base: WorkspaceBaseV1, evaluationDigest = "c".repeat(64)): WorkspaceReviewV1 {
+  return {
+    format: "wmm.workspace-review/1",
+    binding: {
+      worldId: state.base.worldId, workspaceId: state.id, workspaceVersion: state.version,
+      baseSnapshotDigest: state.base.snapshotDigest, semanticProfileDigest: base.world.world.semanticProfileDigest,
+      evaluator: "bundled-workspace-review-v1",
+      selectedGroups: state.proposals.filter((group) => group.decision === "selected")
+        .map((group) => ({ id: group.id, version: group.version })),
+      operationsDigest: "d".repeat(64), steeringDigest: "e".repeat(64),
+    },
+    candidateDigest: "f".repeat(64), candidateSnapshotDigest: null, evaluationDigest,
+    limits: { maxWorkUnits: 100 }, execution: "completed", validity: "valid",
+    checks: [{ id: "selection", status: "passed" }], diff: { documents: [], assertions: [] },
+    diagnostics: [], limitations: ["No implicit or narrative claims are inferred"],
+  };
+}
+
+function seedLegacy(db: DatabaseSync, wal = false): { built: ReturnType<typeof fixture>; states: WorkspaceStateV1[] } {
+  db.exec("BEGIN IMMEDIATE");
+  for (const object of LEGACY_SCHEMA_V1) db.exec(object.sql);
+  db.exec(`PRAGMA application_id = ${APPLICATION_ID}; PRAGMA user_version = 1; COMMIT`);
+  if (wal) db.exec("PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0");
+  const built = fixture();
+  const states = [built.state];
+  states.push(steer("Avoid war")(states[0]!));
+  states.push(steer("Keep the council")(states[1]!));
+  db.exec("BEGIN IMMEDIATE");
+  db.prepare("INSERT INTO workspace_bases VALUES (?, ?, ?, ?)")
+    .run("draft", worldId, digest, JSON.stringify(built.base, null, 2));
+  for (const state of states) {
+    db.prepare("INSERT INTO workspace_versions VALUES (?, ?, ?)")
+      .run("draft", state.version, JSON.stringify(state, null, 2));
+    db.prepare("INSERT INTO workspace_outcomes VALUES (?, ?, ?, ?, ?)")
+      .run("draft", `legacy-${state.version}`, state.version === 1 ? "create" : "mutate", `exact intent ${state.version}\n`, state.version);
+  }
+  db.exec("COMMIT");
+  return { built, states };
+}
+
+function legacyRows(db: DatabaseSync): unknown[] {
+  return [
+    db.prepare("SELECT * FROM workspace_bases ORDER BY workspace_id").all(),
+    db.prepare("SELECT * FROM workspace_versions ORDER BY workspace_id, version").all(),
+    db.prepare("SELECT * FROM workspace_outcomes ORDER BY workspace_id, idempotency_key").all(),
+  ];
 }
 
 function expectCode(run: () => unknown, code: WorkspaceStoreError["code"]): void {
@@ -302,6 +351,8 @@ describe("transactions and concurrent connections", () => {
     db.exec(`CREATE TRIGGER reject_outcome BEFORE INSERT ON workspace_outcomes BEGIN SELECT RAISE(ABORT, 'injected insert failure'); END`);
     expectCode(() => store.mutate("draft", 1, intent("change"), steer("rolled back")), "STORAGE_FAILURE");
     expect(counts(db)).toEqual([1, 1, 1]);
+    expect(db.prepare("SELECT * FROM workspace_outcome_reviews").all()).toEqual([]);
+    expect(store.readOutcomeReview("draft", "change")).toBeUndefined();
     expect(store.read("draft")).toEqual(built.state);
     db.exec("DROP TRIGGER reject_outcome");
     store.close();
@@ -470,7 +521,577 @@ describe("database identity and path safety", () => {
     store.close();
     expectCode(() => store.read("draft"), "STORAGE_FAILURE");
     expectCode(() => store.readBase("draft"), "STORAGE_FAILURE");
+    expectCode(() => store.readReview("draft"), "STORAGE_FAILURE");
+    expectCode(() => store.readOutcomeReview("draft", "create"), "STORAGE_FAILURE");
+    expectCode(() => store.putReview("draft", 1, review(fixture().state, fixture().base)), "STORAGE_FAILURE");
     expectCode(() => store.create("draft", intent("create"), () => fixture()), "STORAGE_FAILURE");
     expectCode(() => store.mutate("draft", 1, intent("mutate"), steer("closed")), "STORAGE_FAILURE");
+  });
+});
+
+describe("immutable workspace review receipts", () => {
+  it("persists detached receipts across restart without changing semantic state, history or replay outcomes", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    const initial = store.create("draft", intent("create"), () => built);
+    const current = store.mutate("draft", 1, intent("direction"), steer("Avoid war"));
+    const db = inspect(path);
+    const before = legacyRows(db);
+    const receipt = review(current, built.base);
+    const original = structuredClone(receipt);
+    expect(store.putReview("draft", 2, receipt)).toBeUndefined();
+    store.putReview("draft", 2, structuredClone(receipt));
+    expect(db.prepare("SELECT count(*) AS count FROM workspace_reviews").get()?.["count"]).toBe(1);
+    expect(legacyRows(db)).toEqual(before);
+    expect(store.read("draft")).toEqual(current);
+    expect(store.read("draft", 1)).toEqual(initial);
+    Object.assign(receipt.binding, { workspaceId: "tampered" });
+    Object.assign(receipt.limits, { maxWorkUnits: 999 });
+    Object.assign(store.readReview("draft")!.binding, { worldId: "tampered" });
+    expect(store.readReview("draft")).toEqual(original);
+    store.close();
+
+    const reopened = open(path);
+    expect(reopened.readReview("draft")).toEqual(original);
+    expect(reopened.readReview("draft", 2)).toEqual(original);
+    expect(reopened.read("draft")).toEqual(current);
+    expect(reopened.readBase("draft")).toEqual(built.base);
+    const callback = vi.fn(() => { throw new Error("must replay"); });
+    expect(reopened.create("draft", intent("create"), callback)).toEqual(initial);
+    expect(reopened.mutate("draft", 1, intent("direction"), callback)).toEqual(current);
+    expect(callback).not.toHaveBeenCalled();
+    expect(legacyRows(db)).toEqual(before);
+  });
+
+  it("returns the latest insertion across all states, or only the exact requested state version", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    const initial = store.create("draft", intent("create"), () => built);
+    expect(store.readReview("draft")).toBeUndefined();
+    expect(store.readReview("missing")).toBeUndefined();
+    const first = review(initial, built.base, "f".repeat(64));
+    const second = review(initial, built.base, "1".repeat(64));
+    store.putReview("draft", 1, first);
+    store.putReview("draft", 1, second);
+    store.putReview("draft", 1, first);
+    expect(store.readReview("draft")).toEqual(second);
+    expect(store.readReview("draft", 1)).toEqual(second);
+    const versionTwo = store.mutate("draft", 1, intent("second"), steer("second"));
+    expect(store.readReview("draft")).toEqual(second);
+    expect(store.readReview("draft", 2)).toBeUndefined();
+    const third = review(versionTwo, built.base, "2".repeat(64));
+    store.putReview("draft", 2, third);
+    store.mutate("draft", 2, intent("third"), steer("third"));
+    expect(store.readReview("draft")).toEqual(third);
+    expect(store.readReview("draft", 1)).toEqual(second);
+    expect(store.readReview("draft", 2)).toEqual(third);
+    expect(store.readReview("draft", 3)).toBeUndefined();
+    expect(store.readReview("draft", 0)).toBeUndefined();
+    expect(store.readReview("draft", 4)).toBeUndefined();
+    store.close();
+    const reopened = open(path);
+    expect(reopened.readReview("draft")).toEqual(third);
+    expect(reopened.readReview("draft", 1)).toEqual(second);
+    expect(reopened.readReview("draft", 3)).toBeUndefined();
+    expect(inspect(path).prepare("SELECT sequence FROM workspace_reviews ORDER BY sequence").all())
+      .toEqual([{ sequence: 1 }, { sequence: 2 }, { sequence: 3 }]);
+  });
+
+  it("isolates receipt identities and latest lookups by workspace", () => {
+    const store = open(join(directory(), "authoring.sqlite"));
+    const first = fixture("first");
+    const second = fixture("second");
+    store.create("first", intent("create"), () => first);
+    store.create("second", intent("create"), () => second);
+    const firstReceipt = review(first.state, first.base);
+    const secondReceipt = review(second.state, second.base);
+    store.putReview("first", 1, firstReceipt);
+    store.putReview("second", 1, secondReceipt);
+    expect(store.readReview("first")).toEqual(firstReceipt);
+    expect(store.readReview("second", 1)).toEqual(secondReceipt);
+    expectCode(() => store.putReview("missing", 1, firstReceipt), "WORKSPACE_NOT_FOUND");
+  });
+
+  it("serializes a stale reviewer against a mutation from a second connection, including duplicate receipts", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const writer = open(path);
+    const reviewer = open(path);
+    const built = fixture();
+    writer.create("draft", intent("create"), () => built);
+    const receipt = review(reviewer.read("draft"), reviewer.readBase("draft"));
+    reviewer.putReview("draft", 1, receipt);
+    const next = writer.mutate("draft", 1, intent("advance"), steer("changed during review"));
+    expectCode(() => reviewer.putReview("draft", 1, receipt), "STALE_WORKSPACE");
+    expectCode(() => reviewer.putReview("draft", 1, { ...receipt, evaluationDigest: "2".repeat(64) }), "STALE_WORKSPACE");
+    expect(writer.readReview("draft")).toEqual(receipt);
+    expect(writer.readReview("draft", 2)).toBeUndefined();
+    const nextReceipt = review(next, built.base, "3".repeat(64));
+    reviewer.putReview("draft", 2, nextReceipt);
+    expect(writer.readReview("draft")).toEqual(nextReceipt);
+    expect(counts(inspect(path))).toEqual([1, 2, 2]);
+    expect(inspect(path).prepare("SELECT count(*) AS count FROM workspace_reviews").get()?.["count"]).toBe(2);
+  });
+
+  it("acquires BEGIN IMMEDIATE before saving and allows a retry after a competing writer releases its lock", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const other = inspect(path);
+    const receipt = review(built.state, built.base);
+    other.exec("BEGIN IMMEDIATE");
+    try {
+      expectCode(() => store.putReview("draft", 1, receipt), "STORAGE_FAILURE");
+      expect(store.readReview("draft")).toBeUndefined();
+      expect(store.read("draft")).toEqual(built.state);
+    } finally {
+      other.exec("ROLLBACK");
+    }
+    store.putReview("draft", 1, receipt);
+    expect(store.readReview("draft")).toEqual(receipt);
+  });
+
+  it.each([
+    ["workspace ID", { workspaceId: "other" }],
+    ["state version", { workspaceVersion: 2 }],
+    ["zero version", { workspaceVersion: 0 }],
+    ["string version", { workspaceVersion: "1" }],
+    ["world", { worldId: "other" }],
+    ["base snapshot", { baseSnapshotDigest: "2".repeat(64) }],
+    ["semantic profile", { semanticProfileDigest: "2".repeat(64) }],
+    ["evaluator", { evaluator: "other" }],
+    ["missing selected group", { selectedGroups: [] }],
+    ["unknown selected group", { selectedGroups: [{ id: "other", version: 1 }] }],
+    ["wrong group version", { selectedGroups: [{ id: "selected", version: 2 }] }],
+    ["null selected group", { selectedGroups: [null] }],
+    ["operations digest", { operationsDigest: "bad digest" }],
+    ["steering digest", { steeringDigest: "bad digest" }],
+  ])("rejects malformed %s binding without changing stored records", (_name, binding) => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    Object.assign(built.state, { proposals: [{
+      id: "selected", version: 1, title: "Selected", author: "Author", rationale: "Rationale",
+      dependencies: [], exclusions: [], operations: [], decision: "selected", rejectionReason: null,
+    }] });
+    store.create("draft", intent("create"), () => built);
+    const receipt = review(built.state, built.base);
+    const before = legacyRows(inspect(path));
+    Object.assign(receipt.binding, binding);
+    expectCode(() => store.putReview("draft", 1, receipt), "INVALID_WORKSPACE_ACTION");
+    expect(store.readReview("draft")).toBeUndefined();
+    expect(legacyRows(inspect(path))).toEqual(before);
+  });
+
+  it.each([
+    ["format", { format: "other" }],
+    ["null binding", { binding: null }],
+    ["candidate digest", { candidateDigest: "invalid" }],
+    ["candidate snapshot digest", { candidateSnapshotDigest: "invalid" }],
+    ["evaluation digest", { evaluationDigest: "invalid" }],
+    ["execution", { execution: "interrupted" }],
+    ["limits", { limits: { maxWorkUnits: 0 } }],
+  ])("rejects malformed review %s", (_name, fields) => {
+    const store = open(join(directory(), "authoring.sqlite"));
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const receipt = review(built.state, built.base);
+    Object.assign(receipt, fields);
+    expectCode(() => store.putReview("draft", 1, receipt), "INVALID_WORKSPACE_ACTION");
+    expect(store.readReview("draft")).toBeUndefined();
+  });
+
+  it("compares the complete selected set and stored proposal versions, without depending on group order", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    const group = {
+      title: "Proposal", author: "Author", rationale: "Rationale", dependencies: [], exclusions: [],
+      operations: [], decision: "selected", rejectionReason: null,
+    } as const;
+    Object.assign(built.state, { proposals: [
+      { ...group, id: "z", version: 3 }, { ...group, id: "a", version: 2 },
+      { ...group, id: "undecided", version: 1, decision: "undecided" },
+    ] });
+    store.create("draft", intent("create"), () => built);
+    const receipt = review(built.state, built.base);
+    const duplicate = structuredClone(receipt);
+    Object.assign(duplicate.binding, { selectedGroups: [{ id: "z", version: 3 }, { id: "z", version: 3 }] });
+    expectCode(() => store.putReview("draft", 1, duplicate), "INVALID_WORKSPACE_ACTION");
+    Object.assign(receipt.binding, { selectedGroups: [...receipt.binding.selectedGroups].reverse() });
+    store.putReview("draft", 1, receipt);
+    expect(store.readReview("draft")).toEqual(receipt);
+  });
+
+  it("rejects different receipt JSON under the same evaluation digest, preserving the original", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const receipt = review(built.state, built.base);
+    store.putReview("draft", 1, receipt);
+    for (const change of [
+      { candidateDigest: "2".repeat(64) }, { validity: "invalid" }, { limits: { maxWorkUnits: 101 } },
+      { limitations: ["different JSON under the same digest"] },
+    ]) {
+      expectCode(() => store.putReview("draft", 1, Object.assign(structuredClone(receipt), change)), "INVALID_WORKSPACE_ACTION");
+    }
+    const reordered = Object.assign({ evaluationDigest: receipt.evaluationDigest }, receipt);
+    expectCode(() => store.putReview("draft", 1, reordered), "INVALID_WORKSPACE_ACTION");
+    expect(store.readReview("draft")).toEqual(receipt);
+    const db = inspect(path);
+    expect(db.prepare("SELECT count(*) AS count FROM workspace_reviews").get()?.["count"]).toBe(1);
+    expect(counts(db)).toEqual([1, 1, 1]);
+  });
+
+  it("enforces immutable reviews, their version foreign key and binding constraints in SQLite", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const receipt = review(built.state, built.base);
+    store.putReview("draft", 1, receipt);
+    const db = inspect(path);
+    expect(() => db.exec("DELETE FROM workspace_reviews")).toThrow(/immutable/);
+    expect(() => db.exec("UPDATE workspace_reviews SET review_json = '{}'")).toThrow(/immutable/);
+    expect(() => db.prepare(`INSERT OR REPLACE INTO workspace_reviews
+      (workspace_id, evaluation_digest, version, review_json) VALUES (?, ?, ?, ?)`)
+      .run("draft", receipt.evaluationDigest, 1, JSON.stringify({ ...receipt, validity: "invalid" }))).toThrow(/immutable/);
+    expect(() => db.prepare(`INSERT OR REPLACE INTO workspace_reviews
+      (sequence, workspace_id, evaluation_digest, version, review_json) VALUES (1, ?, ?, ?, ?)`)
+      .run("draft", "2".repeat(64), 1, JSON.stringify({ ...receipt, evaluationDigest: "2".repeat(64) }))).toThrow(/immutable/);
+    const insert = db.prepare(`INSERT INTO workspace_reviews
+      (workspace_id, evaluation_digest, version, review_json) VALUES (?, ?, ?, ?)`);
+    const unknownVersion = review({ ...built.state, version: 2 }, built.base, "3".repeat(64));
+    expect(() => insert.run("draft", unknownVersion.evaluationDigest, 2, JSON.stringify(unknownVersion))).toThrow(/FOREIGN KEY/);
+    for (const binding of [
+      { workspaceId: "other" }, { workspaceVersion: 2 }, { worldId: "other" },
+      { baseSnapshotDigest: "2".repeat(64) }, { semanticProfileDigest: "2".repeat(64) },
+    ]) {
+      const malformed = review(built.state, built.base, "4".repeat(64));
+      Object.assign(malformed.binding, binding);
+      expect(() => insert.run("draft", malformed.evaluationDigest, 1, JSON.stringify(malformed))).toThrow();
+    }
+    expect(store.readReview("draft")).toEqual(receipt);
+    expect(counts(db)).toEqual([1, 1, 1]);
+  });
+
+  it("rolls back a failed review insert and permits retry without consuming state or receipt identity", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const db = inspect(path);
+    const before = legacyRows(db);
+    const receipt = review(built.state, built.base);
+    db.exec("CREATE TRIGGER reject_review AFTER INSERT ON workspace_reviews BEGIN SELECT RAISE(ABORT, 'injected review failure'); END");
+    expectCode(() => store.putReview("draft", 1, receipt), "STORAGE_FAILURE");
+    expect(store.readReview("draft")).toBeUndefined();
+    expect(legacyRows(db)).toEqual(before);
+    db.exec("DROP TRIGGER reject_review");
+    store.close();
+    const reopened = open(path);
+    expect(reopened.readReview("draft")).toBeUndefined();
+    reopened.putReview("draft", 1, receipt);
+    expect(reopened.readReview("draft")).toEqual(receipt);
+    expect(legacyRows(db)).toEqual(before);
+  });
+});
+
+describe("review associations frozen with mutation outcomes", () => {
+  it("freezes an absent receipt even if reviews are saved later at the mutation's state version", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    const initial = store.create("draft", intent("create"), () => built);
+    const updated = store.mutate("draft", 1, intent("change"), steer("changed"));
+    const db = inspect(path);
+    const association = [{ workspace_id: "draft", idempotency_key: "change", review_sequence: null }];
+    expect(db.prepare("SELECT * FROM workspace_outcome_reviews").all()).toEqual(association);
+    expect(store.readOutcomeReview("draft", "change")).toBeUndefined();
+    store.putReview("draft", 2, review(updated, built.base));
+    const latest = review(updated, built.base, "2".repeat(64));
+    store.putReview("draft", 2, latest);
+    expect(store.readReview("draft", 2)).toEqual(latest);
+    const callback = vi.fn(() => { throw new Error("must replay"); });
+    expect(store.mutate("draft", 0, intent("change"), callback)).toEqual(updated);
+    expect(store.readOutcomeReview("draft", "change")).toBeUndefined();
+    expect(store.create("draft", intent("create"), callback)).toEqual(initial);
+    expect(store.readOutcomeReview("draft", "create")).toBeUndefined();
+    expect(store.readOutcomeReview("draft", "missing")).toBeUndefined();
+    expect(store.readOutcomeReview("missing", "change")).toBeUndefined();
+    expect(callback).not.toHaveBeenCalled();
+    expect(db.prepare("SELECT * FROM workspace_outcome_reviews").all()).toEqual(association);
+    expect(counts(db)).toEqual([1, 2, 2]);
+    store.close();
+    const reopened = open(path);
+    expect(reopened.mutate("draft", 1, intent("change"), callback)).toEqual(updated);
+    expect(reopened.readOutcomeReview("draft", "change")).toBeUndefined();
+    expect(reopened.readOutcomeReview("draft", "create")).toBeUndefined();
+    expect(reopened.readReview("draft")).toEqual(latest);
+  });
+
+  it.each(["same state version", "later edited state"])("keeps the original receipt after a new review of the %s", (when) => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const reviewer = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const original = review(built.state, built.base);
+    reviewer.putReview("draft", 1, original);
+    const updated = store.mutate("draft", 1, intent("change"), steer("changed"));
+    expect(store.readOutcomeReview("draft", "change")).toEqual(original);
+    const current = when === "same state version" ? updated
+      : reviewer.mutate("draft", 2, intent("later edit"), steer("edited again"));
+    const latest = review(current, built.base, "2".repeat(64));
+    reviewer.putReview("draft", current.version, latest);
+    expect(store.readReview("draft")).toEqual(latest);
+    const callback = vi.fn(() => { throw new Error("must replay"); });
+    expect(reviewer.mutate("draft", 1, intent("change"), callback)).toEqual(updated);
+    expect(reviewer.readOutcomeReview("draft", "change")).toEqual(original);
+    expect(reviewer.readOutcomeReview("draft", "create")).toBeUndefined();
+    expect(callback).not.toHaveBeenCalled();
+    Object.assign(store.readOutcomeReview("draft", "change")!.binding, { worldId: "tampered" });
+    expect(store.readOutcomeReview("draft", "change")).toEqual(original);
+    store.close();
+    reviewer.close();
+    const reopened = open(path);
+    expect(reopened.mutate("draft", 0, intent("change"), callback)).toEqual(updated);
+    expect(reopened.readOutcomeReview("draft", "change")).toEqual(original);
+    expect(reopened.readReview("draft")).toEqual(latest);
+    expect(reopened.read("draft")).toEqual(current);
+  });
+
+  it("captures the latest insertion per workspace and isolates identical idempotency keys", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const first = fixture("first");
+    const second = fixture("second");
+    store.create("first", intent("create"), () => first);
+    store.create("second", intent("create"), () => second);
+    const old = review(first.state, first.base, "f".repeat(64));
+    const latestFirst = review(first.state, first.base, "1".repeat(64));
+    const latestSecond = review(second.state, second.base, "2".repeat(64));
+    store.putReview("first", 1, old);
+    store.putReview("first", 1, latestFirst);
+    store.putReview("second", 1, latestSecond);
+    store.putReview("first", 1, old);
+    store.mutate("first", 1, intent("change"), steer("first change"));
+    store.mutate("second", 1, intent("change"), steer("second change"));
+    expect(store.readOutcomeReview("first", "change")).toEqual(latestFirst);
+    expect(store.readOutcomeReview("second", "change")).toEqual(latestSecond);
+    expect(store.readOutcomeReview("first", "create")).toBeUndefined();
+    expect(store.readOutcomeReview("second", "create")).toBeUndefined();
+    expect(inspect(path).prepare("SELECT * FROM workspace_outcome_reviews ORDER BY workspace_id").all()).toEqual([
+      { workspace_id: "first", idempotency_key: "change", review_sequence: 2 },
+      { workspace_id: "second", idempotency_key: "change", review_sequence: 3 },
+    ]);
+  });
+
+  it("enforces immutable associations, both foreign keys and workspace ownership in SQLite", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    const other = fixture("other");
+    store.create("draft", intent("create"), () => built);
+    store.create("other", intent("create"), () => other);
+    const receipt = review(built.state, built.base);
+    store.putReview("draft", 1, receipt);
+    store.putReview("other", 1, review(other.state, other.base));
+    store.mutate("draft", 1, intent("change"), steer("changed"));
+    const db = inspect(path);
+    expect(() => db.exec("UPDATE workspace_outcome_reviews SET review_sequence = NULL")).toThrow(/immutable/);
+    expect(() => db.exec("DELETE FROM workspace_outcome_reviews")).toThrow(/immutable/);
+    expect(() => db.exec(`INSERT OR REPLACE INTO workspace_outcome_reviews VALUES ('draft', 'change', NULL)`)).toThrow(/immutable/);
+    expect(() => db.exec(`INSERT INTO workspace_outcome_reviews VALUES ('draft', 'missing-outcome', NULL)`)).toThrow(/FOREIGN KEY/);
+    db.exec(`INSERT INTO workspace_outcomes VALUES ('draft', 'manual', 'mutate', 'manual', 2)`);
+    expect(() => db.exec(`INSERT INTO workspace_outcome_reviews VALUES ('draft', 'manual', 9999)`)).toThrow(/FOREIGN KEY/);
+    expect(() => db.exec(`INSERT INTO workspace_outcome_reviews VALUES ('draft', 'manual', 2)`)).toThrow(/same workspace/);
+    expect(() => db.exec(`INSERT INTO workspace_outcome_reviews VALUES ('draft', 'create', 1)`)).toThrow(/mutation outcome/);
+    db.exec(`INSERT INTO workspace_outcome_reviews VALUES ('draft', 'manual', NULL)`);
+    expect(store.readOutcomeReview("draft", "manual")).toBeUndefined();
+    expect(store.readOutcomeReview("draft", "change")).toEqual(receipt);
+    expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it.each([false, true])("rolls back state, outcome and association if the association insert fails (review present: %s)", (reviewPresent) => {
+    const path = join(directory(), "authoring.sqlite");
+    const store = open(path);
+    const built = fixture();
+    store.create("draft", intent("create"), () => built);
+    const receipt = reviewPresent ? review(built.state, built.base) : undefined;
+    if (receipt !== undefined) store.putReview("draft", 1, receipt);
+    const db = inspect(path);
+    const before = legacyRows(db);
+    db.exec(`CREATE TRIGGER reject_outcome_review AFTER INSERT ON workspace_outcome_reviews
+      BEGIN SELECT RAISE(ABORT, 'injected association failure'); END`);
+    expectCode(() => store.mutate("draft", 1, intent("change"), steer("rolled back")), "STORAGE_FAILURE");
+    expect(legacyRows(db)).toEqual(before);
+    expect(db.prepare("SELECT * FROM workspace_outcome_reviews").all()).toEqual([]);
+    expect(store.readOutcomeReview("draft", "change")).toBeUndefined();
+    expect(store.readReview("draft")).toEqual(receipt);
+    expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    db.exec("DROP TRIGGER reject_outcome_review");
+    store.close();
+    const reopened = open(path);
+    expect(reopened.read("draft")).toEqual(built.state);
+    expect(reopened.readOutcomeReview("draft", "change")).toBeUndefined();
+    const updated = reopened.mutate("draft", 1, intent("change", "new intent after rollback"), steer("saved"));
+    expect(updated.version).toBe(2);
+    expect(reopened.readOutcomeReview("draft", "change")).toEqual(receipt);
+    expect(db.prepare("SELECT count(*) AS count FROM workspace_outcome_reviews").get()?.["count"]).toBe(1);
+    expect(counts(db)).toEqual([1, 2, 2]);
+  });
+});
+
+describe("owned authoring v1 to v2 migration", () => {
+  it("preserves exact legacy base/state JSON, decisions and replay keys while adding durable reviews", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const legacy = new DatabaseSync(path);
+    const { built, states } = seedLegacy(legacy);
+    const before = legacyRows(legacy);
+    legacy.close();
+    const store = open(path);
+    const db = inspect(path);
+    expect(db.prepare("PRAGMA application_id").get()?.["application_id"]).toBe(APPLICATION_ID);
+    expect(db.prepare("PRAGMA user_version").get()?.["user_version"]).toBe(2);
+    expect(legacyRows(db)).toEqual(before);
+    expect(store.readBase("draft")).toEqual(built.base);
+    for (const state of states) expect(store.read("draft", state.version)).toEqual(state);
+    const callback = vi.fn(() => { throw new Error("legacy replay must not execute"); });
+    expect(store.create("draft", intent("legacy-1", "exact intent 1\n"), callback)).toEqual(states[0]);
+    for (const state of states.slice(1)) {
+      expect(store.mutate("draft", 0, intent(`legacy-${state.version}`, `exact intent ${state.version}\n`), callback)).toEqual(state);
+    }
+    expect(callback).not.toHaveBeenCalled();
+    expectCode(() => store.mutate("draft", 3, intent("legacy-2", "changed intent"), callback), "IDEMPOTENCY_CONFLICT");
+    const receipt = review(states[2]!, built.base);
+    store.putReview("draft", 3, receipt);
+    expect(store.readReview("draft", 3)).toEqual(receipt);
+    for (const state of states) expect(store.readOutcomeReview("draft", `legacy-${state.version}`)).toBeUndefined();
+    expect(store.mutate("draft", 0, intent("legacy-2", "exact intent 2\n"), callback)).toEqual(states[1]);
+    expect(db.prepare("SELECT * FROM workspace_outcome_reviews").all()).toEqual([]);
+    expect(legacyRows(db)).toEqual(before);
+    store.close();
+    const reopened = open(path);
+    expect(reopened.readReview("draft")).toEqual(receipt);
+    expect(reopened.read("draft")).toEqual(states[2]);
+    expect(legacyRows(db)).toEqual(before);
+    expect(reopened.mutate("draft", 3, intent("post-migration"), steer("v2 mutation")).version).toBe(4);
+    expect(reopened.readOutcomeReview("draft", "post-migration")).toEqual(receipt);
+    for (const state of states) expect(reopened.readOutcomeReview("draft", `legacy-${state.version}`)).toBeUndefined();
+  });
+
+  it("migrates live owned v1 WAL data and reopens while the v2 header remains uncheckpointed", () => {
+    const path = join(directory(), "authoring.sqlite");
+    const legacy = inspect(path);
+    const { states, built } = seedLegacy(legacy, true);
+    const before = legacyRows(legacy);
+    expect(readFileSync(path).readUInt32BE(60)).toBe(1);
+    expect(readFileSync(`${path}-wal`).length).toBeGreaterThan(0);
+    const first = open(path);
+    expect(legacyRows(legacy)).toEqual(before);
+    expect(legacy.prepare("PRAGMA user_version").get()?.["user_version"]).toBe(2);
+    const second = open(path);
+    const receipt = review(states[2]!, built.base);
+    second.putReview("draft", 3, receipt);
+    expect(first.readReview("draft")).toEqual(receipt);
+    expect(first.read("draft")).toEqual(states[2]);
+    expect(legacyRows(legacy)).toEqual(before);
+  });
+
+  it("creates new databases directly at schema v2 without changing the captured v1 objects", () => {
+    const path = join(directory(), "authoring.sqlite");
+    open(path);
+    const db = inspect(path);
+    expect(db.prepare("PRAGMA user_version").get()?.["user_version"]).toBe(2);
+    for (const object of LEGACY_SCHEMA_V1) {
+      expect(db.prepare("SELECT type, name, sql FROM sqlite_schema WHERE name = ?").get(object.name)).toEqual(object);
+    }
+  });
+
+  it.each(["foreign application", "future v3", "extra table", "missing guard", "modified guard", "pretend v2"])(
+    "rejects %s v1 databases without changing bytes or sidecars", (kind) => {
+      const root = directory();
+      const path = join(root, "authoring.sqlite");
+      const db = new DatabaseSync(path);
+      seedLegacy(db);
+      db.exec(kind === "foreign application" ? "PRAGMA application_id = 123"
+        : kind === "future v3" ? "PRAGMA user_version = 3"
+        : kind === "extra table" ? "CREATE TABLE unrelated (data TEXT)"
+        : kind === "missing guard" ? "DROP TRIGGER workspace_versions_insert_guard"
+        : kind === "modified guard" ? `DROP TRIGGER workspace_versions_no_update;
+          CREATE TRIGGER workspace_versions_no_update BEFORE UPDATE ON workspace_versions BEGIN SELECT RAISE(ABORT, 'different'); END`
+        : "PRAGMA user_version = 2");
+      db.close();
+      const files = readdirSync(root);
+      const before = files.map((name) => readFileSync(join(root, name)));
+      expectCode(() => new SqliteWorkspaceStore(path), "STORAGE_FAILURE");
+      expect(readdirSync(root)).toEqual(files);
+      expect(files.map((name) => readFileSync(join(root, name)))).toEqual(before);
+    },
+  );
+
+  it("rejects an owned but malformed v1 SQLite file without changing it", () => {
+    const root = directory();
+    const path = join(root, "authoring.sqlite");
+    const legacy = new DatabaseSync(path);
+    seedLegacy(legacy);
+    legacy.close();
+    const malformed = readFileSync(path);
+    malformed[100] = 0; // Invalid page-one b-tree type, leaving the owned v1 identity intact.
+    writeFileSync(path, malformed);
+    expectCode(() => new SqliteWorkspaceStore(path), "STORAGE_FAILURE");
+    expect(readFileSync(path)).toEqual(malformed);
+    expect(readdirSync(root)).toEqual(["authoring.sqlite"]);
+  });
+
+  it.each(["modified schema", "future version"])("rejects %s present only in live v1 WAL without touching original sidecars", (kind) => {
+    const root = directory();
+    const path = join(root, "authoring.sqlite");
+    const legacy = inspect(path);
+    seedLegacy(legacy, true);
+    legacy.exec(kind === "modified schema" ? "CREATE TABLE unrelated (data TEXT)" : "PRAGMA user_version = 3");
+    expect(readFileSync(path).readUInt32BE(60)).toBe(1);
+    const files = readdirSync(root);
+    expect(files).toContain("authoring.sqlite-wal");
+    expect(files).toContain("authoring.sqlite-shm");
+    const before = files.map((name) => readFileSync(join(root, name)));
+    expectCode(() => new SqliteWorkspaceStore(path), "STORAGE_FAILURE");
+    expect(readdirSync(root)).toEqual(files);
+    expect(files.map((name) => readFileSync(join(root, name)))).toEqual(before);
+  });
+
+  it("rolls back all migration DDL and user_version after an injected failure, then permits migration on retry", () => {
+    const root = directory();
+    const path = join(root, "authoring.sqlite");
+    const legacy = new DatabaseSync(path);
+    seedLegacy(legacy);
+    const rows = legacyRows(legacy);
+    legacy.close();
+    const before = readFileSync(path);
+    const execute = DatabaseSync.prototype.exec;
+    const failure = vi.spyOn(DatabaseSync.prototype, "exec").mockImplementation(function (this: DatabaseSync, sql: string) {
+      execute.call(this, sql);
+      if (sql === "PRAGMA user_version = 2") throw new Error("injected migration failure after DDL and version change");
+    });
+    try {
+      expect(() => new SqliteWorkspaceStore(path)).toThrow(/injected migration failure/);
+    } finally {
+      failure.mockRestore();
+    }
+    expect(readFileSync(path)).toEqual(before);
+    expect(readdirSync(root)).toEqual(["authoring.sqlite"]);
+    const db = inspect(path);
+    expect(db.prepare("PRAGMA user_version").get()?.["user_version"]).toBe(1);
+    expect(db.prepare("SELECT type, name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*'").all())
+      .toEqual(LEGACY_SCHEMA_V1);
+    expect(legacyRows(db)).toEqual(rows);
+    const store = open(path);
+    expect(db.prepare("PRAGMA user_version").get()?.["user_version"]).toBe(2);
+    expect(legacyRows(db)).toEqual(rows);
+    expect(store.read("draft").version).toBe(3);
   });
 });

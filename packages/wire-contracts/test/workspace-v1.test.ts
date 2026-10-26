@@ -78,7 +78,7 @@ const read: Extract<WorkspaceRequestV1, { operation: "workspace.read" }> = {
   format: "wmm.request/1", apiVersion: "wmm/1", requestId: "historical-read",
   operation: "workspace.read", payload: { workspaceId: "workspace:succession", atVersion: 1 },
 };
-const workspaceOperations = ["workspace.create", "workspace.read", "workspace.mutate"] as const;
+const workspaceOperations = ["workspace.create", "workspace.read", "workspace.review", "workspace.mutate"] as const;
 const errorCodes = [
   "STALE_WORKSPACE", "IDEMPOTENCY_CONFLICT", "WORKSPACE_NOT_FOUND", "WORKSPACE_EXISTS", "INVALID_WORKSPACE_ACTION",
 ] as const satisfies readonly WorkspaceErrorCodeV1[];
@@ -91,6 +91,7 @@ describe("wmm/1 workspace wire contracts", () => {
     expectTypeOf<typeof errorCodes[number]>().toEqualTypeOf<WorkspaceErrorCodeV1>();
     expectTypeOf<ApiResultByOperationV1["workspace.create"]>().toEqualTypeOf<WorkspaceViewV1>();
     expectTypeOf<ApiResultByOperationV1["workspace.read"]>().toEqualTypeOf<WorkspaceViewV1>();
+    expectTypeOf<ApiResultByOperationV1["workspace.review"]>().toEqualTypeOf<WorkspaceViewV1>();
     expectTypeOf<ApiResultByOperationV1["workspace.mutate"]>().toEqualTypeOf<WorkspaceViewV1>();
     expectTypeOf<Extract<ApiSuccessResponseV1, { operation: "workspace.read" }>["data"]>().toEqualTypeOf<WorkspaceViewV1>();
     expect(workspaceV1Schema).toMatchObject({ $id: "urn:wmm:workspace:v1" });

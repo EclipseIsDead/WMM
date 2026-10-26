@@ -17,7 +17,8 @@ import type {
   WorldRecordV1,
 } from "../src/index.js";
 import { validateApiResponse } from "../src/index.js";
-import { workspaceView } from "./workspace-fixtures.js";
+import { workspaceReviewedView, workspaceView } from "./workspace-fixtures.js";
+import { mapView } from "./atlas-fixtures.js";
 
 const fixtureRoot = new URL("../../../fixtures/v1/complete-world/", import.meta.url);
 function fixtureJson(path: string): unknown {
@@ -173,6 +174,8 @@ const results = {
   "absence.proveThroughout": interval,
   "workspace.create": workspaceView,
   "workspace.read": workspaceView,
+  "workspace.map.read": mapView(),
+  "workspace.review": workspaceReviewedView,
   "workspace.mutate": workspaceView,
 } satisfies ApiResultByOperationV1;
 const operations = Object.keys(results) as ApiOperationV1[];
@@ -206,7 +209,7 @@ describe("operation-specific API response data", () => {
   it.each(operations)("accepts %s data only for operations with its result contract", (operation) => {
     expectValid(operation, results[operation]);
     for (const other of operations) {
-      if (operation.startsWith("workspace.") && other.startsWith("workspace.")) {
+      if (operation.startsWith("workspace.") && other.startsWith("workspace.") && operation !== "workspace.map.read" && other !== "workspace.map.read") {
         expectValid(other, results[operation]);
       } else if (other !== operation) {
         expectInvalid(other, results[operation]);
