@@ -87,6 +87,7 @@ Non-interactive terminals use plain output automatically. Workspace commands als
 ```sh
 pnpm build
 pnpm check
+pnpm verify:fixtures
 ```
 
-Additional fixture and terminal validation commands are recorded in the [release notes](docs/RELEASE-NOTES.md).
+The [fixture guide](docs/FIXTURES.md) describes discovery, golden expectations, and independent Linux/macOS CI coverage. Additional fixture and terminal validation commands are recorded in the [release notes](docs/RELEASE-NOTES.md).

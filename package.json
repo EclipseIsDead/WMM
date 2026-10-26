@@ -13,6 +13,7 @@
     "typecheck:tests": "pnpm typecheck && tsc -p tsconfig.tests.json --pretty false",
     "test": "vitest run",
     "verify:kit": "node wmm-v0.3-contract-kit/verify-vectors.mjs",
+    "verify:fixtures": "pnpm build && node tools/verify-fixtures.mjs",
     "verify:contracts": "pnpm build && node apps/cli/dist/main.js contract-kit verify wmm-v0.3-contract-kit",
     "verify:v0": "pnpm build && node apps/cli/dist/main.js v0 verify wmm-v0.3-contract-kit fixtures/v0/semantic-contract-cases.json",
     "verify:seed": "pnpm build && node apps/cli/dist/main.js seed validate wmm-v0.3-contract-kit",
