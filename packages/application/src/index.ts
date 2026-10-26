@@ -4,6 +4,7 @@ import type { WorkspaceRequestV1 } from "@wmm/wire-contracts";
 import { WorkspaceApplication } from "./workspaces.js";
 export { WorkspaceApplication, workspaceView } from "./workspaces.js";
 export * from "./authoring.js";
+export * from "./entity-context.js";
 
 import {
   ClaimQueryInputError,

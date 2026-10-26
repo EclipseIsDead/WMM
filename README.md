@@ -76,6 +76,8 @@ An agent can interpret your existing material into a readable structured project
 
 Start with the synthetic `fixtures/authoring/faction-project.json` and the [structured authoring guide](docs/AUTHORING.md). Keep private projects, source material, bundles, and generated notes outside this repository. Each build/render uses a fresh destination; this does not add approval or committing to canon.
 
+`context entity <bundle-directory> <entity-id> [--campaign <campaign-id>]` prepares a bounded, cited DM-side dossier for a harness from the verified authored snapshot. It includes direct relationships, selected narrative/explicit incoming references, and current campaign tracks, with byte/item limits and explicit omission counts. It does not call a model or decide what an actor knows. See [entity context](docs/AUTHORING.md#entity-context-for-an-agent-harness) for commands and contracts.
+
 ## Documentation
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.

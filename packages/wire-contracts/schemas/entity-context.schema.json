@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:entity-context",
+  "$ref": "#/$defs/Packet",
+  "$defs": {
+    "Digest": { "$ref": "urn:wmm:authoring#/$defs/Digest" },
+    "AssertionId": { "$ref": "urn:wmm:authoring#/$defs/AssertionId" },
+    "EntityId": { "$ref": "urn:wmm:authoring#/$defs/EntityId" },
+    "CampaignId": { "$ref": "urn:wmm:authoring#/$defs/CampaignId" },
+    "Context": { "$ref": "urn:wmm:authoring#/$defs/Context" },
+    "Name": { "$ref": "urn:wmm:authoring#/$defs/Name" },
+    "Count": { "type": "integer", "minimum": 0, "maximum": 100000 },
+    "MaxBytes": { "type": "integer", "minimum": 4096, "maximum": 262144 },
+    "MaxItems": { "type": "integer", "minimum": 1, "maximum": 512 },
+    "Limits": {
+      "type": "object", "properties": { "maxBytes": { "$ref": "#/$defs/MaxBytes" }, "maxItems": { "$ref": "#/$defs/MaxItems" } },
+      "required": ["maxBytes", "maxItems"], "additionalProperties": false
+    },
+    "Request": {
+      "type": "object", "properties": {
+        "entityId": { "$ref": "#/$defs/EntityId" }, "campaignId": { "$ref": "#/$defs/CampaignId" },
+        "limits": { "type": "object", "properties": { "maxBytes": { "$ref": "#/$defs/MaxBytes" }, "maxItems": { "$ref": "#/$defs/MaxItems" } }, "additionalProperties": false }
+      }, "required": ["entityId"], "additionalProperties": false
+    },
+    "Ref": {
+      "type": "object", "properties": { "id": { "$ref": "urn:wmm:authoring#/$defs/NoteId" }, "name": { "$ref": "#/$defs/Name" } },
+      "required": ["id", "name"], "additionalProperties": false
+    },
+    "EntityRef": {
+      "type": "object", "properties": { "id": { "$ref": "#/$defs/EntityId" }, "name": { "$ref": "#/$defs/Name" } },
+      "required": ["id", "name"], "additionalProperties": false
+    },
+    "CampaignRef": {
+      "type": "object", "properties": { "id": { "$ref": "#/$defs/CampaignId" }, "name": { "$ref": "#/$defs/Name" } },
+      "required": ["id", "name"], "additionalProperties": false
+    },
+    "Citation": {
+      "type": "object", "properties": {
+        "sourceId": { "$ref": "urn:wmm:authoring#/$defs/SourceId" }, "title": { "$ref": "#/$defs/Name" },
+        "path": { "type": "string", "minLength": 1, "maxUtf16Length": 1024 }, "locator": { "$ref": "#/$defs/Name" }
+      }, "required": ["sourceId", "title", "path", "locator"], "additionalProperties": false
+    },
+    "Citations": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Citation" } },
+    "Relationship": {
+      "type": "object", "properties": {
+        "assertionId": { "$ref": "#/$defs/AssertionId" }, "subject": { "$ref": "#/$defs/EntityRef" }, "object": { "$ref": "#/$defs/EntityRef" },
+        "predicate": { "type": "object", "properties": { "key": { "enum": ["related_to", "located_in", "member_of", "allied_with", "opposed_to"] }, "definitionDigest": { "$ref": "#/$defs/Digest" } }, "required": ["key", "definitionDigest"], "additionalProperties": false },
+        "polarity": { "enum": ["positive", "negative"] }, "context": { "$ref": "#/$defs/Context" },
+        "applicability": { "type": "object", "properties": { "kind": { "const": "invariant" } }, "required": ["kind"], "additionalProperties": false },
+        "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["assertionId", "subject", "predicate", "object", "polarity", "context", "applicability", "citations"], "additionalProperties": false
+    },
+    "Section": {
+      "type": "object", "properties": {
+        "owner": { "$ref": "#/$defs/Ref" }, "id": { "$ref": "urn:wmm:authoring#/$defs/Slug" }, "heading": { "$ref": "#/$defs/Name" },
+        "category": { "enum": ["lore", "dm-note", "possibility", "session"] }, "context": { "$ref": "#/$defs/Context" },
+        "path": { "type": "string", "pattern": "^prose/[a-z]+/[a-z][a-z0-9_-]*/[a-z][a-z0-9_-]*\\.md$" }, "sha256": { "$ref": "#/$defs/Digest" },
+        "text": { "$ref": "urn:wmm:authoring#/$defs/Text" }, "references": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Ref" } }, "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["owner", "id", "heading", "category", "context", "path", "sha256", "text", "references", "citations"], "additionalProperties": false
+    },
+    "Integer": { "$ref": "urn:wmm:authoring#/$defs/Integer" },
+    "IntegerRecord": {
+      "type": "object", "properties": { "value": { "$ref": "#/$defs/Integer" }, "assertionId": { "$ref": "#/$defs/AssertionId" } },
+      "required": ["value", "assertionId"], "additionalProperties": false
+    },
+    "CurrentEntry": {
+      "type": "object", "properties": {
+        "value": { "$ref": "#/$defs/Integer" }, "assertionId": { "$ref": "#/$defs/AssertionId" }, "note": { "$ref": "urn:wmm:authoring#/$defs/Text" }, "citations": { "$ref": "#/$defs/Citations" }
+      }, "required": ["value", "assertionId", "note", "citations"], "additionalProperties": false
+    },
+    "Track": {
+      "type": "object", "properties": {
+        "id": { "$ref": "urn:wmm:authoring#/$defs/TrackId" }, "name": { "$ref": "#/$defs/Name" }, "campaignId": { "$ref": "#/$defs/CampaignId" }, "subject": { "$ref": "#/$defs/EntityRef" }, "subjectAssertionId": { "$ref": "#/$defs/AssertionId" },
+        "minimum": { "$ref": "#/$defs/IntegerRecord" }, "maximum": { "$ref": "#/$defs/IntegerRecord" }, "current": { "$ref": "#/$defs/CurrentEntry" }, "entryCount": { "type": "integer", "minimum": 1, "maximum": 1000 }
+      }, "required": ["id", "name", "campaignId", "subject", "subjectAssertionId", "minimum", "maximum", "current", "entryCount"], "additionalProperties": false
+    },
+    "Counts": {
+      "type": "object", "properties": { "relationships": { "$ref": "#/$defs/Count" }, "sections": { "$ref": "#/$defs/Count" }, "tracks": { "$ref": "#/$defs/Count" } },
+      "required": ["relationships", "sections", "tracks"], "additionalProperties": false
+    },
+    "Coverage": {
+      "type": "object", "properties": {
+        "complete": { "type": "boolean" }, "available": { "$ref": "#/$defs/Counts" }, "included": { "$ref": "#/$defs/Counts" },
+        "omissions": { "type": "object", "properties": { "itemLimit": { "$ref": "#/$defs/Count" }, "byteLimit": { "$ref": "#/$defs/Count" } }, "required": ["itemLimit", "byteLimit"], "additionalProperties": false }
+      }, "required": ["complete", "available", "included", "omissions"], "additionalProperties": false
+    },
+    "Packet": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.entity-context/1" }, "worldId": { "$ref": "urn:wmm:authoring#/$defs/WorldId" },
+        "snapshotDigest": { "$ref": "#/$defs/Digest" }, "semanticProfileDigest": { "$ref": "#/$defs/Digest" }, "inputDigest": { "$ref": "#/$defs/Digest" }, "contextDigest": { "$ref": "#/$defs/Digest" },
+        "perspective": { "const": "dm" }, "selectionPolicy": { "const": "direct-and-referencing" },
+        "entity": { "$ref": "#/$defs/EntityRef" }, "campaign": { "anyOf": [{ "$ref": "#/$defs/CampaignRef" }, { "type": "null" }] },
+        "limits": { "$ref": "#/$defs/Limits" }, "relationships": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/Relationship" } },
+        "sections": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/Section" } }, "tracks": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/Track" } },
+        "coverage": { "$ref": "#/$defs/Coverage" }, "limitations": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxUtf16Length": 1024 } }
+      }, "required": ["format", "worldId", "snapshotDigest", "semanticProfileDigest", "inputDigest", "contextDigest", "perspective", "selectionPolicy", "entity", "campaign", "limits", "relationships", "sections", "tracks", "coverage", "limitations"], "additionalProperties": false
+    }
+  }
+}

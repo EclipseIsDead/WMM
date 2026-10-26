@@ -19,6 +19,7 @@ import type {
 } from "./types.js";
 import type { WorkspaceReviewV1 } from "./workspace.js";
 import type { AuthoringIndex, AuthoringProject } from "./authoring.js";
+import type { EntityContextPacket, EntityContextRequest } from "./entity-context.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -95,6 +96,10 @@ const validateReviewReceipt: ValidateFunction<WorkspaceReviewV1> = ajv.compile({
 ajv.addSchema(authoringSchema);
 const validateProject = ajv.compile<AuthoringProject>({ $ref: "urn:wmm:authoring#/$defs/Project" });
 const validateIndex = ajv.compile<AuthoringIndex>({ $ref: "urn:wmm:authoring#/$defs/Index" });
+const entityContextSchema = JSON.parse(readFileSync(new URL("../schemas/entity-context.schema.json", import.meta.url), "utf8")) as AnySchema;
+ajv.addSchema(entityContextSchema);
+const validateContextRequest = ajv.compile<EntityContextRequest>({ $ref: "urn:wmm:entity-context#/$defs/Request" });
+const validateContextPacket = ajv.compile<EntityContextPacket>({ $ref: "urn:wmm:entity-context#/$defs/Packet" });
 
 function validationResult(
   valid: boolean,
@@ -152,6 +157,17 @@ export function validateAuthoringIndex(input: unknown): CoreContractValidationRe
 }
 
 export const authoringProjectSchema = authoringSchema;
+
+export function validateEntityContextRequest(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateContextRequest(input), validateContextRequest.errors);
+}
+
+/** Shape only; packet identity, selection and provenance require integrity/replay checks. */
+export function validateEntityContextPacket(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateContextPacket(input), validateContextPacket.errors);
+}
+
+export const entityContextPacketSchema = entityContextSchema;
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;

@@ -4,6 +4,7 @@ export * from "./authoring.js";
 export * from "./authoring-semantics.js";
 export * from "./bundled-v1.js";
 export * from "./evidence.js";
+export * from "./entity-context.js";
 export * from "./interval-absence.js";
 export * from "./population.js";
 export * from "./query.js";

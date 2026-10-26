@@ -49,6 +49,8 @@ function helpText(): string {
       "  wmm authoring check <project.json>",
       "  wmm authoring build <project.json> --out <new-directory>",
       "  wmm notes render <bundle-directory> --out <new-directory>",
+      "  wmm context schema",
+      "  wmm context entity <bundle-directory> <entity-id> [--campaign <campaign-id>] [--max-bytes <integer>] [--max-items <integer>]",
     ].join("\n");
 }
 
@@ -113,6 +115,11 @@ async function main(): Promise<void> {
     process.stdout.write(`${manifest.version}\n`);
     return;
   }
+  if (args[0] === "context") {
+    const { runEntityContextCommand } = await import("./entity-context-command.js");
+    writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runEntityContextCommand(args.slice(1)) });
+    return;
+  }
   if (args[0] === "authoring" || args[0] === "notes") {
     const { runAuthoringCommand } = await import("./authoring-command.js");
     writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runAuthoringCommand(args) });
@@ -173,12 +180,19 @@ void main().catch(async (error: unknown) => {
       process.exitCode = 1;
     }
   } else {
+    let code = "DEVELOPMENT_COMMAND_FAILED";
+    let execution = "completed";
+    if (process.argv[2] === "context") {
+      const { EntityContextError, EntityContextBudgetError } = await import("@wmm/core");
+      if (error instanceof EntityContextError || error instanceof EntityContextBudgetError) code = error.code;
+      if (error instanceof EntityContextBudgetError) execution = "incomplete";
+    }
     writeJson({
       apiVersion: "wmm/dev/1",
       outcome: "error",
-      execution: "completed",
+      execution,
       error: {
-        code: "DEVELOPMENT_COMMAND_FAILED",
+        code,
         message: error instanceof Error ? error.message : String(error),
       },
     });
