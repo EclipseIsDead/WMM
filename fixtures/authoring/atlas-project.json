@@ -1,0 +1,48 @@
+{
+  "format": "wmm.authoring-project/1",
+  "worldId": "world:atlas_demo",
+  "title": "Synthetic reference atlas",
+  "sources": [],
+  "entities": [
+    { "id": "place:stonehaven_upland", "name": "Stonehaven Upland", "sections": [] },
+    { "id": "place:western_ridge", "name": "Western Ridge", "sections": [] },
+    { "id": "place:tiny_islet", "name": "Tiny Islet", "sections": [] },
+    { "id": "faction:auren_crown", "name": "Crown of Auren", "sections": [] }
+  ],
+  "facts": [],
+  "campaigns": [],
+  "atlases": [
+    {
+      "format": "wmm.map-atlas/1",
+      "worldId": "world:atlas_demo",
+      "id": "reference_demo",
+      "title": "Stonehaven reference sheet",
+      "geometryVersion": "reference_v1",
+      "temporalMeaning": "undated",
+      "frame": { "id": "reference_sheet", "extent": [0, 0, 1200, 800], "units": "reference-pixels", "orientation": "x-right-y-down" },
+      "provenance": { "sourceId": "source:wmm_authoring", "locator": "Explicit synthetic authoring fixture; not a historical reconstruction or verified documentary interpretation." },
+      "physicalCoverage": [
+        { "surface": "land", "geometry": { "kind": "polygon", "vertices": [[50, 100], [600, 100], [600, 650], [50, 650], [50, 100]] } },
+        { "surface": "water", "geometry": { "kind": "polygon", "vertices": [[750, 50], [1100, 50], [1100, 500], [750, 500], [750, 50]] } },
+        { "surface": "land", "geometry": { "kind": "polygon", "vertices": [[660, 660], [661, 660], [661, 661], [660, 661], [660, 660]] } }
+      ],
+      "features": [
+        {
+          "id": "upland", "entityId": "place:stonehaven_upland", "label": "Stonehaven Upland",
+          "geometry": { "kind": "polygon", "vertices": [[100, 200], [320, 200], [320, 480], [100, 480], [100, 200]] },
+          "anchor": [210, 340], "precision": "approximate", "locator": "Synthetic approximate upland footprint. Its overlap with Western Ridge is not a political contradiction."
+        },
+        {
+          "id": "ridge", "entityId": "place:western_ridge", "label": "Western Ridge",
+          "geometry": { "kind": "polygon", "vertices": [[260, 350], [480, 350], [480, 550], [260, 550], [260, 350]] },
+          "anchor": [370, 450], "precision": "approximate", "locator": "Synthetic overlapping regional footprint; government and control are not projected."
+        },
+        {
+          "id": "tiny_islet", "entityId": "place:tiny_islet", "label": "Tiny Islet",
+          "geometry": { "kind": "polygon", "vertices": [[660, 660], [661, 660], [661, 661], [660, 661], [660, 660]] },
+          "anchor": [660, 660], "precision": "exact-as-authored", "locator": "One reference-pixel synthetic island. A visible anchor is not an enlarged geographic footprint."
+        }
+      ]
+    }
+  ]
+}

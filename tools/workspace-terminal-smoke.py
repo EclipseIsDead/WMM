@@ -453,6 +453,140 @@ def fallbacks(node, directory):
     return "non-TTY/NO_COLOR, real TERM=dumb TTY and explicit --plain are readable and escape-free"
 
 
+def atlas_workflow(node, directory):
+    directory.mkdir()
+    source, moved, workspace = directory / "bundle", directory / "moved-source", directory / "workspace"
+    fixture = ROOT / "fixtures/authoring/atlas-project.json"
+    fixture_before = fixture.read_bytes()
+    run(node, ["authoring", "build", str(fixture), "--out", str(source)])
+    json_output(run(node, ["workspace", "open", str(source), "--workspace-dir", str(workspace), "--json"]))
+
+    def api(operation, payload):
+        request = {"format": "wmm.request/1", "apiVersion": "wmm/1", "requestId": "atlas-pty", "operation": operation, "payload": payload}
+        return json_output(run(node, ["json", "--workspace-dir", str(workspace)], json.dumps(request).encode("utf-8")))["data"]
+
+    api("workspace.mutate", {"workspaceId": "main", "expectedVersion": 1, "idempotencyKey": "atlas-proposal", "action": {"kind": "put-proposal", "proposal": {
+        "id": "transfer", "title": "Transfer a city (not yet applied)", "author": "Synthetic smoke", "rationale": "An explicit draft, not a control fact.", "dependencies": [], "exclusions": [],
+        "operations": [{"kind": "write-prose", "path": "prose/proposed-transfer.md", "text": "A proposed transfer of city control.", "beforeSha256": None}],
+    }}})
+    api("workspace.mutate", {"workspaceId": "main", "expectedVersion": 2, "idempotencyKey": "atlas-selection", "action": {"kind": "decide", "groupId": "transfer", "decision": "selected"}})
+    api("workspace.review", {"workspaceId": "main", "expectedVersion": 3})
+    before = api("workspace.read", {"workspaceId": "main"})
+    require(before["validation"]["status"] == "current" and "review" in before, "Atlas smoke must start with an associated review")
+    original_files = {path.relative_to(source).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in source.rglob("*") if path.is_file()}
+    source.rename(moved)
+    map_view = api("workspace.map.read", {"workspaceId": "main"})
+    require(map_view["worldBasis"] == "base" and map_view["selectedProposalsIncluded"] is False and map_view["factProjection"] == "not-run" and map_view["candidateView"] == "unavailable", "Atlas mode is not the explicit reference/base subset")
+    args = ["--workspace-dir", str(workspace)]
+    colour_env = environment(FORCE_COLOR="3", COLORTERM="truecolor")
+    colour_env.pop("NO_COLOR", None)
+    with Terminal(node, ["workspace", "resume", *args], colour_env) as terminal:
+        terminal.ready(3)
+        terminal.key(b"2", "BASE WORLD / READ-ONLY")
+        terminal.key(b"m", "REFERENCE ATLAS")
+        terminal.expect(b"\x1b[48;2;")
+        terminal.expect("Selected proposals are not shown.")
+        terminal.expect("political facts not projected.")
+        terminal.expect("Candidate view unavailable.")
+        terminal.key(b"j", "Selected: Tiny Islet")
+        terminal.key(ENTER, "Feature: Tiny Islet")
+        terminal.expect("Feature id: tiny_islet")
+        terminal.expect("Precision: exact-as-authored")
+        terminal.expect("Source reference: source:wmm_authoring")
+        terminal.key(b"\x1b")
+        terminal.key(b"f", "CANVAS:")
+        # At the fixed 120x36 viewport, move from the frame center into the
+        # overlapping ridge/upland cell while keeping the islet selected.
+        for _ in range(13):
+            terminal.key(b"h")
+        terminal.key(ENTER, "CHOOSE REFERENCE FEATURE")
+        terminal.expect("Western Ridge | ridge")
+        terminal.expect("Stonehaven Upland | upland")
+        terminal.key(DOWN)
+        terminal.key(ENTER, "Feature: Stonehaven Upland")
+        mark = len(terminal.output)
+        terminal.resize(80, 24)
+        terminal.expect("Feature: Stonehaven Upland", mark)
+        terminal.key(b"\x1b[6~", "Precision: approximate")
+        terminal.expect("Source reference: source:wmm_authoring")
+        mark = len(terminal.output)
+        terminal.resize(120, 36)
+        terminal.expect("Geometry reference: reference_demo/reference_v1/upland", mark)
+        terminal.key(b"m", "BASE WORLD / READ-ONLY")
+        terminal.key(b"1", "Transfer a city (not yet applied)")
+        terminal.expect("[x] Selected")
+        terminal.write(b"q")
+        terminal.finish(0)
+    for level, expected in [("2", b"\x1b[48;5;"), ("1", b"\x1b[40m"), (None, None)]:
+        fallback_env = environment(FORCE_COLOR=level or "3")
+        if level is not None:
+            fallback_env.pop("NO_COLOR", None)
+        with Terminal(node, ["workspace", "resume", *args], fallback_env) as terminal:
+            terminal.ready(3)
+            terminal.key(b"2", "BASE WORLD / READ-ONLY")
+            mark = len(terminal.output)
+            terminal.key(b"m", "REFERENCE ATLAS")
+            if expected is not None:
+                terminal.expect(expected, mark)
+            else:
+                require(not re.search(rb"\x1b\[[0-9;]*m", bytes(terminal.output[mark:])), "NO_COLOR allowed colour/style escapes")
+            terminal.write(b"q")
+            terminal.finish(0)
+    require(api("workspace.read", {"workspaceId": "main"}) == before, "Map navigation changed workspace/history/decisions/review association")
+    require(api("workspace.map.read", {"workspaceId": "main"}) == map_view, "Captured map read changed after navigation")
+    plain = run(node, ["workspace", "map", *args, "--plain"])
+    require(plain == run(node, ["workspace", "map", *args, "--plain"]), "Plain atlas is nondeterministic")
+    require(b"Tiny Islet" in plain and b"REFERENCE ATLAS" in plain and b"\x1b" not in plain, "Plain atlas lost features or contains terminal controls")
+    require(json_output(run(node, ["workspace", "map", *args, "--json"], env=colour_env))["data"] == map_view, "Map CLI JSON differs from the service read")
+    require(run(node, ["workspace", "map", *args, "--plain"], env=colour_env) == plain, "Forced colour leaked into plain output")
+    require({path.relative_to(moved).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in moved.rglob("*") if path.is_file()} == original_files, "Atlas smoke changed source bundle bytes")
+    require(fixture.read_bytes() == fixture_before, "Atlas smoke changed the authored fixture")
+    return "true-colour/256/16/NO_COLOR, source loss, tiny island/provenance, mixed-cell chooser, wide/narrow/wide, plain/JSON; decisions/history/current review unchanged"
+
+
+def atlas_dense_workflow(node, directory):
+    directory.mkdir()
+    project = json.loads((ROOT / "fixtures/authoring/atlas-project.json").read_text(encoding="utf-8"))
+    atlas = project["atlases"][0]
+    atlas["features"] = []
+    project["entities"] = []
+    atlas["physicalCoverage"] = [{"surface": "land", "geometry": {"kind": "polygon", "vertices": [[0, 0], [1200, 0], [1200, 800], [0, 800], [0, 0]]}}]
+    for i in range(64):
+        x, y = i % 8 * 150 + 10, i // 8 * 100 + 10
+        entity_id = f"place:region_{i}"
+        project["entities"].append({"id": entity_id, "name": f"Region {i}", "sections": []})
+        atlas["features"].append({"id": f"region_{i}", "entityId": entity_id, "label": f"Region {i}",
+            "geometry": {"kind": "polygon", "vertices": [[x, y], [x + 100, y], [x + 100, y + 60], [x, y + 60], [x, y]]},
+            "anchor": [x + 50, y + 30], "precision": "approximate", "locator": "Synthetic dense terminal smoke only."})
+    input_path, source, workspace = directory / "project.json", directory / "bundle", directory / "workspace"
+    input_path.write_text(json.dumps(project), encoding="utf-8")
+    run(node, ["authoring", "build", str(input_path), "--out", str(source)])
+    initial = json_output(run(node, ["workspace", "open", str(source), "--workspace-dir", str(workspace), "--json"]))["data"]
+    env = environment(FORCE_COLOR="3", COLORTERM="truecolor")
+    env.pop("NO_COLOR", None)
+    with Terminal(node, ["workspace", "resume", "--workspace-dir", str(workspace)], env) as terminal:
+        terminal.resize(240, 80)
+        terminal.ready(1)
+        terminal.key(b"2", "BASE WORLD / READ-ONLY")
+        terminal.key(b"m", "REFERENCE ATLAS")
+        terminal.expect(b"\x1b[48;2;")
+        terminal.expect("Selected: Region 0")
+        terminal.key(b"j", "Selected: Region 1")
+        mark = len(terminal.output)
+        terminal.resize(80, 24)
+        terminal.expect("Selected: Region 1", mark)
+        mark = len(terminal.output)
+        terminal.resize(240, 80)
+        terminal.expect("Selected: Region 1", mark)
+        terminal.key(ENTER, "Feature: Region 1")
+        terminal.expect("Entity reference: place:region_1")
+        terminal.key(b"m", "BASE WORLD / READ-ONLY")
+        terminal.write(b"q")
+        terminal.finish(0)
+    require(json_output(run(node, ["workspace", "resume", "--workspace-dir", str(workspace), "--json"]))["data"] == initial, "Dense atlas navigation changed saved state")
+    return "64 admitted regions; true-colour 160x60 canvas at 240x80; narrow/wide resize and selection/provenance preserved; workspace unchanged"
+
+
 def fixture_hashes():
     return {path.relative_to(DEMO).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in DEMO.rglob("*") if path.is_file()}
 
@@ -475,6 +609,8 @@ def main():
             ("SIGTERM cleanup", lambda: signal_cleanup(options.node, Path(root) / "sigterm", signal.SIGTERM)),
             ("SIGINT cleanup", lambda: signal_cleanup(options.node, Path(root) / "sigint", signal.SIGINT)),
             ("plain inspection and terminal fallbacks", lambda: fallbacks(options.node, Path(root) / "fallback")),
+            ("read-only captured reference atlas", lambda: atlas_workflow(options.node, Path(root) / "atlas")),
+            ("dense colour atlas at large terminal size", lambda: atlas_dense_workflow(options.node, Path(root) / "atlas-dense")),
         ]
         for name, check in cases:
             try:

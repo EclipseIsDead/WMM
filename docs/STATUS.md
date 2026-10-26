@@ -22,6 +22,14 @@ The [structured authoring guide](AUTHORING.md) describes the first end-to-end da
 
 This is not a vault copier, an LLM migration service, a finalized universal world schema, or accepted canonical storage. Private input/derived artifacts stay outside the tooling repository. Workspace-to-project round trips, assets/plugins, custom calendars, dated event history, approval, and canonical commits are not added.
 
+## Reference atlas increment
+
+[Increment A](ATLAS.md) is an integrated, read-only ASCII atlas in World → Map. The optional authoring input compiles canonical `maps/<id>.json` assets; ordinary bundle loading admits their geometry and world/source/place references. The opt-in `workspace.map.read` operation returns exact captured-base geometry and explicit reference/base/candidate limitations without changing legacy workspace success shapes. The terminal uses the core physical-coverage grid, separate geometry/anchor hit lists, discoverable tiny features, and stable mixed-feature selection. A linear `workspace map --plain` / `--json` command is available as well.
+
+The interactive map now has a pure colour cell shader, batched Ink styles, a bounded process-local raster/point cache, and closed-AABB broad-phase rejection before unchanged exact geometry predicates. True-colour/256/16-colour and explicit monochrome modes preserve the same glyphs and hit targets. The [measured benchmark](ATLAS.md#colour-terminal-shader-and-redraw-scaling) includes 64 separated regions at the existing 160×60/8-million-work ceilings; complicated overlapping scenes can still be rejected. This is not a GPU renderer or a display-FPS guarantee.
+
+The first increment has no dated political projection, candidate-map simulation, historical-border reconstruction, calibrated travel, geographic editing, automatic image tracing, or persistent chunk caches. Regions, governing actors, cartographic features, and geometry identities stay separate. Unknown physical coverage is not invented ocean. The [atlas guide](ATLAS.md) documents the synthetic example, public bounds, and acceptance checks.
+
 ## Workspace slices
 
 The [workspace implementation brief](../plans/WMM-V3-WORKSPACE-IMPLEMENTATION-BRIEF.md) divides V3 into executable slices:
@@ -55,7 +63,7 @@ The host-owned directory contains `authoring.sqlite` in WAL mode, the immutable 
 - Terminal-safe Unicode presentation without executing imported controls; grapheme-aware forms, retained failed-save buffers, explicit retries, and host-owned external editing without a shell.
 - Strict source/test typechecking, adversarial regression fixtures, and an existing macOS/Linux engine CI workflow.
 
-These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,061 tests across 50 files, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all four real-PTY smoke scenarios on macOS; release packing and isolated release verification also passed. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
+These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,171 tests across 62 files, seed vectors, and strict source/test typechecks under Node 26.12.1. The real-PTY smoke passed on macOS, including true-colour/256/16/NO_COLOR, the captured-reference-atlas workflow with source loss, tiny-feature inspection, mixed-cell selection, resize, unchanged decisions/history/current review, and a 64-region 160×60 canvas in a 240×80 terminal. Release packing and isolated verification, including the packaged atlas input and source-loss reads, also passed. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
 
 ## RFC §5.6: implemented interval subset
 

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:atlas:v1",
+  "$defs": {
+    "Coordinate": { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
+    "Point": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/Coordinate" }, { "$ref": "#/$defs/Coordinate" }], "items": false, "minItems": 2, "maxItems": 2 },
+    "Bounds": { "type": "array", "items": { "$ref": "#/$defs/Coordinate" }, "minItems": 4, "maxItems": 4 },
+    "Label": { "type": "string", "minLength": 1, "maxUtf16Length": 240, "pattern": "^[^\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]+$(?![\\s\\S])" },
+    "Locator": { "type": "string", "minLength": 1, "maxUtf16Length": 8192, "pattern": "^[^\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]+$(?![\\s\\S])" },
+    "WorldId": { "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/WorldId", "maxLength": 256, "pattern": "^world:[a-z0-9_-]+$(?![\\s\\S])" },
+    "SourceId": { "$ref": "urn:wmm:world-records:v1#/$defs/SourceId", "maxLength": 256, "pattern": "^source:[a-z0-9_-]+$(?![\\s\\S])" },
+    "EntityId": { "$ref": "urn:wmm:world-records:v1#/$defs/DescriptorId", "maxLength": 256, "pattern": "^[a-z][a-z0-9_-]*:[a-z0-9_-]+$(?![\\s\\S])" },
+    "Polygon": {
+      "type": "object", "properties": {
+        "kind": { "const": "polygon" },
+        "vertices": { "type": "array", "minItems": 4, "maxItems": 256, "items": { "$ref": "#/$defs/Point" } }
+      }, "required": ["kind", "vertices"], "additionalProperties": false
+    },
+    "Geometry": {
+      "oneOf": [
+        { "$ref": "#/$defs/Polygon" },
+        { "type": "object", "properties": { "kind": { "const": "point" }, "position": { "$ref": "#/$defs/Point" } }, "required": ["kind", "position"], "additionalProperties": false }
+      ]
+    },
+    "Feature": {
+      "type": "object", "properties": {
+        "id": { "$ref": "#/$defs/Slug" }, "entityId": { "$ref": "#/$defs/EntityId" }, "label": { "$ref": "#/$defs/Label" },
+        "geometry": { "$ref": "#/$defs/Geometry" }, "anchor": { "$ref": "#/$defs/Point" },
+        "precision": { "enum": ["approximate", "exact-as-authored"] }, "locator": { "$ref": "#/$defs/Locator" }
+      }, "required": ["id", "entityId", "label", "geometry", "anchor", "precision", "locator"], "additionalProperties": false
+    },
+    "Atlas": {
+      "type": "object", "maxJsonBytes": 1048576, "maxAtlasVertices": 4096, "properties": {
+        "format": { "const": "wmm.map-atlas/1" }, "worldId": { "$ref": "#/$defs/WorldId" },
+        "id": { "$ref": "#/$defs/Slug" }, "title": { "$ref": "#/$defs/Label" }, "geometryVersion": { "$ref": "#/$defs/Slug" }, "temporalMeaning": { "const": "undated" },
+        "frame": { "type": "object", "properties": { "id": { "$ref": "#/$defs/Slug" }, "extent": { "$ref": "#/$defs/Bounds" }, "units": { "const": "reference-pixels" }, "orientation": { "const": "x-right-y-down" } }, "required": ["id", "extent", "units", "orientation"], "additionalProperties": false },
+        "provenance": { "type": "object", "properties": { "sourceId": { "$ref": "#/$defs/SourceId" }, "locator": { "$ref": "#/$defs/Locator" } }, "required": ["sourceId", "locator"], "additionalProperties": false },
+        "physicalCoverage": { "type": "array", "maxItems": 64, "items": { "type": "object", "properties": { "surface": { "enum": ["land", "water"] }, "geometry": { "$ref": "#/$defs/Polygon" } }, "required": ["surface", "geometry"], "additionalProperties": false } },
+        "features": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/Feature" } }
+      }, "required": ["format", "worldId", "id", "title", "geometryVersion", "temporalMeaning", "frame", "provenance", "physicalCoverage", "features"], "additionalProperties": false
+    },
+    "WorkspaceMapView": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.workspace-map-view/1" },
+        "workspaceId": { "$ref": "urn:wmm:workspace:v1#/$defs/StableId" }, "workspaceVersion": { "$ref": "urn:wmm:workspace:v1#/$defs/Version" },
+        "base": { "type": "object", "properties": { "worldId": { "$ref": "#/$defs/WorldId" }, "snapshotDigest": { "$ref": "urn:wmm:world-records:v1#/$defs/Digest" } }, "required": ["worldId", "snapshotDigest"], "additionalProperties": false },
+        "worldBasis": { "const": "base" }, "selectedProposalsIncluded": { "const": false }, "factProjection": { "const": "not-run" }, "candidateView": { "const": "unavailable" },
+        "atlas": { "oneOf": [{ "$ref": "#/$defs/Atlas" }, { "type": "null" }] }, "atlasDigest": { "oneOf": [{ "$ref": "urn:wmm:world-records:v1#/$defs/Digest" }, { "type": "null" }] },
+        "availableAtlases": { "type": "array", "maxItems": 8, "items": { "type": "object", "properties": { "id": { "$ref": "#/$defs/Slug" }, "title": { "$ref": "#/$defs/Label" }, "geometryVersion": { "$ref": "#/$defs/Slug" } }, "required": ["id", "title", "geometryVersion"], "additionalProperties": false } },
+        "limitations": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Locator" } }
+      }, "required": ["format", "workspaceId", "workspaceVersion", "base", "worldBasis", "selectedProposalsIncluded", "factProjection", "candidateView", "atlas", "atlasDigest", "availableAtlases", "limitations"], "additionalProperties": false,
+      "if": { "properties": { "atlas": { "type": "null" } } },
+      "then": { "properties": { "atlasDigest": { "type": "null" } } },
+      "else": { "properties": { "atlasDigest": { "$ref": "urn:wmm:world-records:v1#/$defs/Digest" } } }
+    },
+    "Slug": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$(?![\\s\\S])", "maxLength": 80 },
+    "WorkspaceMapReadRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "$ref": "urn:wmm:workspace:v1#/$defs/StableId" },
+        "operation": { "const": "workspace.map.read" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "urn:wmm:workspace:v1#/$defs/StableId" },
+            "atlasId": { "$ref": "#/$defs/Slug" },
+            "geometryVersion": { "$ref": "#/$defs/Slug" },
+            "atVersion": { "$ref": "urn:wmm:workspace:v1#/$defs/Version" }
+          },
+          "required": ["workspaceId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    }
+  }
+}

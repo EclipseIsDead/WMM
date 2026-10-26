@@ -77,7 +77,8 @@
         "sources": { "$ref": "#/$defs/Sources" },
         "entities": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/Entity" } },
         "facts": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/Fact" } },
-        "campaigns": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Campaign" } }
+        "campaigns": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Campaign" } },
+        "atlases": { "type": "array", "maxItems": 8, "items": { "$ref": "urn:wmm:atlas:v1#/$defs/Atlas" } }
       }, "required": ["format", "worldId", "title", "sources", "entities", "facts", "campaigns"], "additionalProperties": false
     },
     "SectionIndex": {
