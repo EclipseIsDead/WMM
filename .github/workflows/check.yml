@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Process-boundary tests launch real CLIs; avoid starving them on shared runners.
+  VITEST_MAX_WORKERS: "2"
+
 jobs:
   check:
     strategy:
@@ -24,6 +28,14 @@ jobs:
         with:
           node-version: 24.3.0
           cache: pnpm
+      - name: Use a canonical temporary directory
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, mkdtempSync, realpathSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = mkdtempSync(join(realpathSync(process.env.RUNNER_TEMP), 'wmm-ci-'));
+          appendFileSync(process.env.GITHUB_ENV, `TMPDIR=${directory}\n`);
+          NODE
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm verify:v0
