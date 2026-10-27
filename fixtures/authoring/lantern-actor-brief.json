@@ -1,0 +1,33 @@
+{
+  "format": "wmm.actor-brief/1",
+  "snapshotDigest": "f21f10ae1e4f7efb972d0c1cdee08e96b83ee10e0342e207b82bacb5d5f9f1f1",
+  "actorId": "faction:lantern_guild",
+  "campaignId": "campaign:harbor_watch",
+  "question": "Choose the guild's next step about staffing the harbor beacons, and draft a message if useful.",
+  "items": [
+    {
+      "id": "mission",
+      "kind": "goal",
+      "text": "Keep the harbor beacons staffed and operating.",
+      "basis": [{ "kind": "section", "ownerId": "faction:lantern_guild", "sectionId": "overview" }]
+    },
+    {
+      "id": "payment_report",
+      "kind": "belief",
+      "text": "We believe the council has already arranged payment for the next watch. This belief has not been confirmed.",
+      "basis": []
+    },
+    {
+      "id": "confirmation_missing",
+      "kind": "unknown",
+      "text": "The actual payment confirmation and available reserve funds are not supplied in this brief.",
+      "basis": []
+    },
+    {
+      "id": "no_execution",
+      "kind": "constraint",
+      "text": "Propose a course of action only. Any message is an undelivered draft; do not invent named people or claim staffing, payment, delivery, or an event has happened.",
+      "basis": []
+    }
+  ]
+}

@@ -5,6 +5,8 @@ import { WorkspaceApplication } from "./workspaces.js";
 import { WorkspaceMapError } from "./atlas.js";
 export { WorkspaceApplication, workspaceView } from "./workspaces.js";
 export * from "./authoring.js";
+export * from "./entity-context.js";
+export * from "./actor.js";
 
 import {
   ClaimQueryInputError,

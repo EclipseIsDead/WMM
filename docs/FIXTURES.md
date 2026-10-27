@@ -28,8 +28,12 @@ Use `--fixtures-dir <directory>` for an isolated fixture collection. The normal 
 | V2 interval absence | Every declared expectation, including breakpoints, cell evaluations, and the expected incomplete budget failure; that exit-code-4 case is a passing regression check, not a failed fixture |
 | Authoring projects, when present | Every discovered authoring project through real check/build/world validation/note rendering and deterministic-output comparison |
 | Reference atlases, when present | Each authored atlas through a captured-workspace map read; this CI change does not bundle or require the separate atlas feature PR |
+| Actor briefs, when present | Real `actor prepare` against a discovered or generated verified snapshot matching the declared snapshot digest |
+| Actor decision drafts, when present | Real `actor review` against the rebuilt context matching the declared context digest; invalid or unbound inputs fail instead of being skipped |
 
 The report enumerates discovered JSON files and their coverage. Unknown formats, malformed or empty collections, unsupported expectation keys, and an empty fixture root are errors rather than silent skips. Individual failures are collected so later independent fixture checks still run; the command exits nonzero if any check fails.
+
+Actor checks run after snapshot validation and authoring checks, with all briefs prepared before decisions are reviewed. Binding uses snapshot/context digests, never fixture filenames or campaign identities. Inventory mode only lists these planned checks and invokes no CLI subprocesses. The current combined inventory covers 104 JSON files with 50 executable checks.
 
 The harness uses bounded subprocesses with no shell interpolation. Generated bundles, notes and authoring storage live in fresh, canonical temporary directories; source fixtures are not rewritten by the verifier.
 

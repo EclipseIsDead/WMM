@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:actor",
+  "$ref": "#/$defs/Brief",
+  "$defs": {
+    "Digest": { "$ref": "urn:wmm:authoring#/$defs/Digest" },
+    "Slug": { "$ref": "urn:wmm:authoring#/$defs/Slug" },
+    "EntityId": { "$ref": "urn:wmm:authoring#/$defs/EntityId" },
+    "CampaignId": { "$ref": "urn:wmm:authoring#/$defs/CampaignId" },
+    "Text": { "type": "string", "minLength": 1, "maxUtf16Length": 8192 },
+    "Question": { "type": "string", "minLength": 1, "maxUtf16Length": 2048 },
+    "ItemKind": { "enum": ["goal", "value", "resource", "constraint", "belief", "information", "unknown"] },
+    "Basis": {
+      "oneOf": [
+        { "type": "object", "properties": { "kind": { "const": "section" }, "ownerId": { "$ref": "urn:wmm:authoring#/$defs/NoteId" }, "sectionId": { "$ref": "#/$defs/Slug" } }, "required": ["kind", "ownerId", "sectionId"], "additionalProperties": false },
+        { "type": "object", "properties": { "kind": { "const": "relationship" }, "assertionId": { "$ref": "urn:wmm:authoring#/$defs/AssertionId" } }, "required": ["kind", "assertionId"], "additionalProperties": false },
+        { "type": "object", "properties": { "kind": { "const": "track" }, "trackId": { "$ref": "urn:wmm:authoring#/$defs/TrackId" } }, "required": ["kind", "trackId"], "additionalProperties": false }
+      ]
+    },
+    "BriefItem": {
+      "type": "object", "properties": { "id": { "$ref": "#/$defs/Slug" }, "kind": { "$ref": "#/$defs/ItemKind" }, "text": { "$ref": "#/$defs/Text" }, "basis": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/Basis" } } },
+      "required": ["id", "kind", "text", "basis"], "additionalProperties": false
+    },
+    "ContextItem": {
+      "type": "object", "properties": { "id": { "$ref": "#/$defs/Slug" }, "kind": { "$ref": "#/$defs/ItemKind" }, "text": { "$ref": "#/$defs/Text" } },
+      "required": ["id", "kind", "text"], "additionalProperties": false
+    },
+    "Brief": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.actor-brief/1" }, "snapshotDigest": { "$ref": "#/$defs/Digest" }, "actorId": { "$ref": "#/$defs/EntityId" }, "campaignId": { "$ref": "#/$defs/CampaignId" }, "question": { "$ref": "#/$defs/Question" },
+        "items": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/BriefItem" } }
+      }, "required": ["format", "snapshotDigest", "actorId", "question", "items"], "additionalProperties": false
+    },
+    "Statement": {
+      "type": "object", "properties": { "text": { "$ref": "#/$defs/Text" }, "basis": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/Slug" } } }, "required": ["text", "basis"], "additionalProperties": false
+    },
+    "GroundedStatement": {
+      "type": "object", "properties": { "text": { "$ref": "#/$defs/Text" }, "basis": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/Slug" } } }, "required": ["text", "basis"], "additionalProperties": false
+    },
+    "Communication": {
+      "type": "object", "properties": { "status": { "const": "draft" }, "recipient": { "$ref": "urn:wmm:authoring#/$defs/Name" }, "text": { "$ref": "#/$defs/Text" }, "basis": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/Slug" } } }, "required": ["status", "recipient", "text", "basis"], "additionalProperties": false
+    },
+    "Decision": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.actor-decision/1" }, "status": { "const": "proposed" }, "contextDigest": { "$ref": "#/$defs/Digest" },
+        "action": { "$ref": "#/$defs/GroundedStatement" }, "rationale": { "$ref": "#/$defs/GroundedStatement" }, "uncertainties": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/Statement" } },
+        "communication": { "anyOf": [{ "$ref": "#/$defs/Communication" }, { "type": "null" }] }
+      }, "required": ["format", "status", "contextDigest", "action", "rationale", "uncertainties", "communication"], "additionalProperties": false
+    },
+    "Citation": {
+      "type": "object", "properties": {
+        "sourceId": { "$ref": "urn:wmm:authoring#/$defs/SourceId" }, "title": { "$ref": "urn:wmm:authoring#/$defs/Name" },
+        "path": { "type": "string", "minLength": 1, "maxUtf16Length": 1024 }, "locator": { "$ref": "urn:wmm:authoring#/$defs/Name" }
+      }, "required": ["sourceId", "title", "path", "locator"], "additionalProperties": false
+    },
+    "BasisRecord": {
+      "type": "object", "properties": {
+        "reference": { "$ref": "#/$defs/Basis" }, "context": { "$ref": "urn:wmm:authoring#/$defs/Context" },
+        "document": { "anyOf": [{ "type": "object", "properties": { "path": { "type": "string", "minLength": 1, "maxUtf16Length": 1024 }, "sha256": { "$ref": "#/$defs/Digest" } }, "required": ["path", "sha256"], "additionalProperties": false }, { "type": "null" }] },
+        "assertionIds": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "$ref": "urn:wmm:authoring#/$defs/AssertionId" } },
+        "citations": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Citation" } }
+      }, "required": ["reference", "context", "document", "assertionIds", "citations"], "additionalProperties": false
+    },
+    "Review": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.actor-decision-review/1" }, "status": { "const": "draft" }, "context": { "$ref": "#/$defs/Context" }, "decision": { "$ref": "#/$defs/Decision" }, "decisionDigest": { "$ref": "#/$defs/Digest" },
+        "provenance": { "type": "array", "maxItems": 64, "items": { "type": "object", "properties": { "itemId": { "$ref": "#/$defs/Slug" }, "basis": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/BasisRecord" } } }, "required": ["itemId", "basis"], "additionalProperties": false } },
+        "limitations": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxUtf16Length": 1024 } }
+      }, "required": ["format", "status", "context", "decision", "decisionDigest", "provenance", "limitations"], "additionalProperties": false
+    },
+    "Context": {
+      "type": "object", "properties": {
+        "format": { "const": "wmm.actor-context/1" }, "snapshotDigest": { "$ref": "#/$defs/Digest" }, "semanticProfileDigest": { "$ref": "#/$defs/Digest" }, "inputDigest": { "$ref": "#/$defs/Digest" }, "briefDigest": { "$ref": "#/$defs/Digest" }, "contextDigest": { "$ref": "#/$defs/Digest" },
+        "perspective": { "const": "actor" }, "selectionPolicy": { "const": "explicit-curation" },
+        "actor": { "type": "object", "properties": { "id": { "$ref": "#/$defs/EntityId" }, "name": { "$ref": "urn:wmm:authoring#/$defs/Name" } }, "required": ["id", "name"], "additionalProperties": false },
+        "campaignId": { "anyOf": [{ "$ref": "#/$defs/CampaignId" }, { "type": "null" }] }, "question": { "$ref": "#/$defs/Question" },
+        "items": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/ContextItem" } }, "complete": { "const": true },
+        "limits": { "type": "object", "properties": { "maxBytes": { "const": 65536 }, "maxItems": { "const": 64 } }, "required": ["maxBytes", "maxItems"], "additionalProperties": false },
+        "limitations": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxUtf16Length": 1024 } }
+      }, "required": ["format", "snapshotDigest", "semanticProfileDigest", "inputDigest", "briefDigest", "contextDigest", "perspective", "selectionPolicy", "actor", "campaignId", "question", "items", "complete", "limits", "limitations"], "additionalProperties": false
+    }
+  }
+}

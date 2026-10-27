@@ -1,12 +1,16 @@
 # Release notes
 
-## Unreleased — structured authoring and DM notes
+## Unreleased — structured authoring, DM notes, and entity context
 
+- `actor schema`, `actor prepare`, and `actor review` add explicit actor briefs and external-agent decision rehearsals. Actor packets exclude source prose/citation metadata; beliefs remain curated beliefs rather than verified facts. Review rebuilds the exact context, checks draft status and brief-item references, and optionally writes fresh JSON/Markdown artifacts with a file manifest. No provider, delivery, execution, canon mutation, or atlas model is added.
+- Curated briefs fail closed at output budgets; they never silently omit constraints. The synthetic actor inputs ship in the portable archive and are exercised by isolated release verification. See [ACTOR-WORKFLOW.md](ACTOR-WORKFLOW.md).
 - `authoring schema`, `authoring check`, and `authoring build` expose a closed agent-editable project format and compile fresh verified WMM snapshots. `notes render` generates deterministic linked DM views from a reloaded snapshot.
 - Stable entity IDs, explicit invariant relationships, labelled narrative, traceable citations, and campaign-scoped bounded integer tracks. Narrative/possibilities are not extracted into claims; citations are not fabricated documentary evidence.
 - An additive release-owned semantic profile and safe-integer literal/value operations. The `wmm/1` operation set/envelope and existing bundled profile/fixture hashes are unchanged. Normal world/claim/API/workspace paths admit both release profiles; input never supplies its own trust roots.
 - Fresh destinations only, bounded input/output, no in-place bundle edits, no plugin execution, and full compiler-correspondence validation before rendering. No approval, canonical acceptance, workspace round-trip, or whole-vault import capability is implied.
 - Reusable tooling and synthetic fixtures remain in the repository; private source material and derived projects/bundles/notes belong outside it. See [AUTHORING.md](AUTHORING.md).
+- `context schema` and `context entity` expose a closed, cited DM-side packet bound to a verified authored snapshot, semantic profile, captured input, explicit selection, and effective limits. Direct relationships, selected narrative/explicit incoming references, and current campaign tracks come from admitted records/document bytes, not rendered-note scraping.
+- Deterministic atomic-item selection, canonical UTF-8 byte limits, current-track priority, and explicit completeness/omission counts. No silent prose truncation, actor-knowledge policy, LLM call, roleplayed decision, source write, or new `wmm/1` operation. Private packets belong outside both the repository and source bundle.
 
 ## 0.1.0-alpha.1 — first product prerelease (prepared, not published)
 

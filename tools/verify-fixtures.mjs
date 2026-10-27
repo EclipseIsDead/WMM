@@ -13,6 +13,7 @@ import { parseStrictJson } from "../apps/cli/dist/json-input.js";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const checks = [], plans = [], files = new Map(), covered = new Set(), outputRoots = [];
+const verifiedSnapshots = [], actorContexts = [];
 let fixtureRoot = join(repo, "fixtures"), list = false, json = false;
 const read = (path) => parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(path)));
 const label = (path) => relative(fixtureRoot, path).split(sep).join("/");
@@ -44,13 +45,16 @@ function discover(path) {
 }
 
 function planFixtures() {
+  const briefs = [], decisions = [];
   add(null, "contract-kit", "dev", ["contract-kit", "verify", join(repo, "wmm-v0.3-contract-kit")]);
   add(null, "seed", "dev", ["seed", "validate", join(repo, "wmm-v0.3-contract-kit")]);
   for (const [path, value] of files) {
     if (value?.format !== "wmm.snapshot-record/1") continue;
     const file = label(path);
     covered.add(path);
-    add(file, `${file}#world.validate`, "snapshot", dirname(path));
+    const verified = {};
+    verifiedSnapshots.push(verified);
+    add(file, `${file}#world.validate`, "action", () => verifySnapshot(dirname(path), verified));
     try {
       for (const member of collection(value.manifest?.files, "manifest.files")) {
         assert(typeof member?.path === "string" && member.path, "Malformed manifest member");
@@ -70,6 +74,8 @@ function planFixtures() {
         add(file, `${file}#v0`, "dev", ["v0", "verify", join(repo, "wmm-v0.3-contract-kit"), path]);
       } else if (format === "wmm.request/1") add(file, `${file}#request`, "request", { request: value });
       else if (format === "wmm.authoring-project/1") planAuthoring(path, value);
+      else if (format === "wmm.actor-brief/1") briefs.push([path, value]);
+      else if (format === "wmm.actor-decision/1") decisions.push([path, value]);
       else if (format === "wmm.api-fixtures/1") {
         for (const [index, request] of collection(value.requests, "requests").entries()) add(file, `${file}#requests/${index}`, "request", { request });
         for (const [index, item] of collection(value.invalidRequests, "invalidRequests").entries()) add(file, `${file}#invalidRequests/${index}`, "invalid", item);
@@ -79,6 +85,9 @@ function planFixtures() {
       covered.add(path);
     } catch (error) { fail(file, `${file}#discovery`, error); }
   }
+  // Resolve bindings at execution time, after every authored snapshot and brief.
+  for (const [path, brief] of briefs) planActorBrief(path, brief);
+  for (const [path, decision] of decisions) planActorDecision(path, decision);
 }
 
 function temporary(action) {
@@ -143,7 +152,7 @@ function api(request, expected = {}, workspaceDirectory) {
 
 function dev(args, status) {
   const result = run(args);
-  assert.equal(result.exitCode, 0, "Development verifier exit code");
+  assert.equal(result.exitCode, 0, `Development verifier exit code${result.response.error?.code ? `: ${result.response.error.code}` : ""}`);
   assert.equal(result.response.apiVersion, "wmm/dev/1");
   assert.equal(result.response.outcome, "success");
   assert.equal(result.response.execution, "completed");
@@ -152,6 +161,12 @@ function dev(args, status) {
 }
 
 const request = (operation, payload) => ({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: "fixture-check", operation, payload });
+function verifySnapshot(bundlePath, verified) {
+  const result = api(request("world.validate", { bundlePath }));
+  assert.equal(result.response.data.status, "valid", "Invalid snapshot");
+  Object.assign(verified, { bundlePath, snapshotDigest: read(join(bundlePath, "snapshot.json")).snapshotDigest });
+  return result;
+}
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function tree(path, prefix = "") {
   return readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1).flatMap((entry) => {
@@ -165,6 +180,8 @@ function tree(path, prefix = "") {
 function planAuthoring(path, project) {
   const file = label(path), atlases = project.atlases ?? [];
   assert(Array.isArray(atlases), "Malformed atlases collection");
+  const verified = {};
+  verifiedSnapshots.push(verified);
   let directory, captured;
   const atlasDigests = new Map();
   const out = (name) => {
@@ -174,7 +191,10 @@ function planAuthoring(path, project) {
   const stage = (name, action) => add(file, `${file}#authoring/${name}`, "action", action);
   stage("check", () => dev(["authoring", "check", path], "valid"));
   for (const index of [1, 2]) stage(`build/${index}`, () => dev(["authoring", "build", path, "--out", out(`bundle${index}`)], "valid"));
-  for (const index of [1, 2]) stage(`validate/${index}`, () => api(request("world.validate", { bundlePath: out(`bundle${index}`) })));
+  for (const index of [1, 2]) stage(`validate/${index}`, () => {
+    // Atlas capture removes bundle1; actor checks retain the verified second build.
+    return verifySnapshot(out(`bundle${index}`), index === 2 ? verified : {});
+  });
   for (const index of [1, 2]) stage(`render/${index}`, () => dev(["notes", "render", out(`bundle${index}`), "--out", out(`notes${index}`)]));
   for (const kind of ["bundles", "notes"]) stage(`compare-${kind}`, () => {
     const base = kind === "bundles" ? "bundle" : "notes", first = tree(out(`${base}1`));
@@ -207,11 +227,34 @@ function planAuthoring(path, project) {
   stage("readonly", () => assert.deepEqual(api(request("workspace.read", { workspaceId: "fixture" }), {}, out("workspace")).response.data.workspace, captured, "Map reads changed workspace state"));
 }
 
+function planActorBrief(path, brief) {
+  const file = label(path), prepared = { path };
+  actorContexts.push(prepared);
+  add(file, `${file}#actor/prepare`, "action", () => {
+    const snapshot = verifiedSnapshots.find((item) => item.bundlePath && item.snapshotDigest === brief.snapshotDigest);
+    assert(snapshot, "No verified authored snapshot matches actor brief snapshotDigest");
+    const result = dev(["actor", "prepare", snapshot.bundlePath, path]);
+    Object.assign(prepared, { bundlePath: snapshot.bundlePath, packet: result.response.data });
+    return result;
+  });
+}
+
+function planActorDecision(path, decision) {
+  const file = label(path);
+  add(file, `${file}#actor/review`, "action", () => {
+    const prepared = actorContexts.find((item) => item.packet && item.packet.contextDigest === decision.contextDigest);
+    assert(prepared, "No prepared actor context matches decision contextDigest (unbound or stale)");
+    const result = dev(["actor", "review", prepared.bundlePath, prepared.path, path]);
+    assert.deepEqual(result.response.data.review.context, prepared.packet, "Reviewed actor context mismatch");
+    assert.deepEqual(result.response.data.review.decision, decision, "Reviewed decision mismatch");
+    return result;
+  });
+}
+
 function execute(plan) {
   let result;
   if (plan.kind === "action") result = plan.value();
   else if (plan.kind === "dev") result = dev(plan.value, plan.id === "seed" ? "valid-seed-fixture" : "passed");
-  else if (plan.kind === "snapshot") result = api(request("world.validate", { bundlePath: plan.value }));
   else if (plan.kind === "invalid") result = api(plan.value.payload, { exitCode: 2, outcome: "error", execution: "completed", errorCode: "INVALID_REQUEST" });
   else result = api(plan.value.request, plan.value.expected);
   return result ? { exitCode: result.exitCode } : {};

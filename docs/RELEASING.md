@@ -45,7 +45,8 @@ outside the extracted release. Interactive UI requires a supported real TTY;
 
 The artifact preserves `apps/cli/dist`, its manifest, internal packages at
 `packages/*`, their declared runtime files (including schema JSON), and
-`fixtures/v3/succession-world`. This preserves fixture paths relative to
+`fixtures/v3/succession-world`, plus the three synthetic authoring/actor inputs
+under `fixtures/authoring/`. This preserves fixture paths relative to
 `import.meta.url` and the CLI version lookup relative to `dist/main.js`.
 The repository README and docs are included as reference; contributor commands
 and other fixture examples in them may require a full checkout.
@@ -77,6 +78,9 @@ and runs the actual executable launcher from outside the release. It checks:
 - Plain rendering of the saved mutation.
 - Dynamic imports of built plain presentation, UI app, and workspace entrypoint,
   exercising the React/Ink runtime dependency closure without requiring a TTY.
+- The shipped synthetic authoring project, actor brief, and authored decision example:
+  verified build, deterministic curated-only actor preparation, proposed-decision
+  review, exact saved JSON/Markdown and file-manifest checks, and source-bundle validation.
 
 Temporary extraction and workspace storage are removed even after failure.
 Subprocesses have bounded timeouts. The smoke test does not simulate interactive

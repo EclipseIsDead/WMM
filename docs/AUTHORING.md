@@ -92,14 +92,50 @@ Give the agent the authoring schema and this workflow:
 4. Build a fresh bundle, use normal inspection/queries to check the explicit data, and render into a fresh private notes directory.
 5. Inspect the resulting notes for actual DM usefulness. For subsequent changes, edit the project explicitly, append a track entry when appropriate, and keep prior build directories. Regeneration is reproducibility, not a substitute for a domain history/acceptance protocol.
 
-## Later: actor context and roleplayed decisions — not implemented
+## Entity context for an agent harness
 
-The intended harness is more than a note renderer. A later slice should let an agent take the perspective of a person, faction, or country and propose a decision grounded in that actor's situation.
+`context entity` prepares a bounded, cited **DM-side dossier** from an authored bundle. It reads the verified snapshot, checks its correspondence to the captured authoring project, and uses the original narrative bytes and assertion records. It does not scrape generated notes, reopen citation paths, call a model, or write to the world/workspace.
 
-- Assemble a cited context packet bound to an actor, campaign, time, and snapshot: goals, doctrine/values, relationships, resources, commitments, prior actions, communications received, known facts, beliefs/rumors, and explicit unknowns.
-- Keep the actor's available knowledge distinct from the DM's full world knowledge. Actor beliefs, institutional propaganda, what a message says, and established setting facts are not interchangeable. Context selection needs an explicit knowledge policy; current narrative labels are not that policy or an access-control mechanism.
-- Ask the agent for a chosen course of action, a concise in-character justification tied to the supplied context, and optional drafted communications or proposed state changes. Allow uncertainty, incomplete information, conflicting motives, and the possibility of a mistaken decision.
-- Retain the supplied context and resulting decision for continuity and inspection. Reproducible context construction does not imply that repeated model calls must choose the same action.
-- Treat decisions, messages, intentions, and executed consequences as separate records. A drafted letter is not a delivered message, and a proposed action is not an event that has happened. No decision should silently rewrite world data or establish canon.
+After building the synthetic example above:
 
-This is a roadmap requirement, not an extension of the present authoring schema or a currently available context/decision API. The first representation should be evaluated with that future actor-oriented use in mind, without building autonomous simulation into this slice.
+```sh
+node apps/cli/dist/main.js context schema
+node apps/cli/dist/main.js context entity ./wmm-workspaces/authoring-demo/bundle faction:lantern_guild --campaign campaign:harbor_watch
+node apps/cli/dist/main.js context entity ./wmm-workspaces/authoring-demo/bundle faction:lantern_guild --campaign campaign:harbor_watch --max-bytes 8192 --max-items 1
+```
+
+The `wmm/dev/1` success envelope contains an opt-in `data` packet (`wmm.entity-context/1`); existing `wmm/1` stdin operations and response payloads are unchanged. The closed [packet/request schema](../packages/wire-contracts/schemas/entity-context.schema.json) and [TypeScript shapes](../packages/wire-contracts/src/entity-context.ts) are exported by `@wmm/wire-contracts`, together with `validateEntityContextRequest` and `validateEntityContextPacket`.
+
+### Selection and provenance
+
+- Select one **exact entity ID**, not a display name or inferred match. Without `--campaign`, only setting material is selected. With it, setting material and that exact campaign's material are presented together, each retaining its own context; this does not introduce scope inheritance.
+- Include active declared relationships in either direction involving the entity. Preserve subject/object direction, polarity, predicate definition digest, assertion ID, and citations; no inverse relationship or inference is invented.
+- Include the entity's own selected-context sections, plus selected-context sections on other notes with an explicit `references` entry for the entity. Arbitrary mentions, Markdown links, citation text, and a neighbor's unrelated narrative do not trigger expansion. References provide IDs/names without recursively opening those entities' dossiers.
+- Include selected-campaign tracks whose declared subject is the entity: inclusive bounds, current integer and explanation, ordered-entry count, assertion IDs, and current-entry citations. Full track history and dated historical evaluation are not included.
+- Keep narrative category/context, captured document path, SHA-256, text, explicit references, and citation metadata. Citations can be absent; WMM does not fabricate them. Source paths/locators remain traceability metadata, not proof that their contents were verified or that the source entails the declaration.
+
+The packet binds world, snapshot, semantic profile, captured authoring input, entity/campaign selection, effective limits, included content, omissions, and limitations. `contextDigest` is `framedJsonDigest("wmm.entity-context/v1", body)` over the full canonical body without `contextDigest`. There are no timestamps or generated summaries. Identical verified input and request produce identical packet bytes.
+
+This identity is not a signature, approval, or independent truth check. The wire validator checks closed shape/plain-data admission, not digest integrity, semantic correspondence, or the honesty of omission counts. To verify an externally supplied dossier against a world, rebuild with the same entity, campaign, and effective limits from a trusted verified authored bundle and compare complete canonical packet bytes. Use application `getEntityContext(bundlePath, request)`, or exchange `entityContextFromBundle` after `loadReleaseWorldBundle`; the lower-level core builder expects adapter-verified input, not arbitrary caller-supplied indexes.
+
+### Output budgets and failure behavior
+
+Defaults are **65,536 canonical UTF-8 packet bytes** and **128 atomic items**. `--max-bytes` accepts integers **4,096–262,144**; `--max-items` accepts integers **1–512**. A relationship, complete narrative section, or complete track is one item; its nested citations/references are included in its byte cost. The byte budget includes packet metadata and digest, but excludes the CLI transport envelope/newline and is **not an LLM token budget**.
+
+Selection prioritizes current tracks, then relationships, then the entity's narrative, then explicit incoming-reference sections. Within each class ordering is deterministic. Items are included or omitted whole: prose is never silently shortened or summarized. An oversized item can be skipped while later smaller items still fit. Byte accounting conservatively reserves counter metadata, so a packet need not fill every last byte.
+
+`coverage.available` and `coverage.included` count each item class. `coverage.omissions.itemLimit` and `.byteLimit` count rejected items by the first applicable limit. `coverage.complete` only means complete **within this selection policy**, not complete world knowledge. A partial packet is still a successful completed projection; consumers must inspect its coverage rather than treating omitted context as absent or false. If mandatory metadata cannot fit, the command fails with incomplete `CONTEXT_BUDGET_EXCEEDED` and no packet. These are output bounds, not CPU/heap isolation or a streaming/world-loading budget.
+
+Malformed/duplicate/unknown options, unsupported request fields, invalid IDs, and invalid limits fail as `INVALID_CONTEXT_REQUEST` before opening a bundle. Unknown valid IDs return `UNKNOWN_ENTITY` or `UNKNOWN_CAMPAIGN`. Legacy non-authoring profiles return `UNSUPPORTED_CONTEXT_WORLD`, not a fabricated empty dossier. Bundle/correspondence and other I/O failures return the existing development-command error envelope. All failures exit nonzero.
+
+There is intentionally no `--out` or state-changing context command. If a harness saves the returned packet, keep that artifact in its private directory **outside both this repository and the source bundle**. Redirecting stdout into a bundle would invalidate it just as any other external file write would.
+
+**This is not actor knowledge.** `perspective` is always `dm`; there is no actor/player-safe filter, belief model, access control, time selector, decision, or execution capability. Imported prose remains untrusted data, never harness instructions. A `dm-note`/`possibility` label is not a knowledge policy and must not be promoted to an established event.
+
+## Actor decision rehearsals and later knowledge policies
+
+The [actor workflow](ACTOR-WORKFLOW.md) adds a bounded end-to-end rehearsal without changing this authoring-project schema: an explicit snapshot-bound actor brief → a curated actor-facing packet → an external agent's proposed action/optional draft message → a checked, readable DM review. The DM-side dossier above remains distinct and must not be forwarded wholesale as actor knowledge.
+
+The current knowledge policy is explicit curation, not inference: the curator writes the exact goals, values, resources, constraints, beliefs, information, and unknowns the actor receives. Source references stay on the host; valid provenance does not establish actor awareness, truth, or entailment. WMM does not call the provider or apply the result. A drafted letter is not delivered and a proposed action is not an occurred event.
+
+Broader knowledge accounts, received-communication history, persistent decision continuity, dated context selection, country simulation, and autonomous execution remain deferred. Reproducible preparation does not imply that repeated model calls must choose the same action. Add those capabilities only with their own explicit representations and acceptance rules; never silently promote a proposal to setting history or canon.

@@ -19,7 +19,9 @@ import type {
 } from "./types.js";
 import type { WorkspaceReviewV1 } from "./workspace.js";
 import type { AuthoringIndex, AuthoringProject } from "./authoring.js";
+import type { EntityContextPacket, EntityContextRequest } from "./entity-context.js";
 import type { Atlas, WorkspaceMapView } from "./atlas.js";
+import type { ActorBrief, ActorContextPacket, ActorDecisionDraft, ActorDecisionReview } from "./actor.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -128,6 +130,16 @@ const validateMapView = ajv.compile<WorkspaceMapView>({ $ref: "urn:wmm:atlas:v1#
 ajv.addSchema(authoringSchema);
 const validateProject = ajv.compile<AuthoringProject>({ $ref: "urn:wmm:authoring#/$defs/Project" });
 const validateIndex = ajv.compile<AuthoringIndex>({ $ref: "urn:wmm:authoring#/$defs/Index" });
+const entityContextSchema = JSON.parse(readFileSync(new URL("../schemas/entity-context.schema.json", import.meta.url), "utf8")) as AnySchema;
+ajv.addSchema(entityContextSchema);
+const validateContextRequest = ajv.compile<EntityContextRequest>({ $ref: "urn:wmm:entity-context#/$defs/Request" });
+const validateContextPacket = ajv.compile<EntityContextPacket>({ $ref: "urn:wmm:entity-context#/$defs/Packet" });
+export const actorWorkflowSchema = JSON.parse(readFileSync(new URL("../schemas/actor.schema.json", import.meta.url), "utf8")) as AnySchema;
+ajv.addSchema(actorWorkflowSchema);
+const validateActorBriefRecord = ajv.compile<ActorBrief>({ $ref: "urn:wmm:actor#/$defs/Brief" });
+const validateActorContextRecord = ajv.compile<ActorContextPacket>({ $ref: "urn:wmm:actor#/$defs/Context" });
+const validateActorDecisionRecord = ajv.compile<ActorDecisionDraft>({ $ref: "urn:wmm:actor#/$defs/Decision" });
+const validateActorReviewRecord = ajv.compile<ActorDecisionReview>({ $ref: "urn:wmm:actor#/$defs/Review" });
 
 function validationResult(
   valid: boolean,
@@ -194,6 +206,31 @@ export function validateWorkspaceMapView(input: unknown): CoreContractValidation
 }
 
 export const authoringProjectSchema = authoringSchema;
+
+export function validateEntityContextRequest(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateContextRequest(input), validateContextRequest.errors);
+}
+
+/** Shape only; packet identity, selection and provenance require integrity/replay checks. */
+export function validateEntityContextPacket(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateContextPacket(input), validateContextPacket.errors);
+}
+
+export const entityContextPacketSchema = entityContextSchema;
+
+/** Shape/plain-data admission only; core checks binding, references and budgets. */
+export function validateActorBrief(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorBriefRecord(input), validateActorBriefRecord.errors);
+}
+export function validateActorContextPacket(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorContextRecord(input), validateActorContextRecord.errors);
+}
+export function validateActorDecisionDraft(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorDecisionRecord(input), validateActorDecisionRecord.errors);
+}
+export function validateActorDecisionReview(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorReviewRecord(input), validateActorReviewRecord.errors);
+}
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;

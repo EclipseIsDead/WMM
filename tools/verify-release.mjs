@@ -5,6 +5,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
 const version = JSON.parse(readFileSync(join(repository, 'apps/cli/package.json'), 'utf8')).version;
@@ -98,6 +99,40 @@ try {
   assert.match(cli('--version'), new RegExp(`(^|\\s)${version.replaceAll('.', '\\.')}($|\\s)`));
   assert.match(cli('--help'), /usage/i);
   console.log('PASS launcher, --version, --help');
+  const authoring = join(release, 'fixtures/authoring');
+  for (const input of ['faction-project.json', 'lantern-actor-brief.json', 'lantern-decision-draft.json']) {
+    assert.ok(existsSync(join(authoring, input)), `Missing shipped actor example: ${input}`);
+  }
+  const actorSchema = JSON.parse(cli('actor', 'schema'));
+  assert.equal(actorSchema.outcome, 'success');
+  assert.equal(actorSchema.data.$defs.Decision.properties.status.const, 'proposed');
+  const actorBundle = join(temporary, 'actor bundle');
+  const built = JSON.parse(cli('authoring', 'build', join(authoring, 'faction-project.json'), '--out', actorBundle));
+  assert.equal(built.outcome, 'success');
+  const brief = join(authoring, 'lantern-actor-brief.json');
+  const actorContext = JSON.parse(cli('actor', 'prepare', actorBundle, brief));
+  assert.equal(actorContext.outcome, 'success');
+  assert.equal(actorContext.data.perspective, 'actor');
+  assert.ok(!JSON.stringify(actorContext.data).includes('Setting/Factions.md'));
+  assert.deepEqual(JSON.parse(cli('actor', 'prepare', actorBundle, brief)), actorContext);
+  const actorOutput = join(temporary, 'actor review');
+  const actorReview = JSON.parse(cli('actor', 'review', actorBundle, brief, join(authoring, 'lantern-decision-draft.json'), '--out', actorOutput));
+  assert.equal(actorReview.outcome, 'success');
+  assert.equal(actorReview.data.review.context.contextDigest, actorContext.data.contextDigest);
+  assert.equal(actorReview.data.review.status, 'draft');
+  assert.equal(actorReview.data.review.decision.communication.status, 'draft');
+  assert.equal(readFileSync(join(actorOutput, 'review.md'), 'utf8'), actorReview.data.markdown);
+  const actorManifest = JSON.parse(readFileSync(join(actorOutput, 'wmm-actor-review.json'), 'utf8'));
+  const actorFiles = new Set(['actor-brief.json', 'actor-context.json', 'decision.json', 'review.json', 'review.md']);
+  assert.equal(actorManifest.files.length, actorFiles.size);
+  for (const entry of actorManifest.files) {
+    assert.ok(actorFiles.delete(entry.path), `Unexpected or repeated review file: ${entry.path}`);
+    const bytes = readFileSync(join(actorOutput, entry.path));
+    assert.equal(entry.byteLength, String(bytes.length));
+    assert.equal(entry.sha256, createHash('sha256').update(bytes).digest('hex'));
+  }
+  assert.equal(JSON.parse(cli('world', 'validate', actorBundle)).outcome, 'success');
+  console.log('PASS shipped actor schema/example, verified build, deterministic curated-only actor packet, proposed-decision review and saved-file manifest');
   console.log(`Verified ${archive} outside repository on ${process.platform}/${process.arch}, Node ${process.versions.node}`);
 } finally {
   rmSync(temporary, { recursive: true, force: true });
