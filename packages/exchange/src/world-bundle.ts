@@ -29,6 +29,7 @@ import {
   admitSemanticProfile,
   bundledV1Semantics,
   authoringSemantics,
+  economySemantics,
   MAX_WORLD_BUNDLE_DIRECTORIES,
   MAX_ATLAS_BYTES,
   MAX_ATLASES_PER_WORLD,
@@ -683,9 +684,10 @@ export function loadBundledV1WorldBundle(bundlePath: string): LoadedWorldBundle 
 export function loadReleaseWorldBundle(bundlePath: string): LoadedWorldBundle {
   const legacy = bundledV1Semantics();
   const authoring = authoringSemantics();
+  const economy = economySemantics();
   return loadWorldBundle(bundlePath, {
-    trustedDefinitionDigests: new Set(Object.keys(authoring.definitionsByDigest)),
-    trustedProfileDigests: new Set([legacy.profileDigest, authoring.profileDigest]),
+    trustedDefinitionDigests: new Set(Object.keys(economy.definitionsByDigest)),
+    trustedProfileDigests: new Set([legacy.profileDigest, authoring.profileDigest, economy.profileDigest]),
   });
 }
 

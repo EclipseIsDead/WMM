@@ -34,6 +34,7 @@ The editor has five views: **Changes, World, Constraints, History, and Review**.
 - **Tab** switches views; **↑ / ↓** moves through items.
 - **Enter** inspects an item; **Esc** returns or cancels.
 - **m**, in World, opens the read-only colour reference atlas when the captured world includes one; monochrome fallback is supported.
+- **o**, in World, opens read-only Economy inspection for explicitly opted-in economic projects; **[ / ]** switches declaration categories.
 - **Space** selects or unselects a draft change in Changes.
 - **a** adds a prose proposal; **Ctrl+S** saves a form.
 - **?** shows keyboard help; **q** quits outside a form.
@@ -54,7 +55,7 @@ From a source checkout after the initial build, open the included example bundle
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
 ```
 
-For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring, atlas, and actor inputs, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring, grain-economy, atlas, and actor inputs, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
 
 Resume that workspace later:
 
@@ -86,12 +87,20 @@ Start with the synthetic `fixtures/authoring/faction-project.json` and the [stru
 
 Create an explicit actor brief, use `actor prepare` to disclose only its curated statements to an external agent, then use `actor review` to check the proposed response and render a DM review. Beliefs can be mistaken, source metadata stays on the host, and messages remain undelivered drafts. WMM does not call a provider or apply the decision. Follow the [actor workflow](docs/ACTOR-WORKFLOW.md), including a runnable synthetic example shipped in the archive.
 
+## Inspect economic declarations
+
+The opt-in economy profile adds source-bound stock observations, future delivery commitments and planned requirements with exact, bounded or unknown quantities. `economy inspect <bundle> [--json]` reads a verified snapshot; `workspace economy --workspace-dir <directory> --plain` reads the captured base after the original source moves. World → Economy uses the same application-backed data and keeps saved proposals/reviews unchanged.
+
+Start with `fixtures/authoring/grain-project.json` and the [economy guide](docs/ECONOMY.md). Unknown is not zero, a promise is not stock, and a requirement is not consumption. Accounting, scenarios, model/provider calls and canon writes are not added. Economic-profile bundles deliberately do not yet support legacy generated Markdown notes or actor/entity-context preparation; those paths report unsupported instead of silently omitting economics.
+
 ## Documentation
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
 - [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
 - [Actor workflow](docs/ACTOR-WORKFLOW.md) — curated actor context, proposed decisions, and private DM review artifacts.
 - [ASCII reference atlas](docs/ATLAS.md) — runnable map example, World → Map controls, physical coverage, and the opt-in wire operation.
+- [Economy inspection](docs/ECONOMY.md) — synthetic grain example, quantities, source-bound declarations, World → Economy and the opt-in read operation.
+- [Shared measurements](docs/MEASUREMENTS.md) — exact rational quantities, admitted units, uncertainty and bounded pure arithmetic.
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.

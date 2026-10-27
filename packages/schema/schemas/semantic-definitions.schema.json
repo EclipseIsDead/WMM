@@ -40,6 +40,8 @@
             "retained-unicode-v1",
             "safe-integer-literal-v1",
             "integer-value-v1",
+            "economic-record-atom-v1",
+            "economic-record-literal-v1",
             "bundled-candidate-membership-v1",
             "bundled-candidate-selector-v1",
             "bundled-eligibility-v1",

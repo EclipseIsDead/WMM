@@ -8,6 +8,8 @@ import type {
 } from "@wmm/wire-contracts";
 import { validateAuthoringProject, validateAuthoringIndex, validateWorldRecord } from "@wmm/wire-contracts";
 import { authoringSemantics } from "./authoring-semantics.js";
+import { economySemantics } from "./economy-semantics.js";
+import { compileEconomicRecordValue } from "./economy.js";
 import { MAX_WORLD_BUNDLE_DIRECTORIES } from "./world-bundle-limits.js";
 import { validateWorldSemantics } from "./world-validation.js";
 import { admitAtlas, AtlasError, MAX_ATLASES_PER_WORLD } from "./atlas.js";
@@ -40,7 +42,7 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
   // Work from a detached ordinary-data value, not caller-owned mutable structures.
   const project = JSON.parse(new TextDecoder().decode(inputBytes)) as AuthoringProject;
   const inputDigest = sha256Hex(inputBytes);
-  const semantics = authoringSemantics();
+  const semantics = project.economy === undefined ? authoringSemantics() : economySemantics();
   const digest = (key: string): string => {
     const value = semantics.definitionDigestsByKey[key];
     if (value === undefined) throw new AuthoringError(`Unknown authoring definition: ${key}`);
@@ -155,10 +157,22 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
       });
     }
   }
+  const economicIds = new Set<string>();
+  for (const entry of project.economy?.records ?? []) {
+    if (economicIds.has(entry.id)) throw new AuthoringError(`Duplicate economic entry ID: ${entry.id}`);
+    economicIds.add(entry.id);
+    requireEntity(entry.subjectId); checkContext(entry.context); checkCitations(entry.citations);
+    const value = compileEconomicRecordValue(entry, semantics.definitionsByDigest);
+    claim(entry.subjectId, "economic_record", { kind: "literal", valueDefinitionDigest: digest("economic_record_value"), data: value as unknown as JsonValue }, entry.context);
+  }
   const source: SourceRecordV1 = {
     format: "wmm.source/1", worldId: project.worldId, id: AUTHORING_SOURCE_ID, sourceType: "authorStipulation",
     content: { availability: "bundled", path: AUTHORING_INPUT_PATH, sha256: inputDigest },
   };
+  // Citations are references only. No path reads, invented hashes or documentary support.
+  const sources: SourceRecordV1[] = [source, ...(project.economy === undefined ? [] : project.sources.map((entry): SourceRecordV1 => ({
+    format: "wmm.source/1", worldId: project.worldId, id: entry.id, sourceType: "document", content: { availability: "none" },
+  })))];
   const records = [...assertions.values()].sort((a, b) => a.id < b.id ? -1 : 1);
   const supports: SupportRecordV1[] = records.map((record) => {
     const body = {
@@ -170,14 +184,14 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
   }).sort((a, b) => a.id < b.id ? -1 : 1);
   const world: WorldCatalogV1 = {
     format: "wmm.world/1", worldId: project.worldId, semanticProfileDigest: semantics.profileDigest,
-    descriptorIds: descriptors.map((record) => record.id).sort(), sourceIds: [source.id],
+    descriptorIds: descriptors.map((record) => record.id).sort(), sourceIds: sources.map((record) => record.id).sort(),
     assertionIds: records.map((record) => record.id), activeAssertionIds: [...active].sort(),
     supportIds: supports.map((record) => record.id), activeSupportIds: supports.filter((record) => active.has(record.body.claimId)).map((record) => record.id),
   };
-  for (const record of [world, source, ...descriptors, ...records, ...supports]) {
+  for (const record of [world, ...sources, ...descriptors, ...records, ...supports]) {
     if (!validateWorldRecord(record).valid) throw new AuthoringError("Compiler generated an invalid world record");
   }
-  validateWorldSemantics({ world, descriptors, sources: [source], assertions: records, supports, definitionsByDigest: semantics.definitionsByDigest });
+  validateWorldSemantics({ world, descriptors, sources, assertions: records, supports, definitionsByDigest: semantics.definitionsByDigest });
   const atlasIds = new Set<string>();
   if ((project.atlases?.length ?? 0) > MAX_ATLASES_PER_WORLD) throw new AuthoringError("Too many reference atlases");
   for (const input of project.atlases ?? []) {
@@ -207,6 +221,7 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
   json(`types/${semantics.profileDigest}.json`, semantics.profile);
   for (const record of descriptors) json(`records/descriptors/${record.id.replace(":", "/")}.json`, record);
   json("records/sources/wmm_authoring.json", source);
+  for (const record of sources) if (record.id !== source.id) json(`records/sources/${record.id.slice("source:".length)}.json`, record);
   for (const record of records) json(`records/assertions/${record.id.slice(5)}.json`, record);
   for (const record of supports) json(`records/supports/${record.id.slice(4)}.json`, record);
   const payload = [...files.values()].sort((a, b) => a.path < b.path ? -1 : 1);

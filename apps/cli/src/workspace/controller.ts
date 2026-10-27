@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AtlasPoint, ProposalGroupV1, WorkspaceActionV1, WorkspaceMapView, WorkspacePinV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
+import type { AtlasPoint, ProposalGroupV1, WorkspaceActionV1, WorkspaceEconomyView, WorkspaceMapView, WorkspacePinV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
 import * as atlasCore from "@wmm/core";
 import type { WorkspaceClient } from "./client.js";
 import { editText, textBuffer } from "./input.js";
@@ -7,6 +7,8 @@ import type { TextBuffer, TextEdit } from "./input.js";
 import { graphemes } from "./text.js";
 import { reviewStatus } from "./review.js";
 import { atlasViewError } from "./atlas-view.js";
+import { economyViewError } from "./economy-view.js";
+import { economyCategories, type EconomyCategory } from "../economy-format.js";
 import { atlasCellPosition, atlasLayout, projectAtlasViewport } from "./atlas-renderer.js";
 
 export const tabs = ["Changes", "World", "Constraints", "History", "Review"] as const;
@@ -52,6 +54,7 @@ export interface SaveFailure {
 export interface WorkspaceUiState {
   readonly view: WorkspaceViewV1;
   readonly atlas: WorkspaceAtlasState;
+  readonly economy: WorkspaceEconomyState;
   readonly tab: WorkspaceTab;
   readonly indices: Readonly<Record<WorkspaceTab, number>>;
   readonly detail: boolean;
@@ -67,6 +70,13 @@ export interface WorkspaceUiState {
   readonly externalEditorAvailable: boolean;
   readonly reviewAvailable: boolean;
   readonly reviewFailure: string | null;
+}
+export interface WorkspaceEconomyState {
+  readonly open: boolean;
+  readonly view: WorkspaceEconomyView | null;
+  readonly error: string | null;
+  readonly category: EconomyCategory;
+  readonly indices: Readonly<Record<EconomyCategory, number>>;
 }
 export interface WorkspaceAtlasState {
   readonly open: boolean;
@@ -132,6 +142,7 @@ export class WorkspaceController {
       externalEditorAvailable: typeof client.editText === "function",
       reviewAvailable: typeof client.review === "function", reviewFailure: null,
       atlas: { open: false, view: null, error: null, selectedFeatureId: null, layer: "reference", canvasFocus: false, cursor: null, chooser: null },
+      economy: { open: false, view: null, error: null, category: "stock-observation", indices: { "stock-observation": 0, "delivery-commitment": 0, "planned-requirement": 0 } },
     };
   }
   getSnapshot = (): WorkspaceUiState => this.state;
@@ -148,6 +159,9 @@ export class WorkspaceController {
       const atlas = patch.atlas ?? this.state.atlas;
       const error = atlas.view ? atlasViewError(atlas.view, patch.view.workspace) : null;
       if (error) patch = { ...patch, atlas: { ...atlas, view: null, error, chooser: null } };
+      const economy = patch.economy ?? this.state.economy;
+      const economyError = economy.view ? economyViewError(economy.view, patch.view!.workspace) : null;
+      if (economyError) patch = { ...patch, economy: { ...economy, view: null, error: economyError } };
     }
     if (patch.modal !== undefined || patch.tab !== undefined || patch.detail !== undefined || patch.failureOpen !== undefined) this.scrollLimit = Number.POSITIVE_INFINITY;
     this.state = { ...this.state, ...patch };
@@ -160,11 +174,54 @@ export class WorkspaceController {
     this.update({ tab, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
   }
   private toggleAtlas(): void {
+    if (this.state.economy.open) this.update({ economy: { ...this.state.economy, open: false } });
     if (this.state.atlas.open) {
       this.update({ atlas: { ...this.state.atlas, open: false }, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
       return;
     }
     this.readAtlas();
+  }
+  private toggleEconomy(): void {
+    if (this.state.economy.open) {
+      this.update({ economy: { ...this.state.economy, open: false }, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+      return;
+    }
+    let view: WorkspaceEconomyView | null = null;
+    let error: string | null = null;
+    try {
+      if (!this.client.readEconomy) throw new Error("Older client has no WorkspaceClient.readEconomy capability.");
+      const requested = this.state.view.workspace;
+      const response = this.client.readEconomy({ atVersion: requested.version });
+      error = economyViewError(response, requested) ?? economyViewError(response, this.state.view.workspace);
+      if (!error) view = response;
+    } catch (failure) { error = `Economy unavailable: ${errorMessage(failure)}`; }
+    this.update({ economy: { ...this.state.economy, open: true, view, error }, atlas: { ...this.state.atlas, open: false }, detail: false, raw: false, inspectorFocus: false, scroll: 0,
+      status: error ?? "Read captured-base Economy; workspace unchanged.",
+    });
+  }
+  private economyInput(input: string, key: EditorKey, columns: number): void {
+    const current = this.state.economy;
+    if (key.escape) {
+      if (this.state.detail || this.state.inspectorFocus) this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+      else this.toggleEconomy();
+    } else if (input === "[" || input === "]") {
+      const index = economyCategories.indexOf(current.category);
+      const category = economyCategories[(index + (input === "[" ? 2 : 1)) % economyCategories.length]!;
+      this.update({ economy: { ...current, category }, detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+    } else if (input === "d") this.update({ raw: !this.state.raw, detail: true, inspectorFocus: true, scroll: 0 });
+    else if (key.return) this.update({ detail: !this.state.detail, raw: false, inspectorFocus: !this.state.detail, scroll: 0 });
+    else if (key.leftArrow) this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 });
+    else if (key.rightArrow) this.update({ detail: columns < 100 || this.state.detail, inspectorFocus: true });
+    else if (key.upArrow || key.downArrow || key.pageUp || key.pageDown || input === "j" || input === "k") {
+      const direction = key.upArrow || key.pageUp || input === "k" ? -1 : 1;
+      const delta = direction * (key.pageUp || key.pageDown ? 8 : 1);
+      if (this.state.detail || this.state.inspectorFocus || !current.view) this.scrollBy(delta);
+      else {
+        const count = current.view.economy.records.filter(record => record.value.kind === current.category).length;
+        const index = Math.max(0, Math.min(Math.max(0, count - 1), current.indices[current.category] + delta));
+        this.update({ economy: { ...current, indices: { ...current.indices, [current.category]: index } }, scroll: 0 });
+      }
+    } else if (["p", "a", "n", "e", "r", "c", " "].includes(input)) this.update({ status: "Economy is read-only; no hidden rows edited, pinned, selected or reviewed. o: World." });
   }
   private readAtlas(options: { readonly atlasId?: string; readonly geometryVersion?: string } = {}): void {
     const read = this.client.readMap?.bind(this.client);
@@ -594,10 +651,12 @@ export class WorkspaceController {
     // Multi-character input is paste, never a sequence of global shortcuts.
     if (key.ctrl || key.meta || (input.length > 1 && !key.return && !key.tab)) return;
     if (input === "m" && this.state.tab === "World") { this.toggleAtlas(); return; }
+    if (input === "o" && this.state.tab === "World") { this.toggleEconomy(); return; }
     if (input === "?") { this.update({ modal: { kind: "help" }, scroll: 0 }); return; }
     if (/^[1-5]$/.test(input)) { this.setTab(tabs[Number(input) - 1] ?? "Changes"); return; }
     if (key.tab) { this.setTab(tabs[(tabs.indexOf(this.state.tab) + (key.shift ? 4 : 1)) % tabs.length] ?? "Changes"); return; }
     if (input === "v") { this.setTab("Review"); return; }
+    if (this.state.tab === "World" && this.state.economy.open) { this.economyInput(input, key, columns); return; }
     if (this.state.tab === "World" && this.state.atlas.open && this.atlasInput(input, key, columns, rows)) return;
     if (key.escape) { this.update({ detail: false, raw: false, inspectorFocus: false, scroll: 0 }); return; }
     if (input === "c" && this.state.tab === "Review") { this.checkCombinedSelection(); return; }

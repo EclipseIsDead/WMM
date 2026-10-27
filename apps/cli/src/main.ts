@@ -38,6 +38,7 @@ function helpText(): string {
       "  wmm workspace resume --workspace-dir <directory> [--plain | --json]",
       "  wmm workspace review --workspace-dir <directory> [--id main] [--plain | --json]",
       "  wmm workspace map --workspace-dir <directory> [--atlas id] [--geometry-version id] [--plain | --json]",
+      "  wmm workspace economy --workspace-dir <directory> [--id main] [--plain | --json]",
       "  wmm contract-kit verify <kit-directory>",
       "  wmm v0 verify <kit-directory> <semantic-cases-file>",
       "  wmm seed validate <kit-directory>",
@@ -46,6 +47,7 @@ function helpText(): string {
       "  wmm world validate <bundle-directory>",
       "  wmm world inspect <bundle-directory> <identifier>",
       "  wmm world export <bundle-directory>",
+      "  wmm economy inspect <bundle-directory> [--json]",
       "  wmm authoring schema",
       "  wmm authoring check <project.json>",
       "  wmm authoring build <project.json> --out <new-directory>",
@@ -119,6 +121,16 @@ async function main(): Promise<void> {
     process.stdout.write(`${manifest.version}\n`);
     return;
   }
+  if (args[0] === "economy") {
+    const { runEconomyCommand } = await import("./economy-command.js");
+    const result = runEconomyCommand(args.slice(1));
+    if (result.json) writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: result.data });
+    else {
+      const { renderEconomyPlain } = await import("./economy-format.js");
+      process.stdout.write(`${renderEconomyPlain(result.data)}\n`);
+    }
+    return;
+  }
   if (args[0] === "actor") {
     const { runActorCommand } = await import("./actor-command.js");
     writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runActorCommand(args.slice(1)) });
@@ -180,6 +192,10 @@ void main().catch(async (error: unknown) => {
     writeJsonTransport(
       jsonTransportError("INTERNAL_ERROR", "Unable to read or process the JSON request"),
     );
+  } else if (process.argv[2] === "economy" && !process.argv.includes("--json")) {
+    const { terminalText } = await import("./workspace/text.js");
+    process.stderr.write(`WMM: ${terminalText(error instanceof Error ? error.message : String(error))}\n`);
+    process.exitCode = 1;
   } else if (process.argv[2] === "workspace") {
     const message = error instanceof Error ? error.message : String(error);
     if (process.argv.includes("--json")) writeJsonTransport(jsonTransportError("INVALID_REQUEST", message));

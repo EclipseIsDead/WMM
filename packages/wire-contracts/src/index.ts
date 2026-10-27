@@ -5,4 +5,6 @@ export * from "./entity-context.js";
 export * from "./actor.js";
 export * from "./actor-validation.js";
 export * from "./atlas.js";
+export * from "./measurement.js";
+export * from "./economy.js";
 export * from "./validator.js";

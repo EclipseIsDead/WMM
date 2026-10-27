@@ -16,7 +16,9 @@
     "./schemas/atlas.schema.json": "./schemas/atlas.schema.json",
     "./schemas/authoring.schema.json": "./schemas/authoring.schema.json",
     "./schemas/entity-context.schema.json": "./schemas/entity-context.schema.json",
-    "./schemas/actor.schema.json": "./schemas/actor.schema.json"
+    "./schemas/actor.schema.json": "./schemas/actor.schema.json",
+    "./schemas/measurement.schema.json": "./schemas/measurement.schema.json",
+    "./schemas/economy.schema.json": "./schemas/economy.schema.json"
   },
   "files": [
     "dist",

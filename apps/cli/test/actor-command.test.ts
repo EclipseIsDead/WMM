@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { buildAuthoringProject } from "@wmm/application";
 import { validateActorContextPacket, validateActorDecisionReview } from "@wmm/wire-contracts";
 import { describe, expect, it } from "vitest";
 
@@ -14,8 +15,9 @@ function withActor(test: (paths: { root: string; bundle: string; brief: string }
   const root = mkdtempSync(join(realpathSync(tmpdir()), "wmm-actor-command-"));
   try {
     const bundle = join(root, "bundle");
-    const built = run(["authoring", "build", fixture, "--out", bundle]);
-    expect(built.status, built.stdout + built.stderr).toBe(0);
+    // Authoring CLI has its own process tests; reserve this budget for actor commands.
+    const built = buildAuthoringProject(JSON.parse(readFileSync(fixture, "utf8")), bundle);
+    expect(built.status).toBe("valid");
     const snapshot = JSON.parse(readFileSync(join(bundle, "snapshot.json"), "utf8")) as { snapshotDigest: string };
     const brief = join(root, "brief.json");
     writeFileSync(brief, JSON.stringify({ format: "wmm.actor-brief/1", snapshotDigest: snapshot.snapshotDigest, actorId: "faction:lantern_guild", campaignId: "campaign:harbor_watch", question: "What should the next watch do?", items: [
@@ -46,7 +48,7 @@ describe("actor CLI", () => {
     expect(JSON.parse(response.stdout)).toMatchObject({ outcome: "error", error: { code: "INVALID_ACTOR_COMMAND" } });
   });
 
-  it("rejects invalid UTF-8, duplicate keys, oversize files, directories and symlink sidecars", () => withActor(({ root, bundle, brief }) => {
+  it.each(["invalid-utf8.json", "duplicate.json", "oversized.json", "directory", "alias.json"])("rejects unsafe actor brief sidecar %s", (name) => withActor(({ root, bundle, brief }) => {
     const invalidUtf8 = join(root, "invalid-utf8.json");
     const duplicate = join(root, "duplicate.json");
     const oversized = join(root, "oversized.json");
@@ -57,11 +59,9 @@ describe("actor CLI", () => {
     writeFileSync(oversized, " ".repeat(262145));
     mkdirSync(directory);
     symlinkSync(brief, alias);
-    for (const path of [invalidUtf8, duplicate, oversized, directory, alias]) {
-      const response = run(["actor", "prepare", bundle, path]);
-      expect(response.status, response.stdout + response.stderr).toBe(1);
-      expect(JSON.parse(response.stdout).outcome).toBe("error");
-    }
+    const response = run(["actor", "prepare", bundle, join(root, name)]);
+    expect(response.status, response.stdout + response.stderr).toBe(1);
+    expect(JSON.parse(response.stdout).outcome).toBe("error");
   }));
 
   it("fails malformed requests before bundle loading and stale decisions before output creation", () => withActor(({ root, bundle, brief }) => {

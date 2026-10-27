@@ -19,6 +19,7 @@ import type {
 import { validateApiResponse } from "../src/index.js";
 import { workspaceReviewedView, workspaceView } from "./workspace-fixtures.js";
 import { mapView } from "./atlas-fixtures.js";
+import { workspaceEconomyView } from "./workspace-economy-fixtures.js";
 
 const fixtureRoot = new URL("../../../fixtures/v1/complete-world/", import.meta.url);
 function fixtureJson(path: string): unknown {
@@ -175,10 +176,12 @@ const results = {
   "workspace.create": workspaceView,
   "workspace.read": workspaceView,
   "workspace.map.read": mapView(),
+  "workspace.economy.read": workspaceEconomyView(),
   "workspace.review": workspaceReviewedView,
   "workspace.mutate": workspaceView,
 } satisfies ApiResultByOperationV1;
 const operations = Object.keys(results) as ApiOperationV1[];
+const legacyWorkspaceOperations: ReadonlySet<ApiOperationV1> = new Set(["workspace.create", "workspace.read", "workspace.review", "workspace.mutate"]);
 
 function response(operation: ApiOperationV1, data: unknown): unknown {
   return {
@@ -209,7 +212,7 @@ describe("operation-specific API response data", () => {
   it.each(operations)("accepts %s data only for operations with its result contract", (operation) => {
     expectValid(operation, results[operation]);
     for (const other of operations) {
-      if (operation.startsWith("workspace.") && other.startsWith("workspace.") && operation !== "workspace.map.read" && other !== "workspace.map.read") {
+      if (legacyWorkspaceOperations.has(operation) && legacyWorkspaceOperations.has(other)) {
         expectValid(other, results[operation]);
       } else if (other !== operation) {
         expectInvalid(other, results[operation]);

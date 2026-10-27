@@ -44,6 +44,10 @@ try {
   run('tar', ['-xzf', archive, '-C', temporary]);
   audit(release);
   const cli = (...args) => run(join(release, 'bin/wmm'), args);
+  assert.ok(existsSync(join(release, 'fixtures/authoring/grain-project.json')), 'Missing shipped economic authoring example');
+  for (const schema of ['measurement.schema.json', 'economy.schema.json']) {
+    assert.ok(existsSync(join(release, 'packages/wire-contracts/schemas', schema)), `Missing shipped shared/economic schema: ${schema}`);
+  }
   const workspace = join(temporary, 'saved workspace');
   const view = command => {
     const response = JSON.parse(cli('workspace', command, '--workspace-dir', workspace, '--json'));
@@ -89,6 +93,59 @@ try {
   assert.equal(cli('workspace', 'map', '--workspace-dir', atlasWorkspace, '--plain'), atlasPlain);
   assert.deepEqual(JSON.parse(cli('workspace', 'resume', '--workspace-dir', atlasWorkspace, '--json')).data, atlasInitial);
   console.log('PASS isolated atlas authoring, captured-base source loss, deterministic plain/JSON, unchanged workspace');
+  const grainInput = join(release, 'fixtures/authoring/grain-project.json');
+  const grainBundle = join(temporary, 'grain bundle'), grainWorkspace = join(temporary, 'grain workspace');
+  const grainBuilt = JSON.parse(cli('authoring', 'build', grainInput, '--out', grainBundle));
+  assert.equal(grainBuilt.outcome, 'success');
+  const directEconomy = JSON.parse(cli('economy', 'inspect', grainBundle, '--json'));
+  assert.equal(directEconomy.apiVersion, 'wmm/dev/1'); assert.equal(directEconomy.outcome, 'success');
+  assert.equal(directEconomy.data.format, 'wmm.economy-view/1');
+  assert.equal(directEconomy.data.perspective, 'dm');
+  assert.equal(directEconomy.data.accounting, 'not-run'); assert.equal(directEconomy.data.scenarios, 'not-run');
+  assert.deepEqual(directEconomy.data.records.map(({ value }) => value.kind).sort(), ['delivery-commitment', 'planned-requirement', 'stock-observation']);
+  assert.deepEqual(directEconomy.data.records.map(({ value }) => value.quantity.magnitude.kind).sort(), ['bounded', 'exact', 'unknown']);
+  assert.deepEqual(JSON.parse(cli('economy', 'inspect', grainBundle, '--json')), directEconomy);
+  const initialGrain = JSON.parse(cli('workspace', 'open', grainBundle, '--workspace-dir', grainWorkspace, '--json'));
+  assert.equal(initialGrain.outcome, 'success');
+  const grainApi = (operation, payload) => {
+    const response = JSON.parse(run(join(release, 'bin/wmm'), ['json', '--workspace-dir', grainWorkspace], {
+      input: JSON.stringify({ format: 'wmm.request/1', apiVersion: 'wmm/1', requestId: `release-grain-${operation}`, operation, payload }),
+    }));
+    assert.equal(response.outcome, 'success', JSON.stringify(response));
+    return response.data;
+  };
+  const grainId = initialGrain.data.workspace.id;
+  const proposedGrain = grainApi('workspace.mutate', { workspaceId: grainId, expectedVersion: initialGrain.data.workspace.version,
+    idempotencyKey: 'release-grain-proposal', action: { kind: 'put-proposal', proposal: {
+      id: 'grain-note', title: 'Unadopted relief note', author: 'Synthetic release check', rationale: 'A prose proposal, not observed inventory.',
+      dependencies: [], exclusions: [], operations: [{ kind: 'write-prose', path: 'prose/developments/grain-note.md', text: '# Proposed relief\n\nDiscuss the relief plan. No delivery or consumption is executed.\n', beforeSha256: null }],
+    } } });
+  const selectedGrain = grainApi('workspace.mutate', { workspaceId: grainId, expectedVersion: proposedGrain.workspace.version,
+    idempotencyKey: 'release-grain-select', action: { kind: 'decide', groupId: 'grain-note', decision: 'selected' } });
+  const reviewedGrain = grainApi('workspace.review', { workspaceId: grainId, expectedVersion: selectedGrain.workspace.version, limits: { maxWorkUnits: 50000000 } });
+  assert.equal(reviewedGrain.review?.execution, 'completed');
+  const savedGrain = JSON.parse(cli('workspace', 'resume', '--workspace-dir', grainWorkspace, '--json')).data;
+  assert.ok(savedGrain.workspace.proposals.some(({ decision }) => decision === 'selected'));
+  assert.equal(savedGrain.review.evaluationDigest, reviewedGrain.review.evaluationDigest);
+  const capturedEconomy = () => JSON.parse(cli('workspace', 'economy', '--workspace-dir', grainWorkspace, '--json'));
+  const beforeGrainLoss = capturedEconomy();
+  assert.equal(beforeGrainLoss.apiVersion, 'wmm/1'); assert.equal(beforeGrainLoss.outcome, 'success');
+  assert.equal(beforeGrainLoss.operation, 'workspace.economy.read');
+  assert.equal(beforeGrainLoss.data.workspaceId, grainId); assert.equal(beforeGrainLoss.data.workspaceVersion, savedGrain.workspace.version);
+  assert.deepEqual(beforeGrainLoss.data.base, savedGrain.workspace.base);
+  assert.equal(beforeGrainLoss.data.worldBasis, 'base'); assert.equal(beforeGrainLoss.data.selectedProposalsIncluded, false);
+  assert.equal(beforeGrainLoss.data.candidateView, 'unavailable');
+  assert.deepEqual(beforeGrainLoss.data.economy, directEconomy.data);
+  renameSync(grainBundle, join(temporary, 'moved grain bundle'));
+  assert.deepEqual(capturedEconomy().data, beforeGrainLoss.data);
+  const economyPlain = cli('workspace', 'economy', '--workspace-dir', grainWorkspace, '--plain');
+  assert.match(economyPlain, /stock[- ]observation/i); assert.match(economyPlain, /future commitments/i);
+  assert.match(economyPlain, /planned[- ]requirement/i); assert.match(economyPlain, /600 t/);
+  assert.match(economyPlain, /\[200,\s*250\] t/); assert.match(economyPlain, /unknown t/);
+  assert.match(economyPlain, /rainwatch/i); assert.ok(!economyPlain.includes('\x1b'));
+  assert.equal(cli('workspace', 'economy', '--workspace-dir', grainWorkspace, '--plain'), economyPlain);
+  assert.deepEqual(JSON.parse(cli('workspace', 'resume', '--workspace-dir', grainWorkspace, '--json')).data, savedGrain);
+  console.log('PASS isolated grain example, exact/bounded/unknown declarations, captured source loss, deterministic reads, selected proposal/history/review unchanged');
   const imports = [
     './apps/cli/dist/workspace/presentation.js',
     './apps/cli/dist/workspace/app.js',

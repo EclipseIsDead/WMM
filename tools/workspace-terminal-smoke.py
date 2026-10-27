@@ -587,6 +587,87 @@ def atlas_dense_workflow(node, directory):
     return "64 admitted regions; true-colour 160x60 canvas at 240x80; narrow/wide resize and selection/provenance preserved; workspace unchanged"
 
 
+def economy_workflow(node, directory):
+    directory.mkdir()
+    fixture = ROOT / "fixtures/authoring/grain-project.json"
+    fixture_before = fixture.read_bytes()
+    source, workspace = directory / "bundle", directory / "workspace"
+    built = json.loads(run(node, ["authoring", "build", str(fixture), "--out", str(source)]))
+    require(built["outcome"] == "success", "Grain authoring build failed")
+    direct = json.loads(run(node, ["economy", "inspect", str(source), "--json"]))["data"]
+    original_files = {path.relative_to(source).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in source.rglob("*") if path.is_file()}
+    initial = json_output(run(node, ["workspace", "open", str(source), "--workspace-dir", str(workspace), "--json"]))["data"]
+
+    def api(operation, payload):
+        request = {"format": "wmm.request/1", "apiVersion": "wmm/1", "requestId": f"pty-economy-{operation}", "operation": operation, "payload": payload}
+        response = json_output(run(node, ["json", "--workspace-dir", str(workspace)], json.dumps(request).encode("utf-8")))
+        require(response["requestId"] == request["requestId"] and response["operation"] == operation, "Economy request correlation changed")
+        return response["data"]
+
+    proposed = api("workspace.mutate", {"workspaceId": "main", "expectedVersion": initial["workspace"]["version"], "idempotencyKey": "pty-economy-proposal", "action": {"kind": "put-proposal", "proposal": {
+        "id": "grain-note", "title": "Unadopted relief note", "author": "Synthetic terminal check", "rationale": "Prose only; not inventory or consumption.",
+        "dependencies": [], "exclusions": [], "operations": [{"kind": "write-prose", "path": "prose/developments/grain-note.md", "text": "# Proposed relief\n\nNo stock movement is executed.\n", "beforeSha256": None}],
+    }}})
+    selected = api("workspace.mutate", {"workspaceId": "main", "expectedVersion": proposed["workspace"]["version"], "idempotencyKey": "pty-economy-select", "action": {"kind": "decide", "groupId": "grain-note", "decision": "selected"}})
+    reviewed = api("workspace.review", {"workspaceId": "main", "expectedVersion": selected["workspace"]["version"], "limits": {"maxWorkUnits": 50000000}})
+    require(reviewed["review"]["execution"] == "completed", "Economic workspace setup did not save a review")
+    before = api("workspace.read", {"workspaceId": "main"})
+    version = before["workspace"]["version"]
+    require(before["review"]["evaluationDigest"] == reviewed["review"]["evaluationDigest"], "Setup lost its review association")
+    moved = directory / "moved bundle"
+    source.rename(moved)
+    captured = api("workspace.economy.read", {"workspaceId": "main", "atVersion": version})
+    require(captured["economy"] == direct, "Captured Economy differs after original-source loss")
+    require(captured["selectedProposalsIncluded"] is False and captured["candidateView"] == "unavailable", "Economy included the selected candidate")
+
+    args = ["--workspace-dir", str(workspace)]
+    with Terminal(node, ["workspace", "resume", *args], environment(EDITOR="false", VISUAL="false")) as terminal:
+        terminal.ready(version)
+        terminal.key(b"2", "BASE WORLD / READ-ONLY")
+        terminal.key(b"o", "ECONOMY / DM / READ-ONLY")
+        terminal.expect("Selected proposals excluded")
+        terminal.expect("STOCK OBSERVATIONS")
+        terminal.expect("600 t")
+        terminal.key(b"]", "FUTURE COMMITMENTS")
+        terminal.expect("[200, 250] t")
+        terminal.key(b"]", "PLANNED REQUIREMENTS")
+        terminal.expect("unknown t")
+        terminal.key(ENTER, "PLANNED REQUIREMENTS")
+        terminal.expect("account:campaign_rainwatch")
+        terminal.expect("unmapped")
+        terminal.key(b"\x1b[6~", "CITATIONS")
+        terminal.expect("Reports/Ledger.md")
+        terminal.key(b"d", "RAW ECONOMY PAYLOAD")
+        terminal.expect('"candidateView": "unavailable"')
+        terminal.key(b"\x1b", "PLANNED REQUIREMENTS")
+        terminal.key(b"e", "Economy is read-only")
+        for blocked in [b"p", b" ", b"r", b"n", b"a", b"c"]:
+            terminal.write(blocked)
+            terminal.drain(0.04)
+        mark = len(terminal.output)
+        terminal.resize(80, 24)
+        terminal.expect("PLANNED REQUIREMENTS", mark)
+        terminal.expect("unknown t", mark)
+        mark = len(terminal.output)
+        terminal.resize(120, 36)
+        terminal.expect("PLANNED REQUIREMENTS", mark)
+        terminal.key(b"o", "BASE WORLD / READ-ONLY")
+        terminal.key(b"1", "Unadopted relief note")
+        terminal.expect("[x] Selected")
+        terminal.write(b"q")
+        terminal.finish(0)
+
+    require(api("workspace.read", {"workspaceId": "main"}) == before, "Economy navigation changed workspace version/selection/history/review")
+    require(api("workspace.economy.read", {"workspaceId": "main", "atVersion": version}) == captured, "Economic projection changed after navigation")
+    plain = run(node, ["workspace", "economy", *args, "--plain"])
+    require(plain == run(node, ["workspace", "economy", *args, "--plain"]), "Plain Economy is nondeterministic")
+    require(b"600 t" in plain and b"[200, 250] t" in plain and b"unknown t" in plain and b"\x1b" not in plain, "Plain Economy lost quantity distinctions or leaked controls")
+    require(json_output(run(node, ["workspace", "economy", *args, "--json"]))["data"] == captured, "Economy command differs from its service read")
+    require({path.relative_to(moved).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in moved.rglob("*") if path.is_file()} == original_files, "Economic inspection changed source bundle bytes")
+    require(fixture.read_bytes() == fixture_before, "Economy smoke changed the authored fixture")
+    return "source loss, three quantity/declaration categories, scope/citations/raw detail, blocked mutation keys, wide/narrow/wide; saved selection/history/review unchanged"
+
+
 def fixture_hashes():
     return {path.relative_to(DEMO).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in DEMO.rglob("*") if path.is_file()}
 
@@ -611,6 +692,7 @@ def main():
             ("plain inspection and terminal fallbacks", lambda: fallbacks(options.node, Path(root) / "fallback")),
             ("read-only captured reference atlas", lambda: atlas_workflow(options.node, Path(root) / "atlas")),
             ("dense colour atlas at large terminal size", lambda: atlas_dense_workflow(options.node, Path(root) / "atlas-dense")),
+            ("read-only captured Economy", lambda: economy_workflow(options.node, Path(root) / "economy")),
         ]
         for name, check in cases:
             try:
