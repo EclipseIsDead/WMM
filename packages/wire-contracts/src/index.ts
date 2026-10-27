@@ -4,4 +4,5 @@ export * from "./authoring.js";
 export * from "./entity-context.js";
 export * from "./actor.js";
 export * from "./actor-validation.js";
+export * from "./atlas.js";
 export * from "./validator.js";

@@ -28,7 +28,7 @@ node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/my-
 
 ### Options and non-interactive output
 
-All human workspace commands (`open`, `demo`, `resume`, and `review`) require `--workspace-dir <directory>` and accept:
+All human workspace commands (`open`, `demo`, `resume`, `review`, and `map`) require `--workspace-dir <directory>` and accept:
 
 | Option | Behavior |
 | --- | --- |
@@ -37,6 +37,8 @@ All human workspace commands (`open`, `demo`, `resume`, and `review`) require `-
 | `--json` | One canonical `wmm.response/1` object using the existing transport; no Ink output |
 
 `--plain` and `--json` are mutually exclusive. Without either flag, both stdin and stdout must be TTYs and `TERM` must not be `dumb` to launch the editor; otherwise the command prints plain output without reading stdin or prompting. `NO_COLOR` is supported. `workspace review` is always non-interactive and runs checks for the latest version it read, using that version as an optimistic precondition. Opening/first-time demo creation can still create a workspace in plain/JSON mode; use `resume` to inspect an existing one.
+
+`workspace map` is also always non-interactive, but only reads the captured reference atlas. It accepts `--atlas <id>` and `--geometry-version <id>` selectors; it never runs review or applies selected proposals. Use **m** in the interactive World view for Map, or `workspace map --plain` / `--json` for linear/structured output. See [ATLAS.md](ATLAS.md) for the runnable example, map controls, and `workspace.map.read` contract. The ordinary workspace read shape and its five tabs are unchanged.
 
 ```sh
 node apps/cli/dist/main.js workspace resume --workspace-dir ./wmm-workspaces/succession --plain
@@ -69,10 +71,12 @@ There is no workspace-list/fork command, linked rebase, or separate proposal-his
 
 The fully usable baseline is **80 columns by 24 rows**. At 100+ columns, list-based views show list/inspector split panes; at 80 columns, navigate from the list into a full inspector. Smaller terminals show a bounded resize notice and retain input. Long details, history, and diagnostics have scrolling and a visible More indicator.
 
+Map uses a colour terminal-cell shader with true-colour/256/16-colour fallbacks and cached geometry for selection/cursor redraws. `NO_COLOR`, dumb/non-TTY terminals, and plain/JSON output retain the monochrome representation. Colour never supplies political ownership or changes hit targets. See [atlas rendering and benchmarks](ATLAS.md#colour-terminal-shader-and-redraw-scaling).
+
 | View | Implemented content |
 | --- | --- |
 | Changes | Explicit proposal groups, decisions, authorship/rationale, service-supplied before/proposed effects, prerequisites, and selection diagnostics |
-| World | Read-only pinned-base documents and summaries of descriptors, assertions, and sources; document hashes and full IDs in inspection |
+| World | Read-only pinned-base documents and summaries of descriptors, assertions, and sources; document hashes and full IDs in inspection; `m` opens a captured-base reference atlas subview |
 | Constraints | Exact document/active-assertion pins, separately labelled advisory direction |
 | History | Saved workspace decisions, reasons, proposal revisions, direction and pin changes |
 | Review | Selected effects, explicit combined-candidate diffs, bounded checks and diagnostics; receipt status is not-run/current/stale; approval unavailable and canon unchanged |
@@ -97,6 +101,7 @@ These are the current controller bindings, not proposed future shortcuts. Shortc
 | `n` | Edit advisory direction, not an executable constraint |
 | `p` | Confirm pin/unpin for a World document/active assertion or a Constraints pin |
 | `d` | Toggle the secondary raw inspector/full identifiers |
+| `m`, in World | Open/close the read-only reference atlas; selected proposals are excluded and candidate projection is unavailable |
 | `v` / `?` | Review / keyboard help |
 | `c` | In Review, build and check the combined selection at the displayed workspace version |
 | `q` / Ctrl+C | Quit (`q` is ordinary text inside a form); no implicit form save |

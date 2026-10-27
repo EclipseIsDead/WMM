@@ -20,6 +20,8 @@ import type {
 import type { WorkspaceReviewV1 } from "./workspace.js";
 import type { AuthoringIndex, AuthoringProject } from "./authoring.js";
 import type { EntityContextPacket, EntityContextRequest } from "./entity-context.js";
+import type { Atlas, WorkspaceMapView } from "./atlas.js";
+import type { ActorBrief, ActorContextPacket, ActorDecisionDraft, ActorDecisionReview } from "./actor.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -41,6 +43,7 @@ const coreSchema = JSON.parse(readFileSync(coreSchemaUrl, "utf8")) as AnySchema;
 const semanticSchema = JSON.parse(readFileSync(semanticSchemaUrl, "utf8")) as AnySchema;
 const worldSchema = JSON.parse(readFileSync(worldSchemaUrl, "utf8")) as AnySchema;
 const workspaceSchema = JSON.parse(readFileSync(workspaceSchemaUrl, "utf8")) as AnySchema;
+const atlasSchema = JSON.parse(readFileSync(new URL("../schemas/atlas.schema.json", import.meta.url), "utf8")) as AnySchema;
 const apiSchema = JSON.parse(readFileSync(apiSchemaUrl, "utf8")) as AnySchema;
 const authoringSchema = JSON.parse(readFileSync(new URL("../schemas/authoring.schema.json", import.meta.url), "utf8")) as AnySchema;
 
@@ -76,6 +79,33 @@ ajv.addKeyword({
   validate: (limit: number, value: string): boolean => value.length <= limit,
   errors: false,
 });
+// These resource limits apply wherever an Atlas is nested (API and authoring too).
+// Public validators run the plain-data preflight before invoking these keywords.
+ajv.addKeyword({
+  keyword: "maxJsonBytes", type: "object", schemaType: "number",
+  metaSchema: { type: "integer", minimum: 0 },
+  validate: (limit: number, value: object): boolean => Buffer.byteLength(JSON.stringify(value), "utf8") <= limit,
+  errors: false,
+});
+ajv.addKeyword({
+  keyword: "maxAtlasVertices", type: "object", schemaType: "number",
+  metaSchema: { type: "integer", minimum: 0 },
+  validate: (limit: number, value: Record<string, unknown>): boolean => {
+    let vertices = 0;
+    for (const field of ["physicalCoverage", "features"]) {
+      const records = value[field];
+      if (!Array.isArray(records)) continue;
+      for (const record of records) {
+        const geometry = record?.geometry;
+        if (geometry?.kind === "polygon" && Array.isArray(geometry.vertices)) vertices += geometry.vertices.length;
+        else if (geometry?.kind === "point") vertices += 1;
+        if (vertices > limit) return false;
+      }
+    }
+    return true;
+  },
+  errors: false,
+});
 
 const validateCore: ValidateFunction<CoreContractV1> = ajv.compile(coreSchema);
 const validateSemantic: ValidateFunction<SemanticContractV1> =
@@ -83,6 +113,8 @@ const validateSemantic: ValidateFunction<SemanticContractV1> =
 const validateWorld: ValidateFunction<WorldRecordV1> = ajv.compile(worldSchema);
 // Workspace assertions reference world records, never API definitions.
 ajv.addSchema(workspaceSchema);
+// Atlas must precede both API and the optional authoring-project atlas reference.
+ajv.addSchema(atlasSchema);
 const validateApi: ValidateFunction<ApiContractV1> = ajv.compile(apiSchema);
 const validateRequest: ValidateFunction<ApiRequestV1> = ajv.compile({
   $ref: "urn:wmm:api:v1#/$defs/Request",
@@ -93,6 +125,8 @@ const validateResponse: ValidateFunction<ApiResponseV1> = ajv.compile({
 const validateReviewReceipt: ValidateFunction<WorkspaceReviewV1> = ajv.compile({
   $ref: "urn:wmm:workspace:v1#/$defs/WorkspaceReview",
 });
+const validateAtlasRecord = ajv.compile<Atlas>({ $ref: "urn:wmm:atlas:v1#/$defs/Atlas" });
+const validateMapView = ajv.compile<WorkspaceMapView>({ $ref: "urn:wmm:atlas:v1#/$defs/WorkspaceMapView" });
 ajv.addSchema(authoringSchema);
 const validateProject = ajv.compile<AuthoringProject>({ $ref: "urn:wmm:authoring#/$defs/Project" });
 const validateIndex = ajv.compile<AuthoringIndex>({ $ref: "urn:wmm:authoring#/$defs/Index" });
@@ -100,6 +134,12 @@ const entityContextSchema = JSON.parse(readFileSync(new URL("../schemas/entity-c
 ajv.addSchema(entityContextSchema);
 const validateContextRequest = ajv.compile<EntityContextRequest>({ $ref: "urn:wmm:entity-context#/$defs/Request" });
 const validateContextPacket = ajv.compile<EntityContextPacket>({ $ref: "urn:wmm:entity-context#/$defs/Packet" });
+export const actorWorkflowSchema = JSON.parse(readFileSync(new URL("../schemas/actor.schema.json", import.meta.url), "utf8")) as AnySchema;
+ajv.addSchema(actorWorkflowSchema);
+const validateActorBriefRecord = ajv.compile<ActorBrief>({ $ref: "urn:wmm:actor#/$defs/Brief" });
+const validateActorContextRecord = ajv.compile<ActorContextPacket>({ $ref: "urn:wmm:actor#/$defs/Context" });
+const validateActorDecisionRecord = ajv.compile<ActorDecisionDraft>({ $ref: "urn:wmm:actor#/$defs/Decision" });
+const validateActorReviewRecord = ajv.compile<ActorDecisionReview>({ $ref: "urn:wmm:actor#/$defs/Review" });
 
 function validationResult(
   valid: boolean,
@@ -156,6 +196,15 @@ export function validateAuthoringIndex(input: unknown): CoreContractValidationRe
   return preflight(input) ?? validationResult(validateIndex(input), validateIndex.errors);
 }
 
+/** Shape/resource admission only; core separately verifies geometry and captured-world references. */
+export function validateAtlas(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateAtlasRecord(input), validateAtlasRecord.errors);
+}
+
+export function validateWorkspaceMapView(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateMapView(input), validateMapView.errors);
+}
+
 export const authoringProjectSchema = authoringSchema;
 
 export function validateEntityContextRequest(input: unknown): CoreContractValidationResult {
@@ -169,6 +218,20 @@ export function validateEntityContextPacket(input: unknown): CoreContractValidat
 
 export const entityContextPacketSchema = entityContextSchema;
 
+/** Shape/plain-data admission only; core checks binding, references and budgets. */
+export function validateActorBrief(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorBriefRecord(input), validateActorBriefRecord.errors);
+}
+export function validateActorContextPacket(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorContextRecord(input), validateActorContextRecord.errors);
+}
+export function validateActorDecisionDraft(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorDecisionRecord(input), validateActorDecisionRecord.errors);
+}
+export function validateActorDecisionReview(input: unknown): CoreContractValidationResult {
+  return preflight(input) ?? validationResult(validateActorReviewRecord(input), validateActorReviewRecord.errors);
+}
+
 export function isCoreContract(input: unknown): input is CoreContractV1 {
   return validateCoreContract(input).valid;
 }
@@ -178,3 +241,4 @@ export const semanticContractsSchema = semanticSchema;
 export const worldRecordsSchema = worldSchema;
 export const workspaceV1Schema = workspaceSchema;
 export const apiV1Schema = apiSchema;
+export { atlasSchema };

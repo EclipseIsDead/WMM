@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Process-boundary tests launch real CLIs; avoid starving them on shared runners.
+  VITEST_MAX_WORKERS: "2"
+
 jobs:
   check:
     strategy:
@@ -24,16 +28,61 @@ jobs:
         with:
           node-version: 24.3.0
           cache: pnpm
+      - name: Use a canonical temporary directory
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, mkdtempSync, realpathSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = mkdtempSync(join(realpathSync(process.env.RUNNER_TEMP), 'wmm-ci-'));
+          appendFileSync(process.env.GITHUB_ENV, `TMPDIR=${directory}\n`);
+          NODE
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm verify:v0
-      - run: pnpm verify:seed
-      - run: pnpm verify:v1
-      - run: pnpm verify:v2
-      - run: pnpm verify:workspace
       - run: pnpm release:pack
       - run: pnpm release:verify
+
+  # Keep fixture execution independent: unit-test failures must not skip fixtures.
+  fixtures:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.3.0
+          cache: pnpm
+      - name: Use a canonical temporary directory
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, mkdtempSync, realpathSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = mkdtempSync(join(realpathSync(process.env.RUNNER_TEMP), 'wmm-ci-'));
+          appendFileSync(process.env.GITHUB_ENV, `TMPDIR=${directory}\n`);
+          NODE
+      - run: pnpm install --frozen-lockfile
+      - name: Build fixture CLI
+        id: build
+        run: pnpm build
+      - name: Run every fixture and golden expectation
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm verify:fixtures
+      - name: Exercise the real workspace terminal
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm verify:workspace
       - name: Check reproducible fixture bytes
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           pnpm generate:fixtures
           git --no-pager diff --exit-code -- fixtures/
+          untracked=$(git ls-files --others --exclude-standard -- fixtures/)
+          if [ -n "$untracked" ]; then
+            printf 'Unexpected generated fixture files:\n%s\n' "$untracked"
+            exit 1
+          fi

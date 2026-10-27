@@ -4,6 +4,7 @@ import { WorkspaceController } from "./controller.js";
 
 export type { WorkspaceClient } from "./client.js";
 export { renderWorkspacePlain } from "./presentation.js";
+export { renderAtlasPlain } from "./atlas-renderer.js";
 
 /** Interactive only. The gateway selects plain/JSON output before invoking this. */
 export async function runWorkspaceEditor(client: WorkspaceClient, initial: WorkspaceViewV1): Promise<void> {

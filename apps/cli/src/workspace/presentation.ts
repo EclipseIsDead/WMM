@@ -4,6 +4,8 @@ import type { EditorForm, WorkspaceUiState } from "./controller.js";
 import { textWithCursor } from "./input.js";
 import { crop, ellipsis, fit, graphemes, viewport, wrap } from "./text.js";
 import { reviewLines, reviewValidationLabel } from "./review.js";
+import { renderAtlasBody } from "./atlas-renderer.js";
+import type { AtlasPaint } from "./atlas-shader.js";
 export { reviewLines } from "./review.js";
 
 const decisionTag = (group: ProposalGroupV1): string => group.decision === "selected" ? "[x] Selected" : group.decision === "rejected" ? "[-] Rejected" : "[ ] Undecided";
@@ -65,7 +67,11 @@ function historyLines(view: WorkspaceViewV1, width: number): string[] {
   return prose(lines, width);
 }
 
-const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "Up/Down (j/k): move rows; Enter: full readable inspector; Esc: back/cancel",
+const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "World m: map subview / return to World. Reference atlas reads do not mutate or review.",
+  "MAP: j/k or Up/Down select semantic features; Enter inspects; Esc returns. [ ] switch reference/physical layers; { } switch service-listed atlases.",
+  "Map f: explicit canvas focus; arrows/hjkl move cells; Enter selects or opens a stable mixed-feature chooser. Empty cells never inherit the persistent semantic selection. f/Esc returns to features.",
+  "Map is undated captured-base geometry: selected proposals are not shown, political facts are not projected, candidate view unavailable. p never pins a hidden World row.",
+  "Up/Down (j/k): move rows; Enter: full readable inspector; Esc: back/cancel",
   "At 100+ columns: Right focuses inspector scroll, Left returns to list. PgUp/PgDn move through the focused list or inspector.", "PgUp/PgDn: scroll prose, diagnostics, history, dialogs or inspector", "Space: select/unselect focused change; review prerequisites explicitly",
   "r: reject with an optional reason, or explicitly restore to undecided", "a: add an explicit write-prose proposal; succession-demo also offers a labelled regency template",
   "e: edit rationale without changing structured operations", "n: advisory direction; p: pin/unpin selected World item or Constraints pin (confirmation)",
@@ -118,8 +124,9 @@ function listPane(rows: readonly string[], index: number, title: string, height:
   const offset = Math.max(0, startOfFocus + 3 - Math.max(1, height - 3));
   return viewport(lines, offset, height, width);
 }
-function mainBody(state: WorkspaceUiState, height: number, width: number, columns: number, reportLimit?: (limit: number) => void): string[] {
+function mainBody(state: WorkspaceUiState, height: number, width: number, columns: number, reportLimit?: (limit: number) => void, reportPaint?: (paint: AtlasPaint) => void): string[] {
   const { view, tab, indices } = state;
+  if (tab === "World" && state.atlas.open) return renderAtlasBody(state, height, width, reportLimit, reportPaint);
   let rows: readonly string[] = [];
   let title = "";
   let details: string[];
@@ -129,7 +136,7 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
     rows = view.workspace.proposals.map(item => `${decisionTag(item)} | ${item.title}`);
     details = group ? state.raw ? raw({ base: view.workspace.base, workspaceId: view.workspace.id, workspaceTitle: view.workspace.title, worldTitle: view.workspace.worldTitle, proposal: group, change: view.changes.find(item => item.groupId === group.id), prerequisites: view.prerequisites.find(item => item.groupId === group.id) }, width) : changeLines(view, group, width) : ["No proposals supplied. a: add an explicit proposal."];
   } else if (tab === "World") {
-    title = "BASE WORLD / READ-ONLY";
+    title = "BASE WORLD / READ-ONLY | m: map";
     rows = worldItems(view).map(item => item.kind === "document" ? `Document | ${item.document.path}` : `${item.record.kind} | ${item.record.title}`);
     details = worldLines(view, indices.World, width, state.raw);
   } else if (tab === "Constraints") {
@@ -151,19 +158,21 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
   return Array.from({ length: height }, (_, index) => `${fit(left[index] ?? "", leftWidth)} | ${fit(right[index] ?? "", rightWidth)}`);
 }
 
-export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, rows: number, reportLimit?: (limit: number) => void): string {
+export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, rows: number, reportLimit?: (limit: number) => void, reportPaint?: (paint: AtlasPaint) => void): string {
   const width = Math.max(1, Math.floor(columns) - 1);
   if (columns < 80 || rows < 24) return ["WMM / WORKSPACE", "Terminal too small: use 80x24 or larger, or plain output.", `Saved/read workspace v${state.view.workspace.version}; CANON READ-ONLY`, "Input is retained on resize. q quits outside a form; Ctrl+C quits."].slice(0, Math.max(1, rows - 1)).map(line => crop(line, width)).join("\n");
   const { view } = state;
   const height = rows - 11;
-  const body = modalBody(state, height, width, reportLimit) ?? mainBody(state, height, width, columns, reportLimit);
+  const body = modalBody(state, height, width, reportLimit) ?? mainBody(state, height, width, columns, reportLimit, paint => reportPaint?.({ ...paint, row: paint.row + 5 }));
   const save = state.saveState === "saved" ? `Saved v${view.workspace.version}` : `${state.saveState.toUpperCase()} | read v${view.workspace.version}`;
   const shortcuts = state.failureOpen ? "Enter/y: confirm retry | r: refresh only | Esc: buffer | PgUp/PgDn: details"
     : state.modal?.kind === "form" ? "Enter: newline/next field | Tab: fields | Ctrl+Enter/Ctrl+S: save | Esc: cancel"
     : state.modal?.kind === "choice" ? "Up/Down/Tab: choose | Enter: explicit confirmation | Esc: cancel | PgDn: more"
     : state.modal?.kind === "help" ? "Up/Down/PgUp/PgDn: scroll help | Esc: return"
     : state.tab === "Changes" ? "Space: select | r: reject/restore | a: proposal | e: rationale | v: review"
-    : state.tab === "World" || state.tab === "Constraints" ? "p: confirm pin change | n: advisory direction | d: raw | v: review"
+    : state.tab === "World" && state.atlas.open ? "m: World | [ ]: layer | { }: atlas | d: raw | v: review"
+    : state.tab === "World" ? "m: map | p: confirm pin | n: direction | d: raw | v: review"
+    : state.tab === "Constraints" ? "p: confirm pin change | n: advisory direction | d: raw | v: review"
     : state.tab === "Review" ? state.reviewAvailable ? "c: build/check combined selection | d: raw receipt | PgUp/PgDn: more" : "c: review unavailable (older client) | d: raw | PgUp/PgDn: more"
     : "PgUp/PgDn: scroll | d: raw | v: review";
   const navigation = state.modal?.kind === "form" || state.failureOpen

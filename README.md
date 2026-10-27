@@ -4,6 +4,9 @@ World Master's Manual (WMM) is a worldbuilding tool for authoring structured wor
 
 **Pre-release:** draft decisions are saved locally, but the original world stays unchanged. Full historical validation, approval, and committing drafts to canon are not available yet.
 
+<img width="1388" height="847" alt="Screenshot 2026-10-21 at 9 05 56 PM" src="https://github.com/user-attachments/assets/3d0e4354-b61f-4342-a07e-6ec2d22d6ba7" />
+
+
 ## Quick start
 
 To build the archive yourself, follow the [release guide](docs/RELEASING.md).
@@ -30,6 +33,7 @@ The editor has five views: **Changes, World, Constraints, History, and Review**.
 
 - **Tab** switches views; **↑ / ↓** moves through items.
 - **Enter** inspects an item; **Esc** returns or cancels.
+- **m**, in World, opens the read-only colour reference atlas when the captured world includes one; monochrome fallback is supported.
 - **Space** selects or unselects a draft change in Changes.
 - **a** adds a prose proposal; **Ctrl+S** saves a form.
 - **?** shows keyboard help; **q** quits outside a form.
@@ -50,7 +54,7 @@ From a source checkout after the initial build, open the included example bundle
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
 ```
 
-For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring/actor examples, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring, atlas, and actor inputs, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
 
 Resume that workspace later:
 
@@ -87,6 +91,7 @@ Create an explicit actor brief, use `actor prepare` to disclose only its curated
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
 - [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
 - [Actor workflow](docs/ACTOR-WORKFLOW.md) — curated actor context, proposed decisions, and private DM review artifacts.
+- [ASCII reference atlas](docs/ATLAS.md) — runnable map example, World → Map controls, physical coverage, and the opt-in wire operation.
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.
@@ -98,6 +103,7 @@ Create an explicit actor brief, use `actor prepare` to disclose only its curated
 ```sh
 pnpm build
 pnpm check
+pnpm verify:fixtures
 ```
 
-Additional fixture and terminal validation commands are recorded in the [release notes](docs/RELEASE-NOTES.md).
+The [fixture guide](docs/FIXTURES.md) describes discovery, golden expectations, and independent Linux/macOS CI coverage. Additional fixture and terminal validation commands are recorded in the [release notes](docs/RELEASE-NOTES.md).

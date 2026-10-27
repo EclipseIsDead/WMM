@@ -13,6 +13,7 @@
     "./schemas/world-records.schema.json": "./schemas/world-records.schema.json",
     "./schemas/workspace-v1.schema.json": "./schemas/workspace-v1.schema.json",
     "./schemas/api-v1.schema.json": "./schemas/api-v1.schema.json",
+    "./schemas/atlas.schema.json": "./schemas/atlas.schema.json",
     "./schemas/authoring.schema.json": "./schemas/authoring.schema.json",
     "./schemas/entity-context.schema.json": "./schemas/entity-context.schema.json",
     "./schemas/actor.schema.json": "./schemas/actor.schema.json"

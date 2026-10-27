@@ -24,10 +24,14 @@ import {
 } from "@wmm/canonical";
 import {
   AdmissionError,
+  admitAtlas,
+  AtlasError,
   admitSemanticProfile,
   bundledV1Semantics,
   authoringSemantics,
   MAX_WORLD_BUNDLE_DIRECTORIES,
+  MAX_ATLAS_BYTES,
+  MAX_ATLASES_PER_WORLD,
   validateWorldSemantics,
   WorldValidationError,
 } from "@wmm/core";
@@ -81,6 +85,7 @@ function exchangeBoundary<T>(operation: () => T): T {
     if (error instanceof WorldBundleError) throw error;
     if (
       error instanceof AdmissionError ||
+      error instanceof AtlasError ||
       error instanceof WorldValidationError ||
       error instanceof CanonicalizationError ||
       // These validators are transitive core dependencies, not exchange dependencies.
@@ -438,8 +443,16 @@ function loadWorldBundleUnchecked(
     }
   }
   const foldedPaths = new Set<string>();
+  let atlasCount = 0;
   let totalBytes = snapshotBytes.length;
   for (const entry of manifest.files) {
+    if (entry.path.startsWith("maps/")) {
+      atlasCount += 1;
+      if (atlasCount > MAX_ATLASES_PER_WORLD || !/^maps\/[a-z][a-z0-9_-]{0,79}\.json$/.test(entry.path) ||
+        entry.mediaType !== "application/json" || Number(entry.byteLength) > MAX_ATLAS_BYTES) {
+        throw invalidWorld("Unsupported or oversized reference atlas asset");
+      }
+    }
     const folded = entry.path.toLocaleLowerCase("en-US");
     if (foldedPaths.has(folded)) throw invalidWorld(`Case-folding path collision: ${entry.path}`);
     foldedPaths.add(folded);
@@ -461,6 +474,7 @@ function loadWorldBundleUnchecked(
     }
     const observed = actualFiles.get(entry.path);
     if (observed === undefined) throw invalidWorld(`Payload file is missing: ${entry.path}`);
+    if (entry.path.startsWith("maps/") && observed.stat.size > BigInt(MAX_ATLAS_BYTES)) throw invalidWorld("Reference atlas actual file exceeds its byte limit");
     const bytes = io.read(observed);
     if (String(bytes.length) !== entry.byteLength || sha256Hex(bytes) !== entry.sha256) {
       throw invalidWorld(`Payload bytes do not match the manifest: ${entry.path}`);
@@ -608,6 +622,16 @@ function loadWorldBundleUnchecked(
     assertions,
     supports,
   });
+
+  const atlasContext = {
+    worldId: world.worldId,
+    placeIds: descriptors.filter((record) => admitted.definitionsByDigest[record.birthTypeDefinitionDigest]?.key === "place").map((record) => record.id),
+    sourceIds: sources.map((record) => record.id),
+  };
+  for (const path of actualPaths.filter((path) => path.startsWith("maps/"))) {
+    const atlas = admitAtlas(parsedFiles.get(path), atlasContext);
+    if (path !== `maps/${atlas.id}.json`) throw invalidWorld(`Reference atlas ID/path mismatch: ${path}`);
+  }
 
   // Recheck earlier entries too: a later read or semantic validation may have overlapped mutation.
   for (const [path, stat] of io.directories) assertUnchanged(stat, statEntry(path), path);

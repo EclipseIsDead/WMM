@@ -10,6 +10,7 @@ import { validateAuthoringProject, validateAuthoringIndex, validateWorldRecord }
 import { authoringSemantics } from "./authoring-semantics.js";
 import { MAX_WORLD_BUNDLE_DIRECTORIES } from "./world-bundle-limits.js";
 import { validateWorldSemantics } from "./world-validation.js";
+import { admitAtlas, AtlasError, MAX_ATLASES_PER_WORLD } from "./atlas.js";
 
 export const MAX_AUTHORING_BYTES = 8 * 1024 * 1024;
 export const AUTHORING_INDEX_PATH = "authoring/index.json";
@@ -177,6 +178,23 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
     if (!validateWorldRecord(record).valid) throw new AuthoringError("Compiler generated an invalid world record");
   }
   validateWorldSemantics({ world, descriptors, sources: [source], assertions: records, supports, definitionsByDigest: semantics.definitionsByDigest });
+  const atlasIds = new Set<string>();
+  if ((project.atlases?.length ?? 0) > MAX_ATLASES_PER_WORLD) throw new AuthoringError("Too many reference atlases");
+  for (const input of project.atlases ?? []) {
+    try {
+      const atlas = admitAtlas(input, {
+        worldId: project.worldId,
+        placeIds: descriptors.filter((record) => record.birthTypeDefinitionDigest === digest("place")).map((record) => record.id),
+        sourceIds: [source.id],
+      });
+      if (atlasIds.has(atlas.id)) throw new AuthoringError(`Duplicate atlas ID: ${atlas.id}`);
+      atlasIds.add(atlas.id);
+      json(`maps/${atlas.id}.json`, atlas);
+    } catch (error) {
+      if (error instanceof AtlasError) throw new AuthoringError(error.message);
+      throw error;
+    }
+  }
   const index: AuthoringIndex = {
     format: "wmm.authoring-index/1", worldId: project.worldId, title: project.title, inputDigest,
     sources: project.sources, notes: [...notes.values()].sort((a, b) => a.id < b.id ? -1 : 1),

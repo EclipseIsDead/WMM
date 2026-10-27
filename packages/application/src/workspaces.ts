@@ -7,9 +7,10 @@ import { exportWorldBundle, loadReleaseWorldBundle } from "@wmm/exchange";
 import { WorkspaceStoreError, type WorkspaceStore } from "@wmm/ports";
 import type {
   JsonValue, ProposalGroupV1, WorkspaceActionV1, WorkspaceBaseV1, WorkspaceOperationV1,
-  WorkspaceRequestV1, WorkspaceStateV1, WorkspaceViewV1, WorkspaceReviewV1,
+  WorkspaceRequestV1, WorkspaceStateV1, WorkspaceViewV1, WorkspaceReviewV1, WorkspaceMapReadRequest, WorkspaceMapView,
 } from "@wmm/wire-contracts";
 import { validateApiResponse, validateWorkspaceReviewReceipt } from "@wmm/wire-contracts";
+import { readWorkspaceAtlas } from "./atlas.js";
 
 function invalid(message: string): never { throw new WorkspaceActionError(message); }
 function json(value: unknown): string { return canonicalJson(value as JsonValue); }
@@ -213,6 +214,11 @@ function normalizedAction(action: WorkspaceActionV1): WorkspaceActionV1 {
 /** Same draft operations for Ink, plain CLI, and machine clients; no authority/commit methods. */
 export class WorkspaceApplication {
   constructor(private readonly store: WorkspaceStore) {}
+
+  readMap(payload: WorkspaceMapReadRequest["payload"]): WorkspaceMapView {
+    const state = this.store.read(payload.workspaceId, payload.atVersion);
+    return readWorkspaceAtlas(state, this.store.readBase(payload.workspaceId), payload);
+  }
 
   execute(request: WorkspaceRequestV1): WorkspaceViewV1 {
     const payload = request.payload;

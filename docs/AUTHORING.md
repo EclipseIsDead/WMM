@@ -40,6 +40,7 @@ See the complete [synthetic example](../fixtures/authoring/faction-project.json)
 | `facts` | Explicit, invariant `related_to`, `located_in`, `member_of`, `allied_with`, or `opposed_to` relationships, with positive/negative polarity and exact setting/campaign context. No relationship is inferred from a mention or wikilink. |
 | `campaigns` | Stable `campaign:` IDs, names, campaign-scoped sections, and tracks. |
 | `tracks` | Globally unique `track:` ID, name, subject entity, inclusive minimum/maximum, and one or more authored entries. Each entry has an integer value, explanation, and citations. The final entry is current. |
+| `atlases` (optional) | Bounded, undated reference geometry with explicit physical coverage, place-linked features, separate anchors, and provenance; no inferred political ownership. See the [atlas guide](ATLAS.md). |
 
 Display names can repeat. Generated paths use the namespace and stable ID (`faction/lantern_guild.md`), and links use explicit full targets and display aliases. Renaming an entity does not break its links or change its descriptor identity. Only explicit `references` and relationship targets are checked; WMM does not parse, resolve, or repair arbitrary links inside narrative Markdown.
 

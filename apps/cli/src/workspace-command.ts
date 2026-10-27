@@ -7,11 +7,11 @@ import { fileURLToPath } from "node:url";
 
 import { executeApiRequest, WorkspaceApplication, type ApplicationServices } from "@wmm/application";
 import { SqliteWorkspaceStore } from "@wmm/store-authoring-sqlite";
-import type { ApiResponseV1, WorkspaceRequestV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
+import type { ApiResponseV1, WorkspaceMapReadRequest, WorkspaceMapView, WorkspaceRequestV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
 
 import { serializeJsonTransportResult } from "./json-transport.js";
 import { operationExitCode } from "@wmm/application";
-import { renderWorkspacePlain, runWorkspaceEditor, type WorkspaceClient } from "./workspace/index.js";
+import { renderAtlasPlain, renderWorkspacePlain, runWorkspaceEditor, type WorkspaceClient } from "./workspace/index.js";
 
 function realLocation(path: string): string {
   const absolute = resolve(path);
@@ -76,12 +76,14 @@ export function editWorkspaceText(text: string): string {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
-interface Options { directory: string; id: string; plain: boolean; json: boolean }
-function parseOptions(args: readonly string[]): Options {
+interface Options { directory: string; id: string; plain: boolean; json: boolean; atlasId?: string; geometryVersion?: string }
+function parseOptions(args: readonly string[], map = false): Options {
   let directory: string | undefined;
   let id = "main";
   let plain = false;
   let json = false;
+  let atlasId: string | undefined;
+  let geometryVersion: string | undefined;
   const seen = new Set<string>();
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index]!;
@@ -89,15 +91,18 @@ function parseOptions(args: readonly string[]): Options {
     seen.add(flag);
     if (flag === "--plain") plain = true;
     else if (flag === "--json") json = true;
-    else if (flag === "--workspace-dir" || flag === "--id") {
+    else if (flag === "--workspace-dir" || flag === "--id" || (map && (flag === "--atlas" || flag === "--geometry-version"))) {
       const value = args[++index];
       if (value === undefined || value.startsWith("--")) throw new Error(`Missing value for ${flag}`);
-      if (flag === "--workspace-dir") directory = value; else id = value;
+      if (flag === "--workspace-dir") directory = value;
+      else if (flag === "--atlas") atlasId = value;
+      else if (flag === "--geometry-version") geometryVersion = value;
+      else id = value;
     } else throw new Error(`Unknown workspace option: ${flag}`);
   }
   if (directory === undefined || !directory.trim()) throw new Error("Provide --workspace-dir <directory> for durable authoring storage");
   if (plain && json) throw new Error("Choose --plain or --json, not both");
-  return { directory, id, plain, json };
+  return { directory, id, plain, json, ...(atlasId === undefined ? {} : { atlasId }), ...(geometryVersion === undefined ? {} : { geometryVersion }) };
 }
 function unwrap(response: ApiResponseV1): WorkspaceViewV1 {
   if (response.outcome === "error") {
@@ -109,17 +114,36 @@ function unwrap(response: ApiResponseV1): WorkspaceViewV1 {
   return response.data;
 }
 
+function unwrapMap(response: ApiResponseV1): WorkspaceMapView {
+  if (response.outcome === "error") {
+    const error = new Error(response.error.message) as Error & { code: string };
+    error.code = response.error.code; throw error;
+  }
+  if (response.operation !== "workspace.map.read") throw new Error("Unexpected atlas operation");
+  return response.data;
+}
+
 export async function runWorkspaceCommand(args: readonly string[]): Promise<void> {
   const [command, ...rest] = args;
-  if (command !== "open" && command !== "demo" && command !== "resume" && command !== "review") throw new Error("Usage: wmm workspace open <bundle> | demo | resume | review --workspace-dir <directory> [--id main] [--plain | --json]");
+  if (command !== "open" && command !== "demo" && command !== "resume" && command !== "review" && command !== "map") throw new Error("Usage: wmm workspace open <bundle> | demo | resume | review | map --workspace-dir <directory> [--id main] [--plain | --json]");
   const bundlePath = command === "open" ? rest[0] : command === "demo" ? fileURLToPath(new URL("../../../fixtures/v3/succession-world/", import.meta.url)) : undefined;
-  const options = parseOptions(command === "open" ? rest.slice(1) : rest);
+  const options = parseOptions(command === "open" ? rest.slice(1) : rest, command === "map");
   if (command === "open" && (bundlePath === undefined || bundlePath.startsWith("--"))) throw new Error("Provide a WMM bundle directory to open");
   if (bundlePath !== undefined) assertSeparateWorkspaceDirectory(options.directory, bundlePath);
   const runtime = openWorkspaceRuntime(options.directory, command === "open" || command === "demo");
   try {
-    const invoke = (operation: WorkspaceRequestV1): ApiResponseV1 => executeApiRequest(operation, runtime.services);
+    const invoke = (operation: WorkspaceRequestV1 | WorkspaceMapReadRequest): ApiResponseV1 => executeApiRequest(operation, runtime.services);
     const readRequest = (): WorkspaceRequestV1 => ({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.read", payload: { workspaceId: options.id } });
+    if (command === "map") {
+      const response = invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.map.read", payload: {
+        workspaceId: options.id, ...(options.atlasId === undefined ? {} : { atlasId: options.atlasId }), ...(options.geometryVersion === undefined ? {} : { geometryVersion: options.geometryVersion }),
+      } });
+      if (options.json || response.outcome === "error") {
+        const serialized = serializeJsonTransportResult({ response, exitCode: operationExitCode("workspace.map.read", response) });
+        process.stdout.write(serialized.output); process.exitCode = serialized.exitCode;
+      } else process.stdout.write(`${renderAtlasPlain(unwrapMap(response))}\n`);
+      return;
+    }
     let response = invoke(readRequest());
     if (command === "open" || (command === "demo" && response.outcome === "error" && response.error.code === "WORKSPACE_NOT_FOUND")) {
       response = invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.create", payload: {
@@ -144,6 +168,7 @@ export async function runWorkspaceCommand(args: readonly string[]): Promise<void
     }
     const client: WorkspaceClient = {
       read: (atVersion) => unwrap(invoke({ ...readRequest(), operation: "workspace.read", payload: { workspaceId: options.id, ...(atVersion === undefined ? {} : { atVersion }) } })),
+      readMap: (selection = {}) => unwrapMap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.map.read", payload: { ...selection, workspaceId: options.id } })),
       mutate: (action, expectedVersion, idempotencyKey) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.mutate", payload: { workspaceId: options.id, expectedVersion, idempotencyKey, action } })),
       review: (expectedVersion) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.review", payload: { workspaceId: options.id, expectedVersion } })),
       editText: editWorkspaceText,

@@ -2,6 +2,7 @@ export * from "./absence.js";
 export * from "./admission.js";
 export * from "./authoring.js";
 export * from "./actor.js";
+export * from "./atlas.js";
 export * from "./authoring-semantics.js";
 export * from "./bundled-v1.js";
 export * from "./evidence.js";
