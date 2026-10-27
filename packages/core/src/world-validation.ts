@@ -2,8 +2,9 @@ import { isDeepStrictEqual } from "node:util";
 
 import { assertValidApplicability } from "@wmm/temporal";
 import { populationRosterDigest } from "@wmm/canonical";
-import { validateSemanticContract } from "@wmm/wire-contracts";
+import { MAX_ECONOMIC_RECORDS, validateSemanticContract } from "@wmm/wire-contracts";
 import { populationCoverageBasis, resolvePopulationSelector } from "./population.js";
+import { admitEconomicRecordValue, EconomyError } from "./economy.js";
 import type {
   AssertionRecordV1,
   DescriptorRecordV1,
@@ -105,6 +106,7 @@ function assertTypedValue(
   value: TypedValueV1,
   definitions: Readonly<Record<string, SemanticDefinitionV1>>,
   descriptorIds: ReadonlySet<string>,
+  economicPredicate = false,
 ): void {
   if (value.kind === "ref") {
     assertDescriptorReference(descriptorIds, value.id);
@@ -115,6 +117,7 @@ function assertTypedValue(
     value.valueDefinitionDigest,
     "literal",
   );
+  if (definition.operation === "economic-record-literal-v1" && !economicPredicate) throw new WorldValidationError("INVALID_OPERATION_VALUE", "Economic literal requires its economic predicate");
   if (definition.operation === "retained-unicode-v1" && typeof value.data !== "string") {
     throw new WorldValidationError(
       "INVALID_OPERATION_VALUE",
@@ -205,6 +208,12 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
   }
 
   const assertionsById = new Map(assertions.map((assertion) => [assertion.id, assertion]));
+  const economicReferences = {
+    entityIds: new Set(descriptors.filter((record) => /^(person|faction|place|item|event|concept):/.test(record.id)).map((record) => record.id)),
+    placeIds: new Set(descriptors.filter((record) => definitionsByDigest[record.birthTypeDefinitionDigest]?.key === "place").map((record) => record.id)),
+    sourceIds: new Set(sourcesById.keys()), definitionsByDigest,
+  };
+  const economicIds = new Set<string>();
   for (const assertion of assertions) {
     const body = assertion.body;
     if (body.worldId !== world.worldId) {
@@ -236,7 +245,24 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
         body.proposition.predicateDefinitionDigest,
         "predicate",
       );
-      assertTypedValue(body.proposition.value, definitionsByDigest, descriptorIds);
+      assertTypedValue(body.proposition.value, definitionsByDigest, descriptorIds, predicate.operation === "economic-record-atom-v1");
+      if (predicate.operation === "economic-record-atom-v1") {
+        if (!economicReferences.entityIds.has(body.proposition.subjectId)) throw new WorldValidationError("INVALID_OPERATION_VALUE", "Economic subject must be an authored entity");
+        if (body.polarity !== "positive" || body.applicability.kind !== "invariant") throw new WorldValidationError("INVALID_OPERATION_VALUE", "Economic records require positive polarity and invariant applicability");
+        const value = body.proposition.value;
+        if (value.kind !== "literal" || definitionsByDigest[value.valueDefinitionDigest]?.operation !== "economic-record-literal-v1" || !predicate.dependencies.includes(value.valueDefinitionDigest)) {
+          throw new WorldValidationError("INVALID_OPERATION_VALUE", "Economic record requires its pinned economic literal");
+        }
+        try {
+          const economic = admitEconomicRecordValue(value.data, economicReferences);
+          if (economicIds.has(economic.id)) throw new EconomyError(`Duplicate economic entry ID: ${economic.id}`);
+          economicIds.add(economic.id);
+          if (economicIds.size > MAX_ECONOMIC_RECORDS) throw new EconomyError(`Too many economic records; maximum ${MAX_ECONOMIC_RECORDS}`);
+        } catch (error) {
+          if (error instanceof EconomyError) throw new WorldValidationError("INVALID_OPERATION_VALUE", error.message);
+          throw error;
+        }
+      }
       if (predicate.operation === "integer-value-v1" && (
         body.proposition.value.kind !== "literal" ||
         definitionsByDigest[body.proposition.value.valueDefinitionDigest]?.operation !== "safe-integer-literal-v1"

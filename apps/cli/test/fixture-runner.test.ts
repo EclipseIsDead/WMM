@@ -68,7 +68,7 @@ it("provides the executable all-fixtures verifier", () => {
 it("lists every recursively discovered JSON and its coverage without running checks", () => {
   const { code, report, stderr } = invoke(["--list"], directory());
   const files = jsonFiles(join(root, "fixtures"));
-  expect(files).toHaveLength(104);
+  expect(files).toHaveLength(105);
   expect(code).toBe(0);
   expect(stderr).toBe("");
   expect(report.fixtureFiles).toEqual(files);
@@ -77,8 +77,10 @@ it("lists every recursively discovered JSON and its coverage without running che
   expect(report.checks.map((check) => check.id)).toContain("seed");
   expect(report.checks.map((check) => check.id)).toContain("authoring/lantern-actor-brief.json#actor/prepare");
   expect(report.checks.map((check) => check.id)).toContain("authoring/lantern-decision-draft.json#actor/review");
+  expect(report.checks.map((check) => check.id)).toContain("authoring/grain-project.json#authoring/economy/read/1");
+  expect(report.checks.map((check) => check.id)).toContain("authoring/grain-project.json#authoring/economy/captured/1");
   expect(report.checks.every((check) => check.status === "listed")).toBe(true);
-  expect(report.totals).toEqual({ fixtureFiles: 104, coveredFiles: 104, checks: 50, passed: 0, failed: 0, listed: 50 });
+  expect(report.totals).toEqual({ fixtureFiles: 105, coveredFiles: 105, checks: 64, passed: 0, failed: 0, listed: 64 });
 });
 
 it("executes standalone requests and contract/seed verifiers with the built CLI", () => {
@@ -136,6 +138,24 @@ it("recognizes all authoring projects and schedules deterministic builds/renders
   expect(report.checks.map((check) => check.id)).toEqual(expect.arrayContaining(["first.json#atlas/one", "first.json#atlas/two"]));
   expect(report.checks.every((check) => check.status === "listed")).toBe(true);
 });
+
+it("executes economic inspection and captured source loss for a renamed economic authoring fixture", () => {
+  const path = directory(), name = "renamed-grain.json";
+  const source = readFileSync(join(root, "fixtures/authoring/grain-project.json"));
+  writeFileSync(join(path, name), source);
+  const trace = commandTrace();
+  const { code, report } = invoke(["--fixtures-dir", path], directory(), trace.nodeArgs);
+  expect(code, JSON.stringify(report.checks.filter((check) => check.status === "failed"))).toBe(0);
+  expect(report.fixtureFiles).toEqual([name]);
+  expect(report.coveredFiles).toEqual([name]);
+  expect(report.checks.map((check) => check.id)).toEqual(expect.arrayContaining([
+    `${name}#authoring/economy/read/1`, `${name}#authoring/economy/read/2`, `${name}#authoring/compare-economy`,
+    `${name}#authoring/economy/captured/1`, `${name}#authoring/economy/captured/2`, `${name}#authoring/readonly`,
+  ]));
+  expect(report.checks.some((check) => /#authoring\/render\//.test(check.id))).toBe(false);
+  expect(trace.read().map((args) => args.slice(2)).filter((args) => args[0] === "economy" && args[1] === "inspect")).toHaveLength(2);
+  expect(readFileSync(join(path, name))).toEqual(source);
+}, 60_000);
 
 it("prepares and reviews renamed actor examples against the matching snapshot, not the first project's campaign identity", () => {
   const path = directory();
@@ -365,7 +385,7 @@ it("runs every discovered fixture with exact canonical totals and leaves source 
   expect(report.fixtureFiles).toEqual(inventory.fixtureFiles);
   expect(report.coveredFiles).toEqual(inventory.fixtureFiles);
   expect(report.checks.map((check) => check.id)).toEqual(inventory.checks.map((check) => check.id));
-  expect(report.totals).toEqual({ fixtureFiles: 104, coveredFiles: 104, checks: 50, passed: 50, failed: 0, listed: 0 });
+  expect(report.totals).toEqual({ fixtureFiles: 105, coveredFiles: 105, checks: 64, passed: 64, failed: 0, listed: 0 });
   expect(report.checks).toContainEqual(expect.objectContaining({ id: "v2/interval-query-cases.json#requests/3", exitCode: 4, status: "passed" }));
   expect(sources.map((file) => readFileSync(file))).toEqual(original);
 }, 120_000);

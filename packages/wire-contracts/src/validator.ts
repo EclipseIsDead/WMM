@@ -22,6 +22,8 @@ import type { AuthoringIndex, AuthoringProject } from "./authoring.js";
 import type { EntityContextPacket, EntityContextRequest } from "./entity-context.js";
 import type { Atlas, WorkspaceMapView } from "./atlas.js";
 import type { ActorBrief, ActorContextPacket, ActorDecisionDraft, ActorDecisionReview } from "./actor.js";
+import type { ExactRational, Quantity, QuantityMagnitude } from "./measurement.js";
+import type { AuthoringEconomy, EconomicRecordValue, EconomyView, WorkspaceEconomyView } from "./economy.js";
 
 export interface CoreContractValidationResult {
   readonly valid: boolean;
@@ -46,6 +48,8 @@ const workspaceSchema = JSON.parse(readFileSync(workspaceSchemaUrl, "utf8")) as 
 const atlasSchema = JSON.parse(readFileSync(new URL("../schemas/atlas.schema.json", import.meta.url), "utf8")) as AnySchema;
 const apiSchema = JSON.parse(readFileSync(apiSchemaUrl, "utf8")) as AnySchema;
 const authoringSchema = JSON.parse(readFileSync(new URL("../schemas/authoring.schema.json", import.meta.url), "utf8")) as AnySchema;
+export const measurementSchema = JSON.parse(readFileSync(new URL("../schemas/measurement.schema.json", import.meta.url), "utf8")) as AnySchema;
+export const economySchema = JSON.parse(readFileSync(new URL("../schemas/economy.schema.json", import.meta.url), "utf8")) as AnySchema;
 
 interface AjvLike {
   addKeyword(definition: KeywordDefinition): AjvLike;
@@ -111,10 +115,18 @@ const validateCore: ValidateFunction<CoreContractV1> = ajv.compile(coreSchema);
 const validateSemantic: ValidateFunction<SemanticContractV1> =
   ajv.compile(semanticSchema);
 const validateWorld: ValidateFunction<WorldRecordV1> = ajv.compile(worldSchema);
+// Register shared measurements before all potential authoring/API consumers.
+ajv.addSchema(measurementSchema);
+const validateRationalShape = ajv.compile<ExactRational>({ $ref: "urn:wmm:measurement#/$defs/ExactRational" });
+const validateMagnitudeShape = ajv.compile<QuantityMagnitude>({ $ref: "urn:wmm:measurement#/$defs/QuantityMagnitude" });
+const validateQuantityShape = ajv.compile<Quantity>({ $ref: "urn:wmm:measurement#/$defs/Quantity" });
 // Workspace assertions reference world records, never API definitions.
 ajv.addSchema(workspaceSchema);
 // Atlas must precede both API and the optional authoring-project atlas reference.
 ajv.addSchema(atlasSchema);
+// Register the complete cyclic authoring/economy registry before compiling consumers.
+ajv.addSchema(authoringSchema);
+ajv.addSchema(economySchema);
 const validateApi: ValidateFunction<ApiContractV1> = ajv.compile(apiSchema);
 const validateRequest: ValidateFunction<ApiRequestV1> = ajv.compile({
   $ref: "urn:wmm:api:v1#/$defs/Request",
@@ -127,8 +139,11 @@ const validateReviewReceipt: ValidateFunction<WorkspaceReviewV1> = ajv.compile({
 });
 const validateAtlasRecord = ajv.compile<Atlas>({ $ref: "urn:wmm:atlas:v1#/$defs/Atlas" });
 const validateMapView = ajv.compile<WorkspaceMapView>({ $ref: "urn:wmm:atlas:v1#/$defs/WorkspaceMapView" });
-ajv.addSchema(authoringSchema);
 const validateProject = ajv.compile<AuthoringProject>({ $ref: "urn:wmm:authoring#/$defs/Project" });
+const validateEconomy = ajv.compile<AuthoringEconomy>({ $ref: "urn:wmm:economy#/$defs/AuthoringEconomy" });
+const validateEconomicValue = ajv.compile<EconomicRecordValue>({ $ref: "urn:wmm:economy#/$defs/EconomicRecordValue" });
+const validateEconomicView = ajv.compile<EconomyView>({ $ref: "urn:wmm:economy#/$defs/EconomyView" });
+const validateWorkspaceEconomicView = ajv.compile<WorkspaceEconomyView>({ $ref: "urn:wmm:economy#/$defs/WorkspaceEconomyView" });
 const validateIndex = ajv.compile<AuthoringIndex>({ $ref: "urn:wmm:authoring#/$defs/Index" });
 const entityContextSchema = JSON.parse(readFileSync(new URL("../schemas/entity-context.schema.json", import.meta.url), "utf8")) as AnySchema;
 ajv.addSchema(entityContextSchema);
@@ -163,8 +178,31 @@ function preflight(input: unknown): CoreContractValidationResult | undefined {
   };
 }
 
+function validatePlainData(input: unknown, validate: ValidateFunction): CoreContractValidationResult {
+  const failure = preflight(input);
+  if (failure !== undefined) return failure;
+  // Only clone after descriptor-safe admission. Ajv and resource keywords must
+  // inspect indexed array data, not caller-owned inherited hooks or iterators.
+  return validationResult(validate(structuredClone(input)), validate.errors);
+}
+
 export function validateSemanticContract(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateSemantic(input), validateSemantic.errors);
+  return validatePlainData(input, validateSemantic);
+}
+
+/** Plain-data shape only; core checks canonical reduction (including zero 0/1). */
+export function validateExactRational(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateRationalShape);
+}
+
+/** Plain-data shape only; core checks inclusive endpoint ordering. */
+export function validateQuantityMagnitude(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateMagnitudeShape);
+}
+
+/** Plain-data shape only; not arithmetic validity or release-owned unit admission. */
+export function validateQuantity(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateQuantityShape);
 }
 
 export function validateWorldRecord(input: unknown): CoreContractValidationResult {
@@ -172,64 +210,79 @@ export function validateWorldRecord(input: unknown): CoreContractValidationResul
 }
 
 export function validateApiContract(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateApi(input), validateApi.errors);
+  return validatePlainData(input, validateApi);
 }
 
 export function validateApiRequest(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateRequest(input), validateRequest.errors);
+  return validatePlainData(input, validateRequest);
 }
 
 export function validateApiResponse(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateResponse(input), validateResponse.errors);
+  return validatePlainData(input, validateResponse);
 }
 
 /** Shape only; digest integrity, check identity and binding freshness are verified by core. */
 export function validateWorkspaceReviewReceipt(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateReviewReceipt(input), validateReviewReceipt.errors);
+  return validatePlainData(input, validateReviewReceipt);
 }
 
 export function validateAuthoringProject(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateProject(input), validateProject.errors);
+  return validatePlainData(input, validateProject);
 }
 
 export function validateAuthoringIndex(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateIndex(input), validateIndex.errors);
+  return validatePlainData(input, validateIndex);
 }
 
 /** Shape/resource admission only; core separately verifies geometry and captured-world references. */
 export function validateAtlas(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateAtlasRecord(input), validateAtlasRecord.errors);
+  return validatePlainData(input, validateAtlasRecord);
 }
 
 export function validateWorkspaceMapView(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateMapView(input), validateMapView.errors);
+  return validatePlainData(input, validateMapView);
 }
 
 export const authoringProjectSchema = authoringSchema;
 
+/** Shape/plain-data only; core admits quantities, references and domain meaning. */
+export function validateAuthoringEconomy(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateEconomy);
+}
+export function validateEconomicRecordValue(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateEconomicValue);
+}
+export function validateEconomyView(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateEconomicView);
+}
+/** Shape/plain-data only; the application binds the exact retained workspace base. */
+export function validateWorkspaceEconomyView(input: unknown): CoreContractValidationResult {
+  return validatePlainData(input, validateWorkspaceEconomicView);
+}
+
 export function validateEntityContextRequest(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateContextRequest(input), validateContextRequest.errors);
+  return validatePlainData(input, validateContextRequest);
 }
 
 /** Shape only; packet identity, selection and provenance require integrity/replay checks. */
 export function validateEntityContextPacket(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateContextPacket(input), validateContextPacket.errors);
+  return validatePlainData(input, validateContextPacket);
 }
 
 export const entityContextPacketSchema = entityContextSchema;
 
 /** Shape/plain-data admission only; core checks binding, references and budgets. */
 export function validateActorBrief(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateActorBriefRecord(input), validateActorBriefRecord.errors);
+  return validatePlainData(input, validateActorBriefRecord);
 }
 export function validateActorContextPacket(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateActorContextRecord(input), validateActorContextRecord.errors);
+  return validatePlainData(input, validateActorContextRecord);
 }
 export function validateActorDecisionDraft(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateActorDecisionRecord(input), validateActorDecisionRecord.errors);
+  return validatePlainData(input, validateActorDecisionRecord);
 }
 export function validateActorDecisionReview(input: unknown): CoreContractValidationResult {
-  return preflight(input) ?? validationResult(validateActorReviewRecord(input), validateActorReviewRecord.errors);
+  return validatePlainData(input, validateActorReviewRecord);
 }
 
 export function isCoreContract(input: unknown): input is CoreContractV1 {

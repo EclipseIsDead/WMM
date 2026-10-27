@@ -91,7 +91,7 @@ function audit(path) {
 try {
   install(join(root, 'apps/cli'));
   copy(join(root, 'fixtures/v3/succession-world'), join(destination, 'fixtures/v3/succession-world'));
-  for (const input of ['faction-project.json', 'lantern-actor-brief.json', 'lantern-decision-draft.json', 'atlas-project.json']) {
+  for (const input of ['faction-project.json', 'lantern-actor-brief.json', 'lantern-decision-draft.json', 'atlas-project.json', 'grain-project.json']) {
     copy(join(root, 'fixtures/authoring', input), join(destination, 'fixtures/authoring', input));
   }
   copy(join(root, 'README.md'), join(destination, 'README.md'));

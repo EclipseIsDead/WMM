@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:measurement",
+  "$comment": "Shared shapes only. Core separately checks rational reduction, inclusive endpoint ordering and release-owned unit admission.",
+  "$ref": "#/$defs/Quantity",
+  "$defs": {
+    "ExactRational": {
+      "type": "object",
+      "properties": {
+        "numerator": { "type": "string", "pattern": "^(0|-?[1-9][0-9]{0,63})$(?![\\s\\S])" },
+        "denominator": { "type": "string", "pattern": "^[1-9][0-9]{0,63}$(?![\\s\\S])" }
+      },
+      "required": ["numerator", "denominator"],
+      "additionalProperties": false
+    },
+    "QuantityMagnitude": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "exact" }, "value": { "$ref": "#/$defs/ExactRational" } },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "bounded" }, "lower": { "$ref": "#/$defs/ExactRational" }, "upper": { "$ref": "#/$defs/ExactRational" } },
+          "required": ["kind", "lower", "upper"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "kind": { "const": "unknown" } },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Quantity": {
+      "type": "object",
+      "properties": { "unitId": { "type": "string", "maxLength": 256, "pattern": "^unit:[a-z][a-z0-9_-]*$(?![\\s\\S])" }, "magnitude": { "$ref": "#/$defs/QuantityMagnitude" } },
+      "required": ["unitId", "magnitude"],
+      "additionalProperties": false
+    }
+  }
+}

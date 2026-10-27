@@ -6,7 +6,9 @@ import { crop, ellipsis, fit, graphemes, viewport, wrap } from "./text.js";
 import { reviewLines, reviewValidationLabel } from "./review.js";
 import { renderAtlasBody } from "./atlas-renderer.js";
 import type { AtlasPaint } from "./atlas-shader.js";
+import { renderEconomyBody } from "./economy-renderer.js";
 export { reviewLines } from "./review.js";
+export { renderEconomyPlain } from "../economy-format.js";
 
 const decisionTag = (group: ProposalGroupV1): string => group.decision === "selected" ? "[x] Selected" : group.decision === "rejected" ? "[-] Rejected" : "[ ] Undecided";
 const prose = (lines: readonly string[], width: number): string[] => lines.flatMap(line => wrap(line, width));
@@ -67,7 +69,10 @@ function historyLines(view: WorkspaceViewV1, width: number): string[] {
   return prose(lines, width);
 }
 
-const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "World m: map subview / return to World. Reference atlas reads do not mutate or review.",
+const help = ["KEYBOARD GUIDE", "", "1-5 / Tab / Shift+Tab: Changes, World, Constraints, History, Review", "World o: Economy / o or Esc: return to World. [ ]: categories.",
+  "Economy is read-only: no edits, pins, selection, accounting or review. j/k: rows; Enter: full details; Esc: list then World; d: raw payload. Right/Left: inspector/list on wide terminals.",
+  "Economy uses captured-base DM declarations; selected proposals excluded, candidate unavailable. No availability totals. Full bindings/citations are in the readable inspector.",
+  "World m: map subview / return to World. Reference atlas reads do not mutate or review.",
   "MAP: j/k or Up/Down select semantic features; Enter inspects; Esc returns. [ ] switch reference/physical layers; { } switch service-listed atlases.",
   "Map f: explicit canvas focus; arrows/hjkl move cells; Enter selects or opens a stable mixed-feature chooser. Empty cells never inherit the persistent semantic selection. f/Esc returns to features.",
   "Map is undated captured-base geometry: selected proposals are not shown, political facts are not projected, candidate view unavailable. p never pins a hidden World row.",
@@ -126,6 +131,7 @@ function listPane(rows: readonly string[], index: number, title: string, height:
 }
 function mainBody(state: WorkspaceUiState, height: number, width: number, columns: number, reportLimit?: (limit: number) => void, reportPaint?: (paint: AtlasPaint) => void): string[] {
   const { view, tab, indices } = state;
+  if (tab === "World" && state.economy.open) return renderEconomyBody(state, height, width, columns, reportLimit);
   if (tab === "World" && state.atlas.open) return renderAtlasBody(state, height, width, reportLimit, reportPaint);
   let rows: readonly string[] = [];
   let title = "";
@@ -136,7 +142,7 @@ function mainBody(state: WorkspaceUiState, height: number, width: number, column
     rows = view.workspace.proposals.map(item => `${decisionTag(item)} | ${item.title}`);
     details = group ? state.raw ? raw({ base: view.workspace.base, workspaceId: view.workspace.id, workspaceTitle: view.workspace.title, worldTitle: view.workspace.worldTitle, proposal: group, change: view.changes.find(item => item.groupId === group.id), prerequisites: view.prerequisites.find(item => item.groupId === group.id) }, width) : changeLines(view, group, width) : ["No proposals supplied. a: add an explicit proposal."];
   } else if (tab === "World") {
-    title = "BASE WORLD / READ-ONLY | m: map";
+    title = "BASE WORLD / READ-ONLY | m: map | o: economy";
     rows = worldItems(view).map(item => item.kind === "document" ? `Document | ${item.document.path}` : `${item.record.kind} | ${item.record.title}`);
     details = worldLines(view, indices.World, width, state.raw);
   } else if (tab === "Constraints") {
@@ -170,8 +176,9 @@ export function renderWorkspaceScreen(state: WorkspaceUiState, columns: number, 
     : state.modal?.kind === "choice" ? "Up/Down/Tab: choose | Enter: explicit confirmation | Esc: cancel | PgDn: more"
     : state.modal?.kind === "help" ? "Up/Down/PgUp/PgDn: scroll help | Esc: return"
     : state.tab === "Changes" ? "Space: select | r: reject/restore | a: proposal | e: rationale | v: review"
+    : state.tab === "World" && state.economy.open ? "o: World | [ ]: category | Enter: inspect | d: raw | v: review"
     : state.tab === "World" && state.atlas.open ? "m: World | [ ]: layer | { }: atlas | d: raw | v: review"
-    : state.tab === "World" ? "m: map | p: confirm pin | n: direction | d: raw | v: review"
+    : state.tab === "World" ? "m: map | o: economy | p: confirm pin | n: direction | d: raw | v: review"
     : state.tab === "Constraints" ? "p: confirm pin change | n: advisory direction | d: raw | v: review"
     : state.tab === "Review" ? state.reviewAvailable ? "c: build/check combined selection | d: raw receipt | PgUp/PgDn: more" : "c: review unavailable (older client) | d: raw | PgUp/PgDn: more"
     : "PgUp/PgDn: scroll | d: raw | v: review";

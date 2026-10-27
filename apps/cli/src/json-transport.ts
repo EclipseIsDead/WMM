@@ -26,7 +26,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
-    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate", "workspace.map.read",
+    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate", "workspace.map.read", "workspace.economy.read",
   ] satisfies readonly ApiOperationV1[],
 );
 

@@ -7,11 +7,13 @@ import { fileURLToPath } from "node:url";
 
 import { executeApiRequest, WorkspaceApplication, type ApplicationServices } from "@wmm/application";
 import { SqliteWorkspaceStore } from "@wmm/store-authoring-sqlite";
-import type { ApiResponseV1, WorkspaceMapReadRequest, WorkspaceMapView, WorkspaceRequestV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
+import type { ApiResponseV1, WorkspaceEconomyReadRequest, WorkspaceEconomyView, WorkspaceMapReadRequest, WorkspaceMapView, WorkspaceRequestV1, WorkspaceViewV1 } from "@wmm/wire-contracts";
 
 import { serializeJsonTransportResult } from "./json-transport.js";
 import { operationExitCode } from "@wmm/application";
 import { renderAtlasPlain, renderWorkspacePlain, runWorkspaceEditor, type WorkspaceClient } from "./workspace/index.js";
+import { renderWorkspaceEconomyPlain } from "./economy-format.js";
+import { economyViewError } from "./workspace/economy-view.js";
 
 function realLocation(path: string): string {
   const absolute = resolve(path);
@@ -123,17 +125,63 @@ function unwrapMap(response: ApiResponseV1): WorkspaceMapView {
   return response.data;
 }
 
+function unwrapEconomy(response: ApiResponseV1, workspace?: WorkspaceViewV1["workspace"]): WorkspaceEconomyView {
+  if (response.outcome === "error") {
+    const error = new Error(response.error.message) as Error & { code: string };
+    error.code = response.error.code; throw error;
+  }
+  if (response.operation !== "workspace.economy.read") throw new Error("Unexpected Economy operation");
+  const error = economyViewError(response.data, workspace);
+  if (error) throw new Error(error);
+  return response.data;
+}
+
+/** The actual CLI host capability boundary, shared by editor launch and integration tests. */
+export function createWorkspaceClient(services: ApplicationServices, workspaceId: string): WorkspaceClient {
+  const invoke = (request: WorkspaceRequestV1 | WorkspaceMapReadRequest | WorkspaceEconomyReadRequest): ApiResponseV1 => executeApiRequest(request, services);
+  const envelope = { format: "wmm.request/1", apiVersion: "wmm/1" } as const;
+  return {
+    read: (atVersion) => unwrap(invoke({ ...envelope, requestId: randomUUID(), operation: "workspace.read", payload: { workspaceId, ...(atVersion === undefined ? {} : { atVersion }) } })),
+    readMap: (selection = {}) => unwrapMap(invoke({ ...envelope, requestId: randomUUID(), operation: "workspace.map.read", payload: { ...selection, workspaceId } })),
+    readEconomy: (selection = {}) => {
+      const view = unwrapEconomy(invoke({ ...envelope, requestId: randomUUID(), operation: "workspace.economy.read", payload: { ...selection, workspaceId } }));
+      if (view.workspaceId !== workspaceId || (selection.atVersion !== undefined && view.workspaceVersion !== selection.atVersion)) throw new Error("Economy requested workspace/version binding mismatch");
+      return view;
+    },
+    mutate: (action, expectedVersion, idempotencyKey) => unwrap(invoke({ ...envelope, requestId: randomUUID(), operation: "workspace.mutate", payload: { workspaceId, expectedVersion, idempotencyKey, action } })),
+    review: (expectedVersion) => unwrap(invoke({ ...envelope, requestId: randomUUID(), operation: "workspace.review", payload: { workspaceId, expectedVersion } })),
+    editText: editWorkspaceText,
+  };
+}
+
 export async function runWorkspaceCommand(args: readonly string[]): Promise<void> {
   const [command, ...rest] = args;
-  if (command !== "open" && command !== "demo" && command !== "resume" && command !== "review" && command !== "map") throw new Error("Usage: wmm workspace open <bundle> | demo | resume | review | map --workspace-dir <directory> [--id main] [--plain | --json]");
+  if (command !== "open" && command !== "demo" && command !== "resume" && command !== "review" && command !== "map" && command !== "economy") throw new Error("Usage: wmm workspace open <bundle> | demo | resume | review | map | economy --workspace-dir <directory> [--id main] [--plain | --json]");
   const bundlePath = command === "open" ? rest[0] : command === "demo" ? fileURLToPath(new URL("../../../fixtures/v3/succession-world/", import.meta.url)) : undefined;
   const options = parseOptions(command === "open" ? rest.slice(1) : rest, command === "map");
   if (command === "open" && (bundlePath === undefined || bundlePath.startsWith("--"))) throw new Error("Provide a WMM bundle directory to open");
   if (bundlePath !== undefined) assertSeparateWorkspaceDirectory(options.directory, bundlePath);
   const runtime = openWorkspaceRuntime(options.directory, command === "open" || command === "demo");
   try {
-    const invoke = (operation: WorkspaceRequestV1 | WorkspaceMapReadRequest): ApiResponseV1 => executeApiRequest(operation, runtime.services);
+    const invoke = (operation: WorkspaceRequestV1 | WorkspaceMapReadRequest | WorkspaceEconomyReadRequest): ApiResponseV1 => executeApiRequest(operation, runtime.services);
     const readRequest = (): WorkspaceRequestV1 => ({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.read", payload: { workspaceId: options.id } });
+    if (command === "economy") {
+      const readResponse = invoke(readRequest());
+      const workspace = readResponse.outcome === "success" ? unwrap(readResponse).workspace : undefined;
+      const response = invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.economy.read", payload: { workspaceId: options.id, ...(workspace === undefined ? {} : { atVersion: workspace.version }) } });
+      if (response.outcome === "success") {
+        if (!workspace || workspace.id !== options.id) throw new Error("Economy requested workspace binding unavailable");
+        unwrapEconomy(response, workspace);
+      }
+      if (options.json || response.outcome === "error") {
+        const serialized = serializeJsonTransportResult({ response, exitCode: operationExitCode("workspace.economy.read", response) });
+        process.stdout.write(serialized.output); process.exitCode = serialized.exitCode;
+      } else {
+        const view = unwrapEconomy(response, workspace);
+        process.stdout.write(`${renderWorkspaceEconomyPlain(view)}\n`);
+      }
+      return;
+    }
     if (command === "map") {
       const response = invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.map.read", payload: {
         workspaceId: options.id, ...(options.atlasId === undefined ? {} : { atlasId: options.atlasId }), ...(options.geometryVersion === undefined ? {} : { geometryVersion: options.geometryVersion }),
@@ -166,13 +214,7 @@ export async function runWorkspaceCommand(args: readonly string[]): Promise<void
     if (command === "review" || options.plain || !process.stdin.isTTY || !process.stdout.isTTY || process.env["TERM"] === "dumb") {
       process.stdout.write(`${renderWorkspacePlain(view)}\n`); return;
     }
-    const client: WorkspaceClient = {
-      read: (atVersion) => unwrap(invoke({ ...readRequest(), operation: "workspace.read", payload: { workspaceId: options.id, ...(atVersion === undefined ? {} : { atVersion }) } })),
-      readMap: (selection = {}) => unwrapMap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.map.read", payload: { ...selection, workspaceId: options.id } })),
-      mutate: (action, expectedVersion, idempotencyKey) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.mutate", payload: { workspaceId: options.id, expectedVersion, idempotencyKey, action } })),
-      review: (expectedVersion) => unwrap(invoke({ format: "wmm.request/1", apiVersion: "wmm/1", requestId: randomUUID(), operation: "workspace.review", payload: { workspaceId: options.id, expectedVersion } })),
-      editText: editWorkspaceText,
-    };
+    const client = createWorkspaceClient(runtime.services, options.id);
     await runWorkspaceEditor(client, view);
   } finally { runtime.close(); }
 }

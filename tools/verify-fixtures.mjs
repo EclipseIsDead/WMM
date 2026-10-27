@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { validateApiResponse } from "../packages/wire-contracts/dist/index.js";
+import { validateApiResponse, validateEconomyView } from "../packages/wire-contracts/dist/index.js";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalJson } from "../packages/canonical/dist/index.js";
@@ -110,7 +110,7 @@ function run(args, request) {
 function api(request, expected = {}, workspaceDirectory) {
   const operation = request?.operation;
   assert(object(request) || expected.errorCode === "INVALID_REQUEST", "Malformed request entry");
-  assert(expected.errorCode === "INVALID_REQUEST" || ["world.validate", "record.inspect", "world.export", "claims.query", "absence.query", "absence.proveThroughout", "workspace.create", "workspace.read", "workspace.map.read"].includes(operation), "Unsafe or unsupported fixture operation");
+  assert(expected.errorCode === "INVALID_REQUEST" || ["world.validate", "record.inspect", "world.export", "claims.query", "absence.query", "absence.proveThroughout", "workspace.create", "workspace.read", "workspace.map.read", "workspace.economy.read"].includes(operation), "Unsafe or unsupported fixture operation");
   if (operation === "workspace.create" && !workspaceDirectory) return temporary((path) => {
     const storage = join(path, "workspace"), created = api(request, expected, storage);
     if (created.response.outcome === "success") {
@@ -179,6 +179,7 @@ function tree(path, prefix = "") {
 
 function planAuthoring(path, project) {
   const file = label(path), atlases = project.atlases ?? [];
+  const economic = Object.hasOwn(project, "economy"), economies = new Map();
   assert(Array.isArray(atlases), "Malformed atlases collection");
   const verified = {};
   verifiedSnapshots.push(verified);
@@ -195,21 +196,58 @@ function planAuthoring(path, project) {
     // Atlas capture removes bundle1; actor checks retain the verified second build.
     return verifySnapshot(out(`bundle${index}`), index === 2 ? verified : {});
   });
-  for (const index of [1, 2]) stage(`render/${index}`, () => dev(["notes", "render", out(`bundle${index}`), "--out", out(`notes${index}`)]));
-  for (const kind of ["bundles", "notes"]) stage(`compare-${kind}`, () => {
+  if (economic) {
+    for (const index of [1, 2]) stage(`economy/read/${index}`, () => {
+      const bundlePath = out(`bundle${index}`), result = dev(["economy", "inspect", bundlePath, "--json"]), view = result.response.data;
+      assert(validateEconomyView(view).valid, "Economic inspection violates its response contract");
+      assert.equal(view.worldId, project.worldId);
+      assert.equal(view.snapshotDigest, read(join(bundlePath, "snapshot.json")).snapshotDigest);
+      assert.equal(view.semanticProfileDigest, read(join(bundlePath, "payload/world.json")).semanticProfileDigest);
+      assert.equal(view.inputDigest, read(join(bundlePath, "payload/authoring/index.json")).inputDigest);
+      assert.equal(view.perspective, "dm"); assert.equal(view.accounting, "not-run"); assert.equal(view.scenarios, "not-run");
+      const summary = (entry) => ({ id: entry.value?.id ?? entry.id, kind: entry.value?.kind ?? entry.kind,
+        subjectId: entry.subjectId, quantity: entry.value?.quantity ?? entry.quantity });
+      const order = (a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      assert.deepEqual(view.records.map(summary).sort(order), project.economy.records.map(summary).sort(order), "Economic reports/quantities were omitted or conflated");
+      economies.set(index, view);
+      return result;
+    });
+    stage("economy/notes-unsupported", () => {
+      const result = run(["notes", "render", out("bundle1"), "--out", out("unsupported-notes")]);
+      assert.equal(result.exitCode, 1); assert.equal(result.response.apiVersion, "wmm/dev/1");
+      assert.equal(result.response.outcome, "error"); assert.equal(result.response.execution, "completed");
+      assert.match(result.response.error?.message ?? "", /Economic-profile DM notes are unsupported/);
+      return result;
+    });
+  } else for (const index of [1, 2]) stage(`render/${index}`, () => dev(["notes", "render", out(`bundle${index}`), "--out", out(`notes${index}`)]));
+  for (const kind of economic ? ["bundles"] : ["bundles", "notes"]) stage(`compare-${kind}`, () => {
     const base = kind === "bundles" ? "bundle" : "notes", first = tree(out(`${base}1`));
     assert(first.length, `Empty generated ${kind}`);
     assert.deepEqual(first, tree(out(`${base}2`)), `Nondeterministic ${kind}`);
   });
-  if (!atlases.length) return;
+  if (economic) stage("compare-economy", () => {
+    assert(economies.has(1) && economies.has(2), "Economic inspection failed before deterministic comparison");
+    assert.deepEqual(economies.get(1), economies.get(2), "Nondeterministic economic view");
+  });
+  if (!atlases.length && !economic) return;
   stage("capture", () => {
     const bundlePath = out("bundle1");
     for (const atlas of atlases) atlasDigests.set(atlas.id, digest(readFileSync(join(bundlePath, "payload/maps", `${atlas.id}.json`))));
-    const created = api(request("workspace.create", { workspaceId: "fixture", bundlePath, title: "Fixture atlas", goal: "Inspect reference maps", mode: "world", idempotencyKey: "fixture-create" }), {}, out("workspace"));
+    const created = api(request("workspace.create", { workspaceId: "fixture", bundlePath, title: "Fixture reference views", goal: "Inspect captured reference data", mode: "world", idempotencyKey: "fixture-create" }), {}, out("workspace"));
     captured = api(request("workspace.read", { workspaceId: "fixture" }), {}, out("workspace")).response.data.workspace;
     assert.deepEqual(captured, created.response.data.workspace, "Workspace creation did not persist");
     rmSync(bundlePath, { recursive: true }); // Only generated output; subsequent reads must use the captured base.
     return created;
+  });
+  if (economic) for (const index of [1, 2]) stage(`economy/captured/${index}`, () => {
+    assert(captured && economies.has(1), "Economic capture or source inspection failed");
+    const result = api(request("workspace.economy.read", { workspaceId: "fixture", atVersion: captured.version }), {}, out("workspace"));
+    const view = result.response.data;
+    assert.equal(view.workspaceId, captured.id); assert.equal(view.workspaceVersion, captured.version);
+    assert.deepEqual(view.base, captured.base); assert.equal(view.worldBasis, "base");
+    assert.equal(view.selectedProposalsIncluded, false); assert.equal(view.candidateView, "unavailable");
+    assert.deepEqual(view.economy, economies.get(1), "Captured economic view differs after original-source loss");
+    return result;
   });
   for (const atlas of atlases) add(file, `${file}#atlas/${atlas.id}`, "action", () => {
     assert(captured, "Workspace capture failed");
@@ -224,7 +262,7 @@ function planAuthoring(path, project) {
     assert.equal(data.factProjection, "not-run"); assert.equal(data.candidateView, "unavailable");
     return result;
   });
-  stage("readonly", () => assert.deepEqual(api(request("workspace.read", { workspaceId: "fixture" }), {}, out("workspace")).response.data.workspace, captured, "Map reads changed workspace state"));
+  stage("readonly", () => assert.deepEqual(api(request("workspace.read", { workspaceId: "fixture" }), {}, out("workspace")).response.data.workspace, captured, "Reference reads changed workspace state"));
 }
 
 function planActorBrief(path, brief) {

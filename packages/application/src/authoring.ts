@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { compileAuthoringProject } from "@wmm/core";
 import {
-  buildAuthoringBundle, loadReleaseWorldBundle, readAuthoringIndex, renderDmNotes, validateWorldBundle, writeDmNotes,
+  buildAuthoringBundle, loadReleaseWorldBundle, readVerifiedAuthoringIndex, renderDmNotes, validateWorldBundle, writeDmNotes,
 } from "@wmm/exchange";
 
 /** Fresh snapshot construction, not approval, canonical acceptance, or a workspace commit. */
@@ -16,7 +16,7 @@ export function checkAuthoringProject(input: unknown) {
 
 export function buildAuthoringProject(input: unknown, destination: string) {
   const bundle = buildAuthoringBundle(input, destination);
-  const index = readAuthoringIndex(bundle);
+  const index = readVerifiedAuthoringIndex(bundle);
   return {
     format: "wmm.authoring-build/1" as const, bundlePath: resolve(destination), inputDigest: index.inputDigest,
     notes: index.notes.length, ...validateWorldBundle(bundle),

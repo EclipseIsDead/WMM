@@ -7,6 +7,7 @@ export { WorkspaceApplication, workspaceView } from "./workspaces.js";
 export * from "./authoring.js";
 export * from "./entity-context.js";
 export * from "./actor.js";
+export { readSnapshotEconomy } from "./economy.js";
 
 import {
   ClaimQueryInputError,
@@ -43,7 +44,7 @@ const SUPPORTED_OPERATIONS: ReadonlySet<string> = new Set(
     "claims.query",
     "absence.query",
     "absence.proveThroughout",
-    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate", "workspace.map.read",
+    "workspace.create", "workspace.read", "workspace.review", "workspace.mutate", "workspace.map.read", "workspace.economy.read",
   ] satisfies readonly ApiOperationV1[],
 );
 
@@ -132,6 +133,11 @@ export function executeApiRequest(input: unknown, services: ApplicationServices 
     }
 
     const admitted = input as ApiRequestV1;
+    if (admitted.operation === "workspace.economy.read") {
+      if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
+      const data = services.workspaces.readEconomy(admitted.payload);
+      return successResponse(admitted.requestId, data.base, { operation: admitted.operation, data });
+    }
     if (admitted.operation === "workspace.map.read") {
       if (services.workspaces === undefined) return apiErrorResponse("UNSUPPORTED_FEATURE", "Workspace storage must be configured by the host", requestId, operation);
       const data = services.workspaces.readMap(admitted.payload);

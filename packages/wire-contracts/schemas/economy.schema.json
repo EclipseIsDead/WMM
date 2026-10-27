@@ -1,0 +1,1056 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wmm:economy",
+  "$defs": {
+    "WorkspaceEconomyReadRequest": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.request/1" },
+        "apiVersion": { "const": "wmm/1" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "operation": { "const": "workspace.economy.read" },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "workspaceId": { "$ref": "urn:wmm:workspace:v1#/$defs/StableId" },
+            "atVersion": { "$ref": "urn:wmm:workspace:v1#/$defs/Version" }
+          },
+          "required": ["workspaceId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["format", "apiVersion", "requestId", "operation", "payload"],
+      "additionalProperties": false
+    },
+    "WorkspaceEconomyView": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "wmm.workspace-economy-view/1" },
+        "workspaceId": { "$ref": "urn:wmm:workspace:v1#/$defs/StableId" },
+        "workspaceVersion": { "$ref": "urn:wmm:workspace:v1#/$defs/Version" },
+        "base": {
+          "type": "object",
+          "properties": {
+            "worldId": { "$ref": "urn:wmm:authoring#/$defs/WorldId" },
+            "snapshotDigest": { "$ref": "urn:wmm:authoring#/$defs/Digest" }
+          },
+          "required": ["worldId", "snapshotDigest"],
+          "additionalProperties": false
+        },
+        "worldBasis": { "const": "base" },
+        "selectedProposalsIncluded": { "const": false },
+        "candidateView": { "const": "unavailable" },
+        "economy": { "$ref": "#/$defs/EconomyView" },
+        "limitations": { "type": "array", "maxItems": 20, "items": { "$ref": "urn:wmm:authoring#/$defs/Text" } }
+      },
+      "required": ["format", "workspaceId", "workspaceVersion", "base", "worldBasis", "selectedProposalsIncluded", "candidateView", "economy", "limitations"],
+      "additionalProperties": false
+    },
+    "Unknown": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unknown"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Declaration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "declared"
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "Role": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "declared"
+            },
+            "entityId": {
+              "$ref": "urn:wmm:authoring#/$defs/EntityId"
+            }
+          },
+          "required": [
+            "kind",
+            "entityId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "Boundary": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "declared"
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            },
+            "entityIds": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:wmm:authoring#/$defs/EntityId"
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "description",
+            "entityIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "Unmapped": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unmapped"
+        },
+        "label": {
+          "$ref": "urn:wmm:authoring#/$defs/Name"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "Position": {
+      "type": "string",
+      "pattern": "^(0|-?[1-9][0-9]{0,63})$"
+    },
+    "Point": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "mapped"
+            },
+            "axisDefinitionDigest": {
+              "$ref": "urn:wmm:authoring#/$defs/Digest"
+            },
+            "position": {
+              "$ref": "#/$defs/Position"
+            }
+          },
+          "required": [
+            "kind",
+            "axisDefinitionDigest",
+            "position"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unmapped"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "AuthoringPoint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "mapped"
+            },
+            "axisKey": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 80
+            },
+            "position": {
+              "$ref": "#/$defs/Position"
+            }
+          },
+          "required": [
+            "kind",
+            "axisKey",
+            "position"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unmapped"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "EconomicRecordValue": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StockObservationValue"
+        },
+        {
+          "$ref": "#/$defs/DeliveryCommitmentValue"
+        },
+        {
+          "$ref": "#/$defs/PlannedRequirementValue"
+        }
+      ]
+    },
+    "AuthoringRecord": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AuthoringStockObservation"
+        },
+        {
+          "$ref": "#/$defs/AuthoringDeliveryCommitment"
+        },
+        {
+          "$ref": "#/$defs/AuthoringPlannedRequirement"
+        }
+      ]
+    },
+    "AuthoringEconomy": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.authoring-economy/1"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthoringRecord"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "format",
+        "records"
+      ],
+      "additionalProperties": false
+    },
+    "EconomyView": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "wmm.economy-view/1"
+        },
+        "worldId": {
+          "$ref": "urn:wmm:authoring#/$defs/WorldId"
+        },
+        "snapshotDigest": {
+          "$ref": "urn:wmm:authoring#/$defs/Digest"
+        },
+        "semanticProfileDigest": {
+          "$ref": "urn:wmm:authoring#/$defs/Digest"
+        },
+        "inputDigest": {
+          "$ref": "urn:wmm:authoring#/$defs/Digest"
+        },
+        "perspective": {
+          "const": "dm"
+        },
+        "accounting": {
+          "const": "not-run"
+        },
+        "scenarios": {
+          "const": "not-run"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assertionId": {
+                "$ref": "urn:wmm:authoring#/$defs/AssertionId"
+              },
+              "subjectId": {
+                "$ref": "urn:wmm:authoring#/$defs/EntityId"
+              },
+              "scope": {
+                "$ref": "urn:wmm:contract-kit:core-v1-draft-03#/$defs/Scope"
+              },
+              "value": {
+                "$ref": "#/$defs/EconomicRecordValue"
+              }
+            },
+            "required": [
+              "assertionId",
+              "subjectId",
+              "scope",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 64
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "urn:wmm:authoring#/$defs/EntityId"
+              },
+              "name": {
+                "$ref": "urn:wmm:authoring#/$defs/Name"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 1000
+        },
+        "sources": {
+          "$ref": "urn:wmm:authoring#/$defs/Sources"
+        },
+        "axes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "definitionDigest": {
+                "$ref": "urn:wmm:authoring#/$defs/Digest"
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "definitionDigest",
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 64
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:wmm:authoring#/$defs/Text"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "format",
+        "worldId",
+        "snapshotDigest",
+        "semanticProfileDigest",
+        "inputDigest",
+        "perspective",
+        "accounting",
+        "scenarios",
+        "records",
+        "entities",
+        "sources",
+        "axes",
+        "limitations"
+      ],
+      "additionalProperties": false,
+      "maxJsonBytes": 1048576
+    },
+    "Period": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "mapped"
+            },
+            "axisDefinitionDigest": {
+              "$ref": "urn:wmm:authoring#/$defs/Digest"
+            },
+            "start": {
+              "$ref": "#/$defs/Position"
+            },
+            "endExclusive": {
+              "$ref": "#/$defs/Position"
+            }
+          },
+          "required": [
+            "kind",
+            "axisDefinitionDigest",
+            "start",
+            "endExclusive"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unmapped"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "AuthoringPeriod": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "mapped"
+            },
+            "axisKey": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 80
+            },
+            "start": {
+              "$ref": "#/$defs/Position"
+            },
+            "endExclusive": {
+              "$ref": "#/$defs/Position"
+            }
+          },
+          "required": [
+            "kind",
+            "axisKey",
+            "start",
+            "endExclusive"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/Unmapped"
+        },
+        {
+          "$ref": "#/$defs/Unknown"
+        }
+      ]
+    },
+    "StockObservationValue": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "kind": {
+          "const": "stock-observation"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "reported-estimate"
+          ]
+        },
+        "owner": {
+          "$ref": "#/$defs/Role"
+        },
+        "custodian": {
+          "$ref": "#/$defs/Role"
+        },
+        "location": {
+          "$ref": "#/$defs/Role"
+        },
+        "availableUse": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "reference": {
+          "$ref": "#/$defs/Point"
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "kind",
+        "status",
+        "owner",
+        "custodian",
+        "location",
+        "availableUse",
+        "reference"
+      ],
+      "additionalProperties": false
+    },
+    "AuthoringStockObservation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "kind": {
+          "const": "stock-observation"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "reported-estimate"
+          ]
+        },
+        "owner": {
+          "$ref": "#/$defs/Role"
+        },
+        "custodian": {
+          "$ref": "#/$defs/Role"
+        },
+        "location": {
+          "$ref": "#/$defs/Role"
+        },
+        "availableUse": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "reference": {
+          "$ref": "#/$defs/AuthoringPoint"
+        },
+        "subjectId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "context": {
+          "$ref": "urn:wmm:authoring#/$defs/Context"
+        },
+        "applicability": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "invariant"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "kind",
+        "status",
+        "owner",
+        "custodian",
+        "location",
+        "availableUse",
+        "reference",
+        "subjectId",
+        "context",
+        "applicability"
+      ],
+      "additionalProperties": false
+    },
+    "DeliveryCommitmentValue": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "kind": {
+          "const": "delivery-commitment"
+        },
+        "promisor": {
+          "$ref": "#/$defs/Role"
+        },
+        "recipient": {
+          "$ref": "#/$defs/Role"
+        },
+        "destination": {
+          "$ref": "#/$defs/Role"
+        },
+        "reference": {
+          "$ref": "#/$defs/Period"
+        },
+        "timing": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "future-as-authored"
+            },
+            "relativeTo": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "kind",
+            "relativeTo"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "kind",
+        "promisor",
+        "recipient",
+        "destination",
+        "reference",
+        "timing"
+      ],
+      "additionalProperties": false
+    },
+    "AuthoringDeliveryCommitment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "kind": {
+          "const": "delivery-commitment"
+        },
+        "promisor": {
+          "$ref": "#/$defs/Role"
+        },
+        "recipient": {
+          "$ref": "#/$defs/Role"
+        },
+        "destination": {
+          "$ref": "#/$defs/Role"
+        },
+        "reference": {
+          "$ref": "#/$defs/AuthoringPeriod"
+        },
+        "timing": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "future-as-authored"
+            },
+            "relativeTo": {
+              "$ref": "#/$defs/AuthoringPoint"
+            }
+          },
+          "required": [
+            "kind",
+            "relativeTo"
+          ],
+          "additionalProperties": false
+        },
+        "subjectId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "context": {
+          "$ref": "urn:wmm:authoring#/$defs/Context"
+        },
+        "applicability": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "invariant"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "kind",
+        "promisor",
+        "recipient",
+        "destination",
+        "reference",
+        "timing",
+        "subjectId",
+        "context",
+        "applicability"
+      ],
+      "additionalProperties": false
+    },
+    "PlannedRequirementValue": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "reference": {
+          "$ref": "#/$defs/Period"
+        },
+        "kind": {
+          "const": "planned-requirement"
+        },
+        "planner": {
+          "$ref": "#/$defs/Role"
+        },
+        "beneficiary": {
+          "$ref": "#/$defs/Role"
+        },
+        "purpose": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "reference",
+        "kind",
+        "planner",
+        "beneficiary",
+        "purpose"
+      ],
+      "additionalProperties": false
+    },
+    "AuthoringPlannedRequirement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:wmm:authoring#/$defs/Slug"
+        },
+        "resourceId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "quantity": {
+          "$ref": "urn:wmm:measurement#/$defs/Quantity"
+        },
+        "description": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        },
+        "method": {
+          "$ref": "#/$defs/Declaration"
+        },
+        "boundary": {
+          "$ref": "#/$defs/Boundary"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "partial",
+                "complete-as-declared",
+                "unknown"
+              ]
+            },
+            "description": {
+              "$ref": "urn:wmm:authoring#/$defs/Text"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        "citations": {
+          "$ref": "urn:wmm:authoring#/$defs/Citations"
+        },
+        "reference": {
+          "$ref": "#/$defs/AuthoringPeriod"
+        },
+        "subjectId": {
+          "$ref": "urn:wmm:authoring#/$defs/EntityId"
+        },
+        "context": {
+          "$ref": "urn:wmm:authoring#/$defs/Context"
+        },
+        "applicability": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "invariant"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        "kind": {
+          "const": "planned-requirement"
+        },
+        "planner": {
+          "$ref": "#/$defs/Role"
+        },
+        "beneficiary": {
+          "$ref": "#/$defs/Role"
+        },
+        "purpose": {
+          "$ref": "urn:wmm:authoring#/$defs/Text"
+        }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "quantity",
+        "description",
+        "method",
+        "boundary",
+        "coverage",
+        "citations",
+        "reference",
+        "subjectId",
+        "context",
+        "applicability",
+        "kind",
+        "planner",
+        "beneficiary",
+        "purpose"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AuthoringEconomy"
+    },
+    {
+      "$ref": "#/$defs/EconomicRecordValue"
+    },
+    {
+      "$ref": "#/$defs/EconomyView"
+    }
+  ]
+}

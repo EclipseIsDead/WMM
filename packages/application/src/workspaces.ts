@@ -8,9 +8,11 @@ import { WorkspaceStoreError, type WorkspaceStore } from "@wmm/ports";
 import type {
   JsonValue, ProposalGroupV1, WorkspaceActionV1, WorkspaceBaseV1, WorkspaceOperationV1,
   WorkspaceRequestV1, WorkspaceStateV1, WorkspaceViewV1, WorkspaceReviewV1, WorkspaceMapReadRequest, WorkspaceMapView,
+  WorkspaceEconomyReadRequest, WorkspaceEconomyView,
 } from "@wmm/wire-contracts";
 import { validateApiResponse, validateWorkspaceReviewReceipt } from "@wmm/wire-contracts";
 import { readWorkspaceAtlas } from "./atlas.js";
+import { readWorkspaceEconomy } from "./economy.js";
 
 function invalid(message: string): never { throw new WorkspaceActionError(message); }
 function json(value: unknown): string { return canonicalJson(value as JsonValue); }
@@ -218,6 +220,15 @@ export class WorkspaceApplication {
   readMap(payload: WorkspaceMapReadRequest["payload"]): WorkspaceMapView {
     const state = this.store.read(payload.workspaceId, payload.atVersion);
     return readWorkspaceAtlas(state, this.store.readBase(payload.workspaceId), payload);
+  }
+
+  readEconomy(payload: WorkspaceEconomyReadRequest["payload"]): WorkspaceEconomyView {
+    const state = this.store.read(payload.workspaceId, payload.atVersion);
+    if (state.id !== payload.workspaceId) throw new WorkspaceStoreError("STORAGE_FAILURE", "Workspace read returned a different workspace identity");
+    if (payload.atVersion !== undefined && state.version !== payload.atVersion) {
+      throw new WorkspaceStoreError("STALE_WORKSPACE", `Workspace ${payload.workspaceId} read did not return requested v${payload.atVersion}`);
+    }
+    return readWorkspaceEconomy(state, this.store.readBase(payload.workspaceId));
   }
 
   execute(request: WorkspaceRequestV1): WorkspaceViewV1 {

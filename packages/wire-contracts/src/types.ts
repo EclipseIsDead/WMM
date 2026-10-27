@@ -1,5 +1,6 @@
 import type { WorkspaceErrorCodeV1, WorkspaceRequestV1, WorkspaceViewV1 } from "./workspace.js";
 import type { WorkspaceMapReadRequest, WorkspaceMapView } from "./atlas.js";
+import type { WorkspaceEconomyReadRequest, WorkspaceEconomyView } from "./economy.js";
 
 export type DigestHex = string;
 export type WorldId = string;
@@ -503,6 +504,8 @@ export type SemanticOperationV1 =
   | "retained-unicode-v1"
   | "safe-integer-literal-v1"
   | "integer-value-v1"
+  | "economic-record-atom-v1"
+  | "economic-record-literal-v1"
   | "bundled-candidate-membership-v1"
   | "bundled-candidate-selector-v1"
   | "bundled-eligibility-v1"
@@ -607,6 +610,7 @@ export type ApiOperationV1 =
   | "workspace.create"
   | "workspace.read"
   | "workspace.map.read"
+  | "workspace.economy.read"
   | "workspace.review"
   | "workspace.mutate";
 
@@ -660,7 +664,8 @@ export type ApiRequestV1 =
       };
     })
   | WorkspaceRequestV1
-  | WorkspaceMapReadRequest;
+  | WorkspaceMapReadRequest
+  | WorkspaceEconomyReadRequest;
 
 export type ApiErrorCodeV1 =
   | "UNSUPPORTED_API_VERSION"
@@ -729,6 +734,7 @@ export interface ApiResultByOperationV1 {
   readonly "workspace.create": WorkspaceViewV1;
   readonly "workspace.read": WorkspaceViewV1;
   readonly "workspace.map.read": WorkspaceMapView;
+  readonly "workspace.economy.read": WorkspaceEconomyView;
   readonly "workspace.review": WorkspaceViewV1;
   readonly "workspace.mutate": WorkspaceViewV1;
 }

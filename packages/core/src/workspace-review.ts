@@ -275,9 +275,45 @@ function sourceIntegrity(base: WorkspaceBaseV1): void {
   }
 }
 
+export interface CapturedWorkspaceBaseBinding {
+  readonly worldId: string;
+  readonly snapshotDigest: string;
+  readonly semanticProfileDigest: string;
+}
+
+/** Verify retained payload identity without reading proposals or running candidate review.
+ * The host supplies the expected binding; this does not establish its external authority. */
+export function verifyCapturedWorkspaceBase(input: unknown, expected: CapturedWorkspaceBaseBinding, limits: Partial<WorkspaceReviewLimitsV1> = {}): WorkspaceBaseV1 {
+  const budget = new Budget(limitsFor(limits));
+  const detached = budget.clone({ base: input, expected }) as { base: WorkspaceBaseV1; expected: CapturedWorkspaceBaseBinding };
+  requireInput(keys(detached.expected, ["worldId", "snapshotDigest", "semanticProfileDigest"]) &&
+    typeof detached.expected.worldId === "string" && /^world:[a-z0-9_-]+$(?![\s\S])/.test(detached.expected.worldId) &&
+    digest(detached.expected.snapshotDigest) && digest(detached.expected.semanticProfileDigest), "Invalid captured base expected binding");
+  requireInput(keys(detached.base, ["snapshot", "world", "documents"]) && keys(detached.base.world, [
+    "format", "snapshotDigest", "world", "semanticProfile", "definitions", "rosters", "descriptors", "sources", "assertions", "supports", "documents",
+  ]), "Unsupported captured base metadata");
+  admitBase({ base: detached.expected }, detached.base, budget);
+  for (const item of [...detached.base.world.definitions, ...detached.base.world.rosters]) {
+    requireInput(keys(item, ["digest", "body"]), "Unsupported retained record metadata");
+  }
+  for (const item of detached.base.documents) {
+    requireInput(keys(item, ["path", "mediaType", "sha256", "base64"]), "Unsupported retained document metadata");
+  }
+  requireInput(detached.base.world.world.semanticProfileDigest === detached.expected.semanticProfileDigest, "Captured base semantic profile differs from the host-pinned profile");
+  const freeze = (value: unknown): void => {
+    budget.charge();
+    if (value !== null && typeof value === "object") {
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    }
+  };
+  freeze(detached.base);
+  return detached.base;
+}
+
 /** Reconstruct every pinned payload entry from retained data, rather than trusting
  * a caller's snapshot wrapper or document metadata as evidence of those bytes. */
-function admitBase(state: WorkspaceStateV1, base: WorkspaceBaseV1, budget: Budget): void {
+function admitBase(state: Pick<WorkspaceStateV1, "base">, base: WorkspaceBaseV1, budget: Budget): void {
   assertRecord(base.snapshot, "wmm.snapshot-record/1", budget);
   const exported = base.world;
   requireInput(exported.format === "wmm.world-export/1", "Invalid world export");

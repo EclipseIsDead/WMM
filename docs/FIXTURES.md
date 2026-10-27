@@ -26,14 +26,15 @@ Use `--fixtures-dir <directory>` for an isolated fixture collection. The normal 
 | V2 claims | Every case and the complete declared definite/possible/unresolved/excluded golden lists |
 | V2 point absence | Every declared expectation, including evidence classifications and pinned selection/evaluation digests where supplied |
 | V2 interval absence | Every declared expectation, including breakpoints, cell evaluations, and the expected incomplete budget failure; that exit-code-4 case is a passing regression check, not a failed fixture |
-| Authoring projects, when present | Every discovered authoring project through real check/build/world validation/note rendering and deterministic-output comparison |
+| Authoring projects, when present | Every discovered authoring project through real check/build/world validation and deterministic-output comparison; legacy-profile projects additionally render linked notes |
+| Economic authoring, when explicitly opted in | Actual `economy inspect` on two verified builds, complete report/quantity binding and deterministic comparison, explicit legacy-note unsupported behavior, repeated captured-workspace economic reads after source loss, and unchanged saved state |
 | Reference atlases, when present | Each authored atlas through a captured-workspace map read; this CI change does not bundle or require the separate atlas feature PR |
 | Actor briefs, when present | Real `actor prepare` against a discovered or generated verified snapshot matching the declared snapshot digest |
 | Actor decision drafts, when present | Real `actor review` against the rebuilt context matching the declared context digest; invalid or unbound inputs fail instead of being skipped |
 
 The report enumerates discovered JSON files and their coverage. Unknown formats, malformed or empty collections, unsupported expectation keys, and an empty fixture root are errors rather than silent skips. Individual failures are collected so later independent fixture checks still run; the command exits nonzero if any check fails.
 
-Actor checks run after snapshot validation and authoring checks, with all briefs prepared before decisions are reviewed. Binding uses snapshot/context digests, never fixture filenames or campaign identities. Inventory mode only lists these planned checks and invokes no CLI subprocesses. The current combined inventory covers 104 JSON files with 50 executable checks.
+Actor checks run after snapshot validation and authoring checks, with all briefs prepared before decisions are reviewed. Binding uses snapshot/context digests, never fixture filenames or campaign identities. Inventory mode only lists these planned checks and invokes no CLI subprocesses. The current combined inventory covers 105 JSON files with 64 executable checks. Economic/atlas checks share captured storage when both are present; the second verified build is retained for later actor binding.
 
 The harness uses bounded subprocesses with no shell interpolation. Generated bundles, notes and authoring storage live in fresh, canonical temporary directories; source fixtures are not rewritten by the verifier.
 
@@ -42,7 +43,7 @@ The harness uses bounded subprocesses with no shell interpolation. Generated bun
 The `Conformance` workflow has independent `check` and `fixtures` jobs on both Linux and macOS. Fixture jobs do not depend on unit-test success. After the CLI builds, all of these fixture stages are attempted even if an earlier stage fails:
 
 1. `pnpm verify:fixtures` — discovery, positive/negative requests, bundle admission and golden results.
-2. `pnpm verify:workspace` — actual PTY navigation, persistence, signal cleanup and terminal fallbacks, plus any supported atlas smoke scenarios.
+2. `pnpm verify:workspace` — actual PTY navigation, persistence, signal cleanup and terminal fallbacks, plus supported captured atlas and Economy smoke scenarios.
 3. `pnpm generate:fixtures` — regeneration must leave tracked fixture bytes unchanged and create no unexpected untracked fixture files.
 
 The normal conformance job retains strict source/test typechecks, the full unit/integration suite, and portable release packing/isolated verification. Runtime versions, frozen dependency installation and read-only workflow permissions are unchanged.

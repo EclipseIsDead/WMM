@@ -27,6 +27,8 @@ Open the generated `notes/index.md`, or open `notes/` as a separate Obsidian vau
 
 Ordinary `world validate`, `world inspect`, `world export`, `wmm/1` world/claim queries, and `workspace open` accept these bundles through the release-profile loader. The original bundled profile, its definitions, and existing fixture identities are unchanged. The authoring profile is an additive, release-owned allowlist—not a trust list supplied by the input project.
 
+An optional economic envelope selects a separate additional profile; see the [economy guide](ECONOMY.md) and grain example. Its normal build/load/export and dedicated Economy views are supported, but legacy `notes render`, entity-context and actor preparation deliberately report unsupported for that profile. They do not silently render an empty or supposedly complete economics-free view.
+
 ## Authoring model
 
 See the complete [synthetic example](../fixtures/authoring/faction-project.json), [JSON Schema](../packages/wire-contracts/schemas/authoring.schema.json), and [TypeScript shapes](../packages/wire-contracts/src/authoring.ts).
@@ -41,6 +43,7 @@ See the complete [synthetic example](../fixtures/authoring/faction-project.json)
 | `campaigns` | Stable `campaign:` IDs, names, campaign-scoped sections, and tracks. |
 | `tracks` | Globally unique `track:` ID, name, subject entity, inclusive minimum/maximum, and one or more authored entries. Each entry has an integer value, explanation, and citations. The final entry is current. |
 | `atlases` (optional) | Bounded, undated reference geometry with explicit physical coverage, place-linked features, separate anchors, and provenance; no inferred political ownership. See the [atlas guide](ATLAS.md). |
+| `economy` (optional) | Explicitly opted-in stock observations, future delivery commitments and planned requirements with exact/bounded/unknown amounts, references, method, boundaries, coverage and citations. See [economic authoring](ECONOMY.md#authoring-contract). |
 
 Display names can repeat. Generated paths use the namespace and stable ID (`faction/lantern_guild.md`), and links use explicit full targets and display aliases. Renaming an entity does not break its links or change its descriptor identity. Only explicit `references` and relationship targets are checked; WMM does not parse, resolve, or repair arbitrary links inside narrative Markdown.
 

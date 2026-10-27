@@ -1,0 +1,238 @@
+{
+  "format": "wmm.authoring-project/1",
+  "worldId": "world:reedbank",
+  "title": "Reedbank grain declarations (synthetic)",
+  "sources": [
+    {
+      "id": "source:ledger",
+      "title": "Authored ledger",
+      "path": "Reports/Ledger.md"
+    }
+  ],
+  "entities": [
+    {
+      "id": "place:reedbank",
+      "name": "Reedbank",
+      "sections": []
+    },
+    {
+      "id": "item:grain",
+      "name": "Grain",
+      "sections": []
+    },
+    {
+      "id": "place:store",
+      "name": "Town Store",
+      "sections": []
+    },
+    {
+      "id": "faction:council",
+      "name": "Town Council",
+      "sections": []
+    }
+  ],
+  "facts": [],
+  "campaigns": [
+    {
+      "id": "campaign:rainwatch",
+      "name": "Rainwatch Relief",
+      "sections": [],
+      "tracks": []
+    }
+  ],
+  "economy": {
+    "format": "wmm.authoring-economy/1",
+    "records": [
+      {
+        "id": "opening",
+        "kind": "stock-observation",
+        "subjectId": "place:reedbank",
+        "resourceId": "item:grain",
+        "context": {
+          "kind": "setting"
+        },
+        "applicability": {
+          "kind": "invariant"
+        },
+        "quantity": {
+          "unitId": "unit:tonne",
+          "magnitude": {
+            "kind": "exact",
+            "value": {
+              "numerator": "600",
+              "denominator": "1"
+            }
+          }
+        },
+        "description": "Opening report for the town store; household and private stocks are not included.",
+        "reference": {
+          "kind": "mapped",
+          "axisKey": "days",
+          "position": "0"
+        },
+        "method": {
+          "kind": "declared",
+          "description": "Reported store count"
+        },
+        "boundary": {
+          "kind": "declared",
+          "description": "Town store only",
+          "entityIds": [
+            "place:store"
+          ]
+        },
+        "coverage": {
+          "kind": "partial",
+          "description": "Other stores not counted"
+        },
+        "citations": [
+          {
+            "sourceId": "source:ledger",
+            "locator": "Opening entry"
+          }
+        ],
+        "status": "observed",
+        "owner": {
+          "kind": "declared",
+          "entityId": "faction:council"
+        },
+        "custodian": {
+          "kind": "unknown"
+        },
+        "location": {
+          "kind": "declared",
+          "entityId": "place:store"
+        },
+        "availableUse": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "id": "promised",
+        "kind": "delivery-commitment",
+        "subjectId": "place:reedbank",
+        "resourceId": "item:grain",
+        "context": {
+          "kind": "setting"
+        },
+        "applicability": {
+          "kind": "invariant"
+        },
+        "quantity": {
+          "unitId": "unit:tonne",
+          "magnitude": {
+            "kind": "bounded",
+            "lower": {
+              "numerator": "200",
+              "denominator": "1"
+            },
+            "upper": {
+              "numerator": "250",
+              "denominator": "1"
+            }
+          }
+        },
+        "description": "Promised grain shipment; neither arrival nor available stock is asserted.",
+        "reference": {
+          "kind": "mapped",
+          "axisKey": "days",
+          "start": "10",
+          "endExclusive": "20"
+        },
+        "method": {
+          "kind": "declared",
+          "description": "Authored delivery agreement, not a weigh-in"
+        },
+        "boundary": {
+          "kind": "declared",
+          "description": "Town store only",
+          "entityIds": [
+            "place:store"
+          ]
+        },
+        "coverage": {
+          "kind": "complete-as-declared",
+          "description": "This single declared delivery agreement only"
+        },
+        "citations": [
+          {
+            "sourceId": "source:ledger",
+            "locator": "Opening entry"
+          }
+        ],
+        "promisor": {
+          "kind": "declared",
+          "entityId": "faction:council"
+        },
+        "recipient": {
+          "kind": "unknown"
+        },
+        "destination": {
+          "kind": "declared",
+          "entityId": "place:store"
+        },
+        "timing": {
+          "kind": "future-as-authored",
+          "relativeTo": {
+            "kind": "mapped",
+            "axisKey": "days",
+            "position": "0"
+          }
+        }
+      },
+      {
+        "id": "food-plan",
+        "kind": "planned-requirement",
+        "subjectId": "place:reedbank",
+        "resourceId": "item:grain",
+        "context": {
+          "kind": "campaign",
+          "campaignId": "campaign:rainwatch"
+        },
+        "applicability": {
+          "kind": "invariant"
+        },
+        "quantity": {
+          "unitId": "unit:tonne",
+          "magnitude": {
+            "kind": "unknown"
+          }
+        },
+        "description": "Relief provision is planned, but no defensible mass estimate is recorded.",
+        "reference": {
+          "kind": "unmapped",
+          "label": "Rainwatch relief season; not mapped to the days axis"
+        },
+        "method": {
+          "kind": "unknown"
+        },
+        "boundary": {
+          "kind": "declared",
+          "description": "Town store only",
+          "entityIds": [
+            "place:store"
+          ]
+        },
+        "coverage": {
+          "kind": "unknown",
+          "description": "Household demand and the reporting area have not been measured"
+        },
+        "citations": [
+          {
+            "sourceId": "source:ledger",
+            "locator": "Opening entry"
+          }
+        ],
+        "planner": {
+          "kind": "declared",
+          "entityId": "faction:council"
+        },
+        "beneficiary": {
+          "kind": "declared",
+          "entityId": "place:reedbank"
+        },
+        "purpose": "Plan food provision during the relief season; this is not recorded consumption."
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 import type { AssertionId, DigestHex, SnapshotRecordV1 } from "./types.js";
 import type { Atlas } from "./atlas.js";
+import type { AuthoringEconomy } from "./economy.js";
 
 export type AuthoringContext =
   | { readonly kind: "setting" }
@@ -75,6 +76,8 @@ export interface AuthoringProject {
   readonly campaigns: readonly AuthoringCampaign[];
   /** Optional, explicitly authored reference geometry; never political state. */
   readonly atlases?: readonly Atlas[];
+  /** Presence explicitly opts into the release-owned economic profile. */
+  readonly economy?: AuthoringEconomy;
 }
 
 export interface AuthoringSectionIndex extends Omit<AuthoringSection, "text"> {
