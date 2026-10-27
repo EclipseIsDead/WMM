@@ -1,0 +1,22 @@
+{
+  "format": "wmm.actor-decision/1",
+  "status": "proposed",
+  "contextDigest": "9bdac6e51737a153254c0e66ee09a1983d9ebd10e6220cf5dc9ba1677b53ca72",
+  "action": {
+    "text": "Request confirmation of the next watch's payment before proposing staffing commitments that depend on those funds.",
+    "basis": ["mission", "payment_report", "confirmation_missing"]
+  },
+  "rationale": {
+    "text": "Our duty is to keep the beacons staffed, not to mistake an unconfirmed payment report for money we can spend. We should settle that uncertainty before making a commitment.",
+    "basis": ["mission", "payment_report", "confirmation_missing"]
+  },
+  "uncertainties": [
+    { "text": "Whether the council has actually arranged payment and whether reserve funds are available remain unknown.", "basis": ["payment_report", "confirmation_missing"] }
+  ],
+  "communication": {
+    "status": "draft",
+    "recipient": "Harbor council",
+    "text": "Please confirm the payment arrangements for the next beacon watch. We need that confirmation before proposing staffing commitments that depend on the funds.",
+    "basis": ["mission", "payment_report", "confirmation_missing", "no_execution"]
+  }
+}

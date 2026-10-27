@@ -24,6 +24,8 @@ This is not a vault copier, an LLM migration service, a finalized universal worl
 
 The opt-in `context entity` command now builds deterministic snapshot/input/profile-bound DM-side packets from verified authored bundles, without scraping rendered notes or modifying state. It selects direct relationships, own/explicitly referencing sections, and selected-campaign current tracks, retaining citations and assertion/document identities. Canonical byte/item budgets omit whole items with explicit coverage counts; current state takes priority. This is not an actor-knowledge filter, model call, roleplayed decision, or new `wmm/1` operation. See [the context contract](AUTHORING.md#entity-context-for-an-agent-harness).
 
+The separate [actor workflow](ACTOR-WORKFLOW.md) prepares explicitly curated actor context from a snapshot-bound sidecar and checks an external agent's proposed decision against a rebuilt context. Host-only provenance is excluded from the actor packet and retained in the DM review. Fresh optional artifact directories contain the brief, actor packet, draft decision, JSON/Markdown review, and a file manifest. No provider calls, automatic awareness/entailment validation, delivery, execution, approval, canonical writes, atlas changes, or new `wmm/1` operations are added. Curated context fails closed on budget exhaustion rather than silently omitting a constraint.
+
 ## Workspace slices
 
 The [workspace implementation brief](../plans/WMM-V3-WORKSPACE-IMPLEMENTATION-BRIEF.md) divides V3 into executable slices:
@@ -57,7 +59,7 @@ The host-owned directory contains `authoring.sqlite` in WAL mode, the immutable 
 - Terminal-safe Unicode presentation without executing imported controls; grapheme-aware forms, retained failed-save buffers, explicit retries, and host-owned external editing without a shell.
 - Strict source/test typechecking, adversarial regression fixtures, and an existing macOS/Linux engine CI workflow.
 
-These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,117 tests across 53 files, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all four real-PTY smoke scenarios on macOS; release packing and isolated release verification also passed. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
+These are implemented bounds, not general security or accessibility certification. Local `pnpm run check` passed 1,202 tests across 56 files, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all four real-PTY smoke scenarios on macOS; release packing and isolated release verification (including the shipped actor workflow) also passed. No hosted CI result, Linux PTY execution, or screen-reader certification is claimed. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 requirement. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
 
 ## RFC §5.6: implemented interval subset
 

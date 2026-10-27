@@ -131,14 +131,10 @@ There is intentionally no `--out` or state-changing context command. If a harnes
 
 **This is not actor knowledge.** `perspective` is always `dm`; there is no actor/player-safe filter, belief model, access control, time selector, decision, or execution capability. Imported prose remains untrusted data, never harness instructions. A `dm-note`/`possibility` label is not a knowledge policy and must not be promoted to an established event.
 
-## Later: actor context and roleplayed decisions — not implemented
+## Actor decision rehearsals and later knowledge policies
 
-The intended harness is more than a note renderer. A later slice should let an agent take the perspective of a person, faction, or country and propose a decision grounded in that actor's situation.
+The [actor workflow](ACTOR-WORKFLOW.md) adds a bounded end-to-end rehearsal without changing this authoring-project schema: an explicit snapshot-bound actor brief → a curated actor-facing packet → an external agent's proposed action/optional draft message → a checked, readable DM review. The DM-side dossier above remains distinct and must not be forwarded wholesale as actor knowledge.
 
-- Assemble a cited context packet bound to an actor, campaign, time, and snapshot: goals, doctrine/values, relationships, resources, commitments, prior actions, communications received, known facts, beliefs/rumors, and explicit unknowns.
-- Keep the actor's available knowledge distinct from the DM's full world knowledge. Actor beliefs, institutional propaganda, what a message says, and established setting facts are not interchangeable. Context selection needs an explicit knowledge policy; current narrative labels are not that policy or an access-control mechanism.
-- Ask the agent for a chosen course of action, a concise in-character justification tied to the supplied context, and optional drafted communications or proposed state changes. Allow uncertainty, incomplete information, conflicting motives, and the possibility of a mistaken decision.
-- Retain the supplied context and resulting decision for continuity and inspection. Reproducible context construction does not imply that repeated model calls must choose the same action.
-- Treat decisions, messages, intentions, and executed consequences as separate records. A drafted letter is not a delivered message, and a proposed action is not an event that has happened. No decision should silently rewrite world data or establish canon.
+The current knowledge policy is explicit curation, not inference: the curator writes the exact goals, values, resources, constraints, beliefs, information, and unknowns the actor receives. Source references stay on the host; valid provenance does not establish actor awareness, truth, or entailment. WMM does not call the provider or apply the result. A drafted letter is not delivered and a proposed action is not an occurred event.
 
-Actor-specific context and decisions remain a roadmap requirement, not an extension of the present authoring schema. The DM-side dossier above prepares a read-only harness input; it does not implement the actor's knowledge policy, a roleplay/decision API, or autonomous simulation.
+Broader knowledge accounts, received-communication history, persistent decision continuity, dated context selection, country simulation, and autonomous execution remain deferred. Reproducible preparation does not imply that repeated model calls must choose the same action. Add those capabilities only with their own explicit representations and acceptance rules; never silently promote a proposal to setting history or canon.

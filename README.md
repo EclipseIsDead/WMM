@@ -50,7 +50,7 @@ From a source checkout after the initial build, open the included example bundle
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
 ```
 
-For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo, not the other example fixtures. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring/actor examples, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
 
 Resume that workspace later:
 
@@ -78,10 +78,15 @@ Start with the synthetic `fixtures/authoring/faction-project.json` and the [stru
 
 `context entity <bundle-directory> <entity-id> [--campaign <campaign-id>]` prepares a bounded, cited DM-side dossier for a harness from the verified authored snapshot. It includes direct relationships, selected narrative/explicit incoming references, and current campaign tracks, with byte/item limits and explicit omission counts. It does not call a model or decide what an actor knows. See [entity context](docs/AUTHORING.md#entity-context-for-an-agent-harness) for commands and contracts.
 
+## Rehearse an actor's decision
+
+Create an explicit actor brief, use `actor prepare` to disclose only its curated statements to an external agent, then use `actor review` to check the proposed response and render a DM review. Beliefs can be mistaken, source metadata stays on the host, and messages remain undelivered drafts. WMM does not call a provider or apply the decision. Follow the [actor workflow](docs/ACTOR-WORKFLOW.md), including a runnable synthetic example shipped in the archive.
+
 ## Documentation
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
 - [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
+- [Actor workflow](docs/ACTOR-WORKFLOW.md) — curated actor context, proposed decisions, and private DM review artifacts.
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.

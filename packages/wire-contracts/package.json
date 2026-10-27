@@ -14,7 +14,8 @@
     "./schemas/workspace-v1.schema.json": "./schemas/workspace-v1.schema.json",
     "./schemas/api-v1.schema.json": "./schemas/api-v1.schema.json",
     "./schemas/authoring.schema.json": "./schemas/authoring.schema.json",
-    "./schemas/entity-context.schema.json": "./schemas/entity-context.schema.json"
+    "./schemas/entity-context.schema.json": "./schemas/entity-context.schema.json",
+    "./schemas/actor.schema.json": "./schemas/actor.schema.json"
   },
   "files": [
     "dist",

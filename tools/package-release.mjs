@@ -91,6 +91,9 @@ function audit(path) {
 try {
   install(join(root, 'apps/cli'));
   copy(join(root, 'fixtures/v3/succession-world'), join(destination, 'fixtures/v3/succession-world'));
+  for (const input of ['faction-project.json', 'lantern-actor-brief.json', 'lantern-decision-draft.json']) {
+    copy(join(root, 'fixtures/authoring', input), join(destination, 'fixtures/authoring', input));
+  }
   copy(join(root, 'README.md'), join(destination, 'README.md'));
   copy(join(root, 'docs'), join(destination, 'docs'));
   writeFileSync(join(destination, 'package.json'), JSON.stringify({ name: 'world-master-manual-release', version: cli.version, private: true, type: 'module' }, null, 2) + '\n');

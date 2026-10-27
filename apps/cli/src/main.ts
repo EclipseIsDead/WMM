@@ -50,6 +50,9 @@ function helpText(): string {
       "  wmm authoring build <project.json> --out <new-directory>",
       "  wmm notes render <bundle-directory> --out <new-directory>",
       "  wmm context schema",
+      "  wmm actor schema",
+      "  wmm actor prepare <bundle-directory> <brief.json>",
+      "  wmm actor review <bundle-directory> <brief.json> <decision.json> [--out <new-directory>]",
       "  wmm context entity <bundle-directory> <entity-id> [--campaign <campaign-id>] [--max-bytes <integer>] [--max-items <integer>]",
     ].join("\n");
 }
@@ -113,6 +116,11 @@ async function main(): Promise<void> {
   if (args.length === 1 && args[0] === "--version") {
     const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
     process.stdout.write(`${manifest.version}\n`);
+    return;
+  }
+  if (args[0] === "actor") {
+    const { runActorCommand } = await import("./actor-command.js");
+    writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runActorCommand(args.slice(1)) });
     return;
   }
   if (args[0] === "context") {
@@ -182,6 +190,13 @@ void main().catch(async (error: unknown) => {
   } else {
     let code = "DEVELOPMENT_COMMAND_FAILED";
     let execution = "completed";
+    if (process.argv[2] === "actor") {
+      const { ActorWorkflowError } = await import("@wmm/core");
+      if (error instanceof ActorWorkflowError) {
+        code = error.code;
+        if (code === "ACTOR_BUDGET_EXCEEDED") execution = "incomplete";
+      }
+    }
     if (process.argv[2] === "context") {
       const { EntityContextError, EntityContextBudgetError } = await import("@wmm/core");
       if (error instanceof EntityContextError || error instanceof EntityContextBudgetError) code = error.code;

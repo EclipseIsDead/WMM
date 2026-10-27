@@ -2,6 +2,8 @@
 
 ## Unreleased — structured authoring, DM notes, and entity context
 
+- `actor schema`, `actor prepare`, and `actor review` add explicit actor briefs and external-agent decision rehearsals. Actor packets exclude source prose/citation metadata; beliefs remain curated beliefs rather than verified facts. Review rebuilds the exact context, checks draft status and brief-item references, and optionally writes fresh JSON/Markdown artifacts with a file manifest. No provider, delivery, execution, canon mutation, or atlas model is added.
+- Curated briefs fail closed at output budgets; they never silently omit constraints. The synthetic actor inputs ship in the portable archive and are exercised by isolated release verification. See [ACTOR-WORKFLOW.md](ACTOR-WORKFLOW.md).
 - `authoring schema`, `authoring check`, and `authoring build` expose a closed agent-editable project format and compile fresh verified WMM snapshots. `notes render` generates deterministic linked DM views from a reloaded snapshot.
 - Stable entity IDs, explicit invariant relationships, labelled narrative, traceable citations, and campaign-scoped bounded integer tracks. Narrative/possibilities are not extracted into claims; citations are not fabricated documentary evidence.
 - An additive release-owned semantic profile and safe-integer literal/value operations. The `wmm/1` operation set/envelope and existing bundled profile/fixture hashes are unchanged. Normal world/claim/API/workspace paths admit both release profiles; input never supplies its own trust roots.
