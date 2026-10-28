@@ -389,7 +389,11 @@ describe("first-run database publication", () => {
     } finally { db.close(); }
   });
 
-  it.each(["write", "read after initial write contention"])("bounds WAL acquisition under a sustained %s lock", async (kind) => {
+  it.each([
+    ["write", 0],
+    ["read after initial write contention", 0],
+    ["read after initial write contention with delayed coordinator", 700],
+  ] as const)("bounds WAL acquisition under a sustained %s lock", async (kind, coordinatorDelayMs) => {
     const root = directory();
     const path = join(root, "authoring.sqlite");
     const readLock = kind !== "write";
@@ -416,6 +420,9 @@ describe("first-run database publication", () => {
       await first.waitFor("before-native-wait");
       second.resumeAt("main-begin");
       expect(await second.waitFor("main-read")).toMatchObject({ inTransaction: false, readerTransaction: true });
+      // The next native timeout is already allocated. Reproduce a slow parent
+      // without faking SQLite results or suspending production's monotonic clock.
+      if (coordinatorDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, coordinatorDelayMs));
       first.resumeAt("before-native-wait");
     }
     expect(await first.exited, JSON.stringify(first.report())).toEqual({ code: 1, signal: null });
@@ -425,13 +432,30 @@ describe("first-run database publication", () => {
     expect(errors.every((message) => (message["nativeError"] as { errcode: number }).errcode === 5)).toBe(true);
     const last = errors.at(-1)!;
     expect(last["phaseElapsedMs"]).toBeGreaterThanOrEqual(900);
-    expect(last["phaseElapsedMs"]).toBeLessThan(1_250);
+    const allocations = first.report().messages.filter((message) => message["checkpoint"] === "wal-timeout-set");
+    expect(allocations).toHaveLength(errors.length - 1);
     for (let index = 1; index < errors.length; index += 1) {
-      expect(Number(errors[index]!["phaseElapsedMs"]) - Number(errors[index - 1]!["phaseElapsedMs"])).toBeGreaterThanOrEqual(5);
+      const previousElapsedMs = Number(errors[index - 1]!["phaseElapsedMs"]);
+      const busyTimeout = Number(errors[index]!["busyTimeout"]);
+      expect(allocations[index - 1]).toMatchObject({
+        attempt: index + 1, busyTimeout, previousErrorElapsedMs: previousElapsedMs,
+      });
+      expect(Number.isInteger(busyTimeout)).toBe(true);
+      expect(busyTimeout).toBeGreaterThan(0);
+      // Allocation follows the preceding real native error. Even if descheduled
+      // after allocation, a retry must never receive a fresh one-second timeout.
+      expect(busyTimeout + previousElapsedMs, JSON.stringify(allocations[index - 1])).toBeLessThanOrEqual(1_000);
+      expect(Number(errors[index]!["phaseElapsedMs"]) - previousElapsedMs).toBeGreaterThanOrEqual(5);
     }
     if (readLock) {
       expect(last["busyTimeout"]).toBeLessThan(700);
       expect(last["elapsedMs"]).toBeGreaterThan(200);
+    }
+    if (coordinatorDelayMs > 0) {
+      expect(last["walPausedMs"]).toBeGreaterThanOrEqual(coordinatorDelayMs);
+      // A real remaining-budget native wait still occurs after the IPC pause;
+      // the old end-to-end upper bound incorrectly counted that pause as work.
+      expect(last["phaseElapsedMs"]).toBeGreaterThan(1_250);
     }
     expect(first.report().messages).toContainEqual({ failure: {
       code: "STORAGE_FAILURE", message: "Workspace storage failure: database is locked",

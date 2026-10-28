@@ -21,6 +21,8 @@ let mainConnection: DatabaseSync | undefined;
 let closed = false;
 let walAttempts = 0;
 let walStarted: number | undefined;
+let walPausedMs = 0;
+let walLastErrorElapsedMs = 0;
 
 function report(point: string, details: Record<string, unknown> = {}): void {
   fs.writeSync(1, `${JSON.stringify({ checkpoint: point, sqliteVersion, file, closed, ...details })}\n`);
@@ -30,8 +32,10 @@ function pause(point: string, details: Record<string, unknown> = {}): void {
   const release = checkpoint === point ? releasePath : schedule[point];
   if (release === undefined || reached.has(point)) return;
   reached.add(point);
+  const started = performance.now();
   report(point, details);
   while (!fs.existsSync(release)) Atomics.wait(wait, 0, 0, 10);
+  if (walStarted !== undefined) walPausedMs += performance.now() - started;
   if (action === "throw") throw new Error(`Injected initialization failure at ${point}`);
 }
 
@@ -58,6 +62,13 @@ DatabaseSync.prototype.exec = function (sql: string): void {
     pause("before-initialization", { applicationId: this.prepare("PRAGMA application_id").get()?.["application_id"] });
   }
   execute.call(this, sql);
+  if (walStarted !== undefined && isMain(this) && /^PRAGMA busy_timeout = \d+$/.test(sql)) {
+    report("wal-timeout-set", {
+      attempt: walAttempts + 1,
+      busyTimeout: this.prepare("PRAGMA busy_timeout").get()?.["timeout"],
+      previousErrorElapsedMs: walLastErrorElapsedMs,
+    });
+  }
   if (sql === "BEGIN IMMEDIATE" && isMain(this)) {
     mainConnection = this;
     pause("main-begin", {
@@ -93,7 +104,8 @@ DatabaseSync.prototype.prepare = function (sql: string): StatementSync {
   const statement = prepare.call(this, sql);
   if (sql === "PRAGMA journal_mode = WAL" && isMain(this)) {
     walStatements.set(statement, this);
-    walStarted ??= performance.now();
+    // Coordinate the competing writer before acquireWal starts its deadline.
+    pause("before-wal", { inTransaction: this.isTransaction });
   }
   return statement;
 };
@@ -101,8 +113,10 @@ const get = StatementSync.prototype.get;
 StatementSync.prototype.get = function (...args: (SQLInputValue | Record<string, SQLInputValue>)[]): ReturnType<typeof get> {
   const db = walStatements.get(this);
   if (db === undefined) return Reflect.apply(get, this, args) as ReturnType<typeof get>;
-  pause("before-wal", { inTransaction: db.isTransaction });
-  if (performance.now() - walStarted! >= 400) pause("before-native-wait");
+  // Production has already set its deadline, so this clock gives a conservative
+  // lower bound on time spent when checking each subsequent native allocation.
+  walStarted ??= performance.now();
+  if (walLastErrorElapsedMs >= 400) pause("before-native-wait");
   const busyTimeout = db.prepare("PRAGMA busy_timeout").get()?.["timeout"];
   const started = performance.now();
   walAttempts += 1;
@@ -117,14 +131,15 @@ StatementSync.prototype.get = function (...args: (SQLInputValue | Record<string,
     const row = Reflect.apply(get, this, args) as ReturnType<typeof get>;
     report("wal-acquired", {
       attempt: walAttempts, busyTimeout, elapsedMs: performance.now() - started,
-      phaseElapsedMs: performance.now() - walStarted!, row,
+      phaseElapsedMs: performance.now() - walStarted!, walPausedMs, row,
     });
     return row;
   } catch (error) {
+    walLastErrorElapsedMs = performance.now() - walStarted;
     const nativeError = error as { code?: unknown; errcode?: unknown; errstr?: unknown; message?: unknown };
     report("wal-error", {
       attempt: walAttempts, busyTimeout, elapsedMs: performance.now() - started,
-      phaseElapsedMs: performance.now() - walStarted!, inTransaction: db.isOpen ? db.isTransaction : null,
+      phaseElapsedMs: walLastErrorElapsedMs, walPausedMs, inTransaction: db.isOpen ? db.isTransaction : null,
       nativeError: { code: nativeError.code, errcode: nativeError.errcode, errstr: nativeError.errstr, message: nativeError.message },
     });
     throw error; // Forward the exact native exception, never a synthesized BUSY result.
