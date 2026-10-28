@@ -28,7 +28,15 @@ This pre-release implementation snapshot preserves the former README's technical
 
 A worldbuilding engine prototype with deterministic identities, verified directory bundles, scoped historical queries, roster-bound exact-point absence evaluation, and a certified exact-interval absence subset. A durable terminal workspace implements U1/U2 and a bounded U3 candidate-review subset over the same versioned `wmm/1` application API. `workspace.review` combines explicitly selected changes and returns a candidate-bound diff/receipt for bounded WMM checks; full candidate historical validation, host approval, and canonical commits remain unavailable. Draft decisions are saved; canonical worlds remain read-only, and the contracts remain pre-release drafts.
 
-Implementation is guided by [RFC WMM-001 v0.3](../plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md). See the [workspace guide](WORKSPACE.md), [implementation status](STATUS.md), and [stabilization contracts and limitations](STABILIZATION.md) for the narrower implemented boundary. The original plans were hidden by a `plans/` ignore rule; that rule has been removed so the existing originals can be versioned.
+Implementation follows the draft WMM design milestones. See the [workspace guide](WORKSPACE.md), [implementation status](STATUS.md), and [stabilization contracts and limitations](STABILIZATION.md) for the narrower implemented boundary. Original RFC and planning attachments are not included in the versioned source or portable archive; no implementation guarantee depends on opening an ignored local file.
+
+### Correctness repairs after the economic inspection slice
+
+- Common semantic admission now checks intended reference roles using actual descriptor birth digests and release-owned type identities. Existing persons cannot stand in for offices; `located_in`/`member_of` share compiler and normal-loader constraints. Population, track and economic role checks use the same type authority, not identifier prefixes or imported definition keys. Existing unconstrained primitive subject domains remain unchanged.
+- First database creation initializes and closes a committed compatible SQLite file in a private same-filesystem staging directory, then publishes it without overwriting a competing target. Ordinary retries survive process interruption before or after publication. Foreign/empty/corrupt files and orphaned sidecars remain protected; historical unowned zero-byte files are not silently repaired. See [initialization and retry boundaries](WORKSPACE.md#first-creation-and-interrupted-startup).
+- Six references to unshipped planning attachments were replaced with shipped documentation. Original ignored material was not copied into the release.
+
+These repairs do not add draft export, economic notes/context, dated authoring, host approval or canon acceptance. The [proposed authored-draft loop](AUTHORING-COMPOSITION.md) records the next integration decision separately.
 
 ## Current packages
 
@@ -102,7 +110,7 @@ node apps/cli/dist/main.js json < fixtures/v2/interval-request.json
 
 `pnpm check` runs the original Node verifier, strict source/test TypeScript checks, and the Vitest suite. `pnpm verify:contracts` checks the identity kit through the compiled CLI. `pnpm verify:v0` executes bounded semantic fixtures. `pnpm verify:seed` verifies the intentionally incomplete v0.3 seed payload. `pnpm generate:fixtures` regenerates the production world, V2 examples, and workspace demo; `pnpm verify:v1` and `pnpm verify:v2` exercise the compiled stdin API. The existing engine CI workflow targets Linux and macOS and checks regenerated fixture bytes; that is not a claim that the workspace PTY smoke has run on both platforms.
 
-`pnpm verify:workspace` builds, then runs `tools/workspace-terminal-smoke.py`, a Python-standard-library smoke with four real-PTY scenarios. Local macOS execution is reported; Linux execution is not yet verified. Focused workspace validation commands and scoped results are in [WORKSPACE.md](WORKSPACE.md#validation). The commands here are validation targets, not promises of success or a current full-suite test total.
+`pnpm verify:workspace` builds, then runs `tools/workspace-terminal-smoke.py`, a Python-standard-library smoke with seven real-PTY scenarios. Local macOS execution is reported; Linux execution is not yet verified. Focused workspace validation commands and scoped results are in [WORKSPACE.md](WORKSPACE.md#validation). The commands here are validation targets, not promises of success or a current full-suite test total.
 
 The independent Python verifier additionally requires `jsonschema`. It is intentionally not a runtime dependency of WMM.
 

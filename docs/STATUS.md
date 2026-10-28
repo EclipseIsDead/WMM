@@ -1,6 +1,12 @@
 # Implementation status
 
-This is an implementation inventory against [RFC WMM-001 v0.3](../plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md), not a substitute for or a claim of full RFC conformance. Removing the `plans/` ignore rule revealed the existing original attachments; they were hidden from the earlier project listing, not absent from disk.
+This inventory compares the implementation with the draft WMM design milestones; it does not claim full RFC conformance. Original RFC and planning attachments are excluded from the versioned source and portable archive. The contracts and guides linked here describe the public implementation boundary.
+
+## Review remediation and next integration milestone
+
+Common semantic admission now validates intended reference types against actual descriptor birth digests and release-owned identities, including the office/person defect and the compiler's constrained place/faction relations. First-run SQLite creation now stages a committed closed database and publishes it without clobbering a competing target. Process interruption can leave ignored private staging directories, but not a newly published uninitialized main file; incompatible or historical unowned empty files remain rejected. These are bounded correctness repairs, not approval or canon recovery.
+
+The [authored-draft composition proposal](AUTHORING-COMPOSITION.md) separates updated-project compilation from exact U3 candidate export. It recommends reviewing the actual recompiled draft under a distinct opt-in binding, then completing economic notes/context and reload/continuation. That larger workflow is **not implemented** by these repairs. Dated authoring and safe canon acceptance remain separate milestones; the harness remains subsequent work.
 
 ## Milestone gates
 
@@ -44,7 +50,7 @@ The first increment has no dated political projection, candidate-map simulation,
 
 ## Workspace slices
 
-The [workspace implementation brief](../plans/WMM-V3-WORKSPACE-IMPLEMENTATION-BRIEF.md) divides V3 into executable slices:
+The implemented workspace services separate V3 into these bounded slices:
 
 | Slice | Current boundary |
 | --- | --- |

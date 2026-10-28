@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256Hex, snapshotDigest } from "@wmm/canonical";
 import type { AssertionRecordV1, AuthoringProject, AuthoringTrack, CompiledAuthoringProject, DescriptorRecordV1, SourceRecordV1, SupportRecordV1, WorldCatalogV1 } from "@wmm/wire-contracts";
-import { authoringSemantics, compileAuthoringProject, validateWorldSemantics } from "../src/index.js";
+import { AuthoringError, authoringSemantics, compileAuthoringProject, validateWorldSemantics } from "../src/index.js";
 
 export function exampleProject(): unknown {
   return JSON.parse(readFileSync(new URL("../../../fixtures/authoring/faction-project.json", import.meta.url), "utf8")) as unknown;
@@ -76,6 +76,16 @@ describe("structured authoring", () => {
 
   it.each(invalidProjects)("rejects %s before producing a snapshot", (_label, change, message) => {
     expect(() => compileAuthoringProject(change(example()))).toThrow(message);
+  });
+
+  it.each(["located_in", "member_of"] as const)("retains compiler admission and AuthoringError for a wrong %s target", (predicate) => {
+    const project = example();
+    const validTarget = predicate === "located_in" ? "place:north_quay" : "faction:lantern_guild";
+    const invalidTarget = predicate === "located_in" ? "faction:lantern_guild" : "place:north_quay";
+    const fact = { ...project.facts[0]!, predicate, objectId: validTarget };
+    expect(() => compileAuthoringProject({ ...project, facts: [fact] })).not.toThrow();
+    expect(() => compileAuthoringProject({ ...project, facts: [{ ...fact, objectId: invalidTarget }] })).toThrow(AuthoringError);
+    expect(() => compileAuthoringProject({ ...project, facts: [{ ...fact, objectId: "place:missing" }] })).toThrow(/Unknown entity reference/);
   });
 
   it("does not execute getters or proxy traps from an agent's in-process input", () => {

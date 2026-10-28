@@ -104,8 +104,10 @@ Start with `fixtures/authoring/grain-project.json` and the [economy guide](docs/
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.
+- [Proposed draft-composition milestone](docs/AUTHORING-COMPOSITION.md) — project/candidate/presentation authority, economic notes/context and an end-to-end acceptance test; not implemented functionality.
 - [Contracts and limitations](docs/STABILIZATION.md) — supported semantics and safety boundaries.
-- [Engineering plan](plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md) — the underlying RFC; its version is separate from a WMM package release.
+
+The original RFC and planning attachments are not part of the versioned source or portable archive. The guides above describe the implemented contracts and limitations; design-document versions are separate from WMM package and API versions.
 
 ## Development
 

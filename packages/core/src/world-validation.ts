@@ -5,6 +5,7 @@ import { populationRosterDigest } from "@wmm/canonical";
 import { MAX_ECONOMIC_RECORDS, validateSemanticContract } from "@wmm/wire-contracts";
 import { populationCoverageBasis, resolvePopulationSelector } from "./population.js";
 import { admitEconomicRecordValue, EconomyError } from "./economy.js";
+import { authoringSemantics } from "./authoring-semantics.js";
 import type {
   AssertionRecordV1,
   DescriptorRecordV1,
@@ -15,6 +16,8 @@ import type {
   TypedValueV1,
   WorldCatalogV1,
 } from "@wmm/wire-contracts";
+
+const AUTHORED_ENTITY_TYPES = ["person", "faction", "place", "item", "event", "concept"] as const;
 
 export type WorldValidationErrorCode =
   | "UNSORTED_SET"
@@ -100,6 +103,42 @@ function assertDescriptorReference(
   if (!descriptorIds.has(id)) {
     throw new WorldValidationError("UNKNOWN_REFERENCE", `Descriptor is unavailable: ${id}`);
   }
+}
+
+function assertDescriptorType(
+  descriptors: ReadonlyMap<string, DescriptorRecordV1>,
+  id: string,
+  expectedDefinitionDigest: string | ReadonlySet<string>,
+  message: string,
+): void {
+  const descriptor = descriptors.get(id);
+  if (descriptor === undefined) {
+    throw new WorldValidationError("UNKNOWN_REFERENCE", `Descriptor is unavailable: ${id}`);
+  }
+  const matches = typeof expectedDefinitionDigest === "string"
+    ? descriptor.birthTypeDefinitionDigest === expectedDefinitionDigest
+    : expectedDefinitionDigest.has(descriptor.birthTypeDefinitionDigest);
+  if (!matches) {
+    throw new WorldValidationError("INVALID_OPERATION_VALUE", message);
+  }
+}
+
+/** @internal Shared compiler/ordinary-admission policy, pinned to release-owned identities. */
+export function assertAuthoringRelationReferences(
+  subjectId: string,
+  predicateDefinitionDigest: string,
+  value: TypedValueV1,
+  descriptors: ReadonlyMap<string, DescriptorRecordV1>,
+): void {
+  const definitions = authoringSemantics().definitionDigestsByKey;
+  const type = predicateDefinitionDigest === definitions["located_in"] ? "place"
+    : predicateDefinitionDigest === definitions["member_of"] ? "faction" : undefined;
+  if (type === undefined) return;
+  const relation = type === "place" ? "located_in" : "member_of";
+  assertDescriptorType(descriptors, subjectId, new Set(AUTHORED_ENTITY_TYPES.map((key) => definitions[key]!)), `${relation} requires an authored entity subject`);
+  const message = `${relation} requires a ${type} target`;
+  if (value.kind !== "ref") throw new WorldValidationError("INVALID_OPERATION_VALUE", message);
+  assertDescriptorType(descriptors, value.id, definitions[type]!, message);
 }
 
 function assertTypedValue(
@@ -188,6 +227,10 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
     );
   }
 
+  const descriptorsById = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]));
+  const authoringTypes = authoringSemantics().definitionDigestsByKey;
+  const entityTypeDigests = new Set(AUTHORED_ENTITY_TYPES.map((key) => authoringTypes[key]!));
+  const trackPredicates = new Set(["track_subject", "track_value", "track_minimum", "track_maximum"].map((key) => authoringTypes[key]!));
   const rosterDigests = (input.rosters ?? []).map((roster) => roster.digest);
   assertSortedUnique(rosterDigests, "roster digests");
   for (const { digest, body: roster } of input.rosters ?? []) {
@@ -209,8 +252,8 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
 
   const assertionsById = new Map(assertions.map((assertion) => [assertion.id, assertion]));
   const economicReferences = {
-    entityIds: new Set(descriptors.filter((record) => /^(person|faction|place|item|event|concept):/.test(record.id)).map((record) => record.id)),
-    placeIds: new Set(descriptors.filter((record) => definitionsByDigest[record.birthTypeDefinitionDigest]?.key === "place").map((record) => record.id)),
+    entityIds: new Set(descriptors.filter((record) => entityTypeDigests.has(record.birthTypeDefinitionDigest)).map((record) => record.id)),
+    placeIds: new Set(descriptors.filter((record) => record.birthTypeDefinitionDigest === authoringTypes["place"]).map((record) => record.id)),
     sourceIds: new Set(sourcesById.keys()), definitionsByDigest,
   };
   const economicIds = new Set<string>();
@@ -282,7 +325,23 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
           `${predicate.operation} requires a descriptor reference value`,
         );
       }
+      assertAuthoringRelationReferences(body.proposition.subjectId, body.proposition.predicateDefinitionDigest, body.proposition.value, descriptorsById);
+      if (trackPredicates.has(body.proposition.predicateDefinitionDigest)) {
+        assertDescriptorType(descriptorsById, body.proposition.subjectId, authoringTypes["track"]!, "Track predicates require a track subject");
+        if (body.proposition.predicateDefinitionDigest === authoringTypes["track_subject"] && body.proposition.value.kind === "ref") {
+          assertDescriptorType(descriptorsById, body.proposition.value.id, entityTypeDigests, "Track subject reference requires an authored entity");
+        }
+      }
+      // These primitives constrain the reference value, not every possible subject's type.
+      if (body.proposition.value.kind === "ref") {
+        if (predicate.operation === "population-membership-atom-v1") {
+          assertDescriptorType(descriptorsById, body.proposition.value.id, authoringTypes["population"]!, "Candidate membership requires a population descriptor reference");
+        } else if (predicate.operation === "criterion-satisfaction-atom-v1") {
+          assertDescriptorType(descriptorsById, body.proposition.value.id, authoringTypes["office"]!, "Eligibility satisfaction requires an office descriptor reference");
+        }
+      }
       if (predicate.operation === "population-coverage-atom-v1") {
+        assertDescriptorType(descriptorsById, body.proposition.subjectId, authoringTypes["population"]!, "Population coverage requires a population descriptor subject");
         const basis = populationCoverageBasis(body.proposition.value, definitionsByDigest);
         if (
           basis === undefined ||
@@ -311,6 +370,7 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
       }
     } else {
       assertDescriptorReference(descriptorIds, body.proposition.population.descriptorId);
+      assertDescriptorType(descriptorsById, body.proposition.population.descriptorId, authoringTypes["population"]!, "Existential population requires a population descriptor reference");
       requireDefinition(
         definitionsByDigest,
         body.proposition.population.definitionDigest,
@@ -333,6 +393,10 @@ export function validateWorldSemantics(input: WorldSemanticInput): void {
             "Eligibility criterion requires an office descriptor reference",
           );
         }
+        assertDescriptorType(
+          descriptorsById, office.id, authoringTypes["office"]!,
+          "Eligibility criterion requires an office descriptor reference",
+        );
       }
     }
   }

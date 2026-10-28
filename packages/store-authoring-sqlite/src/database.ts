@@ -1,6 +1,6 @@
-import { closeSync, constants, copyFileSync, fstatSync, lstatSync, mkdtempSync, openSync, readSync, rmSync } from "node:fs";
+import { closeSync, constants, copyFileSync, fstatSync, linkSync, lstatSync, mkdtempSync, openSync, readSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { WorkspaceStoreError } from "@wmm/ports";
@@ -226,6 +226,7 @@ function probeExistingDatabase(path: string): void {
   }
 }
 
+/** Validate an existing path without SQLite; true means the main file is absent. */
 function checkPath(path: string): boolean {
   const existing = lstatSync(path, { throwIfNoEntry: false });
   if (existing !== undefined) {
@@ -234,14 +235,89 @@ function checkPath(path: string): boolean {
     checkExistingFile(path);
     return false;
   }
-  try {
-    const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-    closeSync(fd);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") return checkPath(path);
-    throw error;
+  return true;
+}
+
+function checkSidecars(path: string, unpublished = false): void {
+  for (const suffix of ["-wal", "-shm", "-journal"]) {
+    const sidecar = lstatSync(`${path}${suffix}`, { throwIfNoEntry: false });
+    if (sidecar === undefined) continue;
+    if (sidecar.isSymbolicLink()) rejectDatabase("Workspace database sidecar must not be a symlink");
+    if (!sidecar.isFile()) rejectDatabase("Workspace database sidecar must be a regular file");
+    // An absent main file supplies no ownership evidence for any existing sidecar.
+    // Recheck the main path, since another creator may just have published its database.
+    if (unpublished && lstatSync(path, { throwIfNoEntry: false }) === undefined) {
+      rejectDatabase("Unowned workspace database sidecar without a database");
+    }
   }
+}
+
+function publishInitializedDatabase(path: string): void {
+  // Stage on the same filesystem in a private, exclusively allocated directory. A killed
+  // creator may leave this directory behind, but never an uninitialized database at path.
+  const directory = mkdtempSync(join(dirname(path), ".wmm-authoring-init-"));
+  const staged = join(directory, "authoring.sqlite");
+  let db: DatabaseSync | undefined;
+  try {
+    const fd = openSync(staged, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    closeSync(fd);
+    db = new DatabaseSync(staged, { enableForeignKeyConstraints: true, allowExtension: false });
+    db.exec(`PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL; PRAGMA journal_mode = DELETE`);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const object of SCHEMA) db.exec(object.sql);
+      db.exec(`PRAGMA application_id = ${APPLICATION_ID}; PRAGMA user_version = ${SCHEMA_VERSION}; COMMIT`);
+    } catch (error) {
+      try { db.exec("ROLLBACK"); } catch { /* Preserve the original initialization failure. */ }
+      throw error;
+    }
+    checkSchema(db);
+    // No connection or WAL/journal is carried across publication: all schema/identity
+    // bytes are committed to the closed main file before the configured path appears.
+    db.close();
+    db = undefined;
+    checkSidecars(path, true);
+    try {
+      linkSync(staged, path); // Atomic no-clobber publication, never rename over a rival.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      // A concurrent creator/foreign file won. The caller validates it from scratch.
+    }
+  } finally {
+    try { db?.close(); } finally {
+      // Only this invocation's allocation is owned; never sweep old staging names.
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+}
+
+function acquireWal(db: DatabaseSync): void {
+  const statement = db.prepare("PRAGMA journal_mode = WAL");
+  const deadline = performance.now() + BUSY_TIMEOUT_MS;
+  const wait = new Int32Array(new SharedArrayBuffer(4));
+  let retried = false;
+  for (;;) {
+    try {
+      if (statement.get()?.["journal_mode"] !== "wal") rejectDatabase("Workspace storage requires WAL journal mode");
+      break;
+    } catch (error) {
+      const native = error as { code?: unknown; errcode?: unknown };
+      // WAL's lock upgrade can bypass SQLite's busy handler. Node resets get()'s
+      // statement even on failure, so retry only this idempotent step after COMMIT.
+      // errcode is an extended SQLite code; its low byte is the primary result.
+      if (!(error instanceof Error) || native.code !== "ERR_SQLITE_ERROR"
+        || typeof native.errcode !== "number" || (native.errcode & 0xff) !== 5 || db.isTransaction) throw error;
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) throw error;
+      Atomics.wait(wait, 0, 0, Math.min(10, remaining));
+      const timeout = Math.floor(deadline - performance.now());
+      if (timeout <= 0) throw error;
+      // Native waiting on later attempts shares the deadline, not a fresh second.
+      db.exec(`PRAGMA busy_timeout = ${timeout}`);
+      retried = true;
+    }
+  }
+  if (retried) db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
 }
 
 /** The path and its containing directory are trusted host configuration, never a model-supplied bundle path. */
@@ -252,43 +328,30 @@ export function openWorkspaceDatabase(databasePath: string): DatabaseSync {
       rejectDatabase("A durable workspace database file path is required");
     }
     const path = resolve(databasePath);
-    const created = checkPath(path);
-    for (const suffix of ["-wal", "-shm", "-journal"]) {
-      if (lstatSync(`${path}${suffix}`, { throwIfNoEntry: false })?.isSymbolicLink()) {
-        rejectDatabase("Workspace database sidecar must not be a symlink");
-      }
+    const missing = checkPath(path);
+    checkSidecars(path, missing);
+    if (missing) {
+      publishInitializedDatabase(path);
+      if (checkPath(path)) rejectDatabase("Workspace database disappeared during publication");
+      checkSidecars(path);
     }
-    if (!created) probeExistingDatabase(path);
+    probeExistingDatabase(path);
     db = new DatabaseSync(path, { enableForeignKeyConstraints: true, allowExtension: false });
     db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}; PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL`);
-    if (created) {
-      // Commit the identity into the main file before entering WAL mode, so the read-only header guard works on reopen.
-      db.exec("BEGIN IMMEDIATE");
-      try {
-        for (const object of SCHEMA) db.exec(object.sql);
-        db.exec(`PRAGMA application_id = ${APPLICATION_ID}; PRAGMA user_version = ${SCHEMA_VERSION}; COMMIT`);
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      // Recheck under the write lock: another connection may already have migrated v1.
+      if (checkSchema(db) === 1) {
+        for (const object of [...REVIEW_SCHEMA, ...OUTCOME_REVIEW_SCHEMA]) db.exec(object.sql);
+        db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+        checkSchema(db);
       }
-    } else {
-      db.exec("BEGIN IMMEDIATE");
-      try {
-        // Recheck under the write lock: another connection may already have migrated v1.
-        if (checkSchema(db) === 1) {
-          for (const object of [...REVIEW_SCHEMA, ...OUTCOME_REVIEW_SCHEMA]) db.exec(object.sql);
-          db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-          checkSchema(db);
-        }
-        db.exec("COMMIT");
-      } catch (error) {
-        try { db.exec("ROLLBACK"); } catch { /* Preserve the original migration failure. */ }
-        throw error;
-      }
+      db.exec("COMMIT");
+    } catch (error) {
+      try { db.exec("ROLLBACK"); } catch { /* Preserve the original migration failure. */ }
+      throw error;
     }
-    if (db.prepare("PRAGMA journal_mode = WAL").get()?.["journal_mode"] !== "wal") {
-      rejectDatabase("Workspace storage requires WAL journal mode");
-    }
+    acquireWal(db);
     return db;
   } catch (error) {
     try { db?.close(); } catch { /* Keep the original initialization failure. */ }
