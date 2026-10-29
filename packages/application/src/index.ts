@@ -7,6 +7,7 @@ export { WorkspaceApplication, workspaceView } from "./workspaces.js";
 export * from "./authoring.js";
 export * from "./entity-context.js";
 export * from "./actor.js";
+export * from "./harness/index.js";
 export { readSnapshotEconomy } from "./economy.js";
 
 import {

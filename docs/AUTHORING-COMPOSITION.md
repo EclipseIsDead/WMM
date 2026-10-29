@@ -2,6 +2,8 @@
 
 **Status: design proposal, not an implemented export command or an approved implementation scope.** The reference-type and SQLite-initialization repairs do not add project round-tripping, economic notes/context, dated authoring, approval, or canon writes.
 
+The separate [DM harness](HARNESS.md) implements selected-input/full-project drafting through the existing compiler and renderer. It does not implement the economic/workspace-composition or exact U3 export described here; those are follow-ups, not prerequisites for trying the bounded harness.
+
 The next useful increment is one complete authoring loop, not a new agent framework:
 
 **economic project → captured workspace → explicit edits → review of the actual resulting snapshot → fresh reloadable DRAFT → complete linked DM notes → continued authoring.**

@@ -44,6 +44,82 @@ try {
   run('tar', ['-xzf', archive, '-C', temporary]);
   audit(release);
   const cli = (...args) => run(join(release, 'bin/wmm'), args);
+  for (const path of ['tools/harness/hermes_adapter.py', 'examples/harness/dm-import.json', 'examples/harness/selected/beacon-rota.md']) {
+    assert.ok(existsSync(join(release, path)), `Missing shipped DM harness runtime/example: ${path}`);
+    assert.deepEqual(readFileSync(join(release, path)), readFileSync(join(repository, path)), `Stale DM harness runtime/example: ${path}`);
+  }
+  const harnessExample = JSON.parse(readFileSync(join(release, 'examples/harness/dm-import.json'), 'utf8'));
+  const harnessProject = resolve(release, 'examples/harness', harnessExample.projectPath);
+  assert.ok(harnessProject.startsWith(release + sep), 'Harness example project must remain in the release');
+  assert.equal(JSON.parse(cli('authoring', 'check', harnessProject)).outcome, 'success');
+  // An explicitly authored offline proposal, NOT a model/SDK result. Exercise
+  // the shipped capture, five actual WMM tools and normal CLI fresh resume.
+  const harnessRun = join(temporary, 'offline harness run');
+  const harnessPrepared = JSON.parse(run(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import {captureDmHarnessInput} from './apps/cli/dist/harness-input.js';
+    import {prepareDmHarnessRun, createDmHarnessSession} from './packages/application/dist/index.js';
+    const directory = ${JSON.stringify(harnessRun)};
+    const input = captureDmHarnessInput(${JSON.stringify(join(release, 'examples/harness/dm-import.json'))}, directory);
+    const info = prepareDmHarnessRun(input, directory);
+    const session = createDmHarnessSession(directory);
+    assert.equal(session.call('wmm_project_read', {}).ok, true);
+    const selected = session.call('wmm_source_read', {sourceId: 'source:beacon_rota'});
+    assert.equal(selected.ok, true);
+    assert.equal(session.call('wmm_authoring_schema', {}).ok, true);
+    const project = structuredClone(info.project);
+    const guild = project.entities[0];
+    assert.equal(guild.id, 'faction:lantern_guild');
+    guild.name = 'Lantern Beacon Guild';
+    const sectionIndex = guild.sections.length;
+    guild.sections.push({id: 'beacon_rota', heading: 'Beacon rota', category: 'dm-note',
+      context: {kind: 'setting'}, text: 'Night crews maintain the North Quay beacons. The rota is a DM shift reference, not a strike or change to unrest.',
+      references: ['place:north_quay'], citations: [{sourceId: selected.source.id, locator: 'Lines 3–5'}]});
+    project.sources.push({id: selected.source.id, title: selected.source.title, path: selected.source.path});
+    const basis = {sourceId: selected.source.id, sourceSha256: selected.source.sha256, startLine: 3, endLine: 5};
+    const proposal = {format: 'wmm.dm-harness-proposal/1', runInputDigest: info.runInputDigest,
+      project, summary: 'Explicitly authored offline archive verification, not agent output.',
+      uncertainties: ['No strike, payment, delivery or campaign-state change is inferred.'],
+      sourceUses: [{projectPointer: '/entities/0/name', ...basis},
+        {projectPointer: '/entities/0/sections/' + sectionIndex, ...basis}]};
+    assert.equal(session.call('wmm_proposal_check', {proposal}).ok, true);
+    const submitted = session.call('wmm_proposal_submit', {proposal});
+    assert.equal(submitted.ok, true);
+    console.log(JSON.stringify({attemptDirectory: session.attemptDirectory,
+      proposalDigest: submitted.proposalDigest, sourceSha256: selected.source.sha256}));
+  `], { cwd: release }));
+  const priorProposal = readFileSync(join(harnessPrepared.attemptDirectory, 'proposal.json'));
+  // There is deliberately no Hermes executable on this PATH: an admitted
+  // proposal's CLI resume must finalize without invoking another provider.
+  const providerFreePath = [dirname(process.execPath), '/usr/bin', '/bin'];
+  assert.ok(providerFreePath.every(path => !existsSync(join(path, 'hermes'))), 'Offline harness verification requires a provider-free PATH');
+  const harnessResumed = JSON.parse(run(join(release, 'bin/wmm'), ['harness', 'resume', harnessRun], {
+    env: { ...env, PATH: providerFreePath.join(':') },
+  }));
+  assert.equal(harnessResumed.outcome, 'success');
+  const harnessDraft = harnessResumed.data;
+  assert.equal(harnessDraft.status, 'draft');
+  assert.equal(harnessDraft.proposalDigest, harnessPrepared.proposalDigest);
+  assert.notEqual(harnessDraft.attemptDirectory, harnessPrepared.attemptDirectory);
+  assert.ok(!existsSync(join(harnessDraft.attemptDirectory, 'runtime')), 'Retained-proposal resume must not start a runtime');
+  assert.deepEqual(readFileSync(join(harnessPrepared.attemptDirectory, 'proposal.json')), priorProposal);
+  const draftedProject = JSON.parse(readFileSync(harnessDraft.projectPath, 'utf8'));
+  const originalProject = JSON.parse(readFileSync(harnessProject, 'utf8'));
+  assert.deepEqual(draftedProject.facts, originalProject.facts);
+  assert.deepEqual(draftedProject.campaigns, originalProject.campaigns);
+  assert.deepEqual(draftedProject.entities[0].sections.slice(0, -1), originalProject.entities[0].sections);
+  assert.equal(draftedProject.entities[0].name, 'Lantern Beacon Guild');
+  const harnessNoteManifest = JSON.parse(readFileSync(join(harnessDraft.notesPath, 'wmm-notes.json'), 'utf8'));
+  for (const entry of harnessNoteManifest.files) {
+    const bytes = readFileSync(join(harnessDraft.notesPath, entry.path));
+    assert.ok(bytes.toString('utf8').includes('DRAFT'));
+    assert.equal(entry.sha256, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(entry.byteLength, String(bytes.length));
+  }
+  assert.ok(readFileSync(harnessDraft.reviewPath, 'utf8').includes('not proof'));
+  assert.equal(JSON.parse(cli('world', 'validate', harnessDraft.bundlePath)).outcome, 'success');
+  assert.equal(harnessPrepared.sourceSha256, createHash('sha256').update(readFileSync(join(release, 'examples/harness/selected/beacon-rota.md'))).digest('hex'));
+  console.log('PASS isolated harness capture, five scoped tools, authored offline proposal and fresh CLI resume without a provider; verified DRAFT notes/source hashes');
   assert.ok(existsSync(join(release, 'fixtures/authoring/grain-project.json')), 'Missing shipped economic authoring example');
   for (const schema of ['measurement.schema.json', 'economy.schema.json']) {
     assert.ok(existsSync(join(release, 'packages/wire-contracts/schemas', schema)), `Missing shipped shared/economic schema: ${schema}`);

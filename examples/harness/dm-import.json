@@ -1,0 +1,14 @@
+{
+  "format": "wmm.dm-harness-request/1",
+  "mode": "dm-import",
+  "projectPath": "../../fixtures/authoring/faction-project.json",
+  "sourceRoot": "selected",
+  "task": "Read the captured project, selected source and authoring schema through WMM tools. Propose a full readable project with exactly these narrative/presentation edits: rename faction:lantern_guild to Lantern Beacon Guild as described in the selected note, and append a setting-context dm-note section with id beacon_rota and heading Beacon rota to that faction. The new section should explain the note's rota context, reference place:north_quay and cite the selected source with a line locator. Add its exact selected source catalogue declaration. Preserve all entity/campaign/track IDs, every preexisting section and its citations, the existing located_in fact, the possible-strike wording, and both ordered unrest entries and values unchanged. Do not infer a strike, delivery, payment, new relationship or economic value. Declare selected-source basis with the exact captured hash, inclusive line ranges and proposed JSON pointers. List any uncertainty. Check and then explicitly submit the complete proposal bound to this run input. This is a DRAFT for DM review, not canon acceptance.",
+  "sources": [
+    {
+      "id": "source:beacon_rota",
+      "title": "Harbor beacon rota",
+      "path": "beacon-rota.md"
+    }
+  ]
+}
