@@ -11,7 +11,7 @@ import { authoringSemantics } from "./authoring-semantics.js";
 import { economySemantics } from "./economy-semantics.js";
 import { compileEconomicRecordValue } from "./economy.js";
 import { MAX_WORLD_BUNDLE_DIRECTORIES } from "./world-bundle-limits.js";
-import { validateWorldSemantics } from "./world-validation.js";
+import { assertAuthoringRelationReferences, validateWorldSemantics, WorldValidationError } from "./world-validation.js";
 import { admitAtlas, AtlasError, MAX_ATLASES_PER_WORLD } from "./atlas.js";
 
 export const MAX_AUTHORING_BYTES = 8 * 1024 * 1024;
@@ -96,6 +96,7 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
   descriptor("account:setting", "account");
   for (const node of nodes) descriptor(node.id, node.id.split(":")[0]!);
   for (const campaign of project.campaigns) descriptor(`account:campaign_${campaign.id.slice("campaign:".length)}`, "account");
+  const descriptorsById = new Map(descriptors.map((record) => [record.id, record]));
 
   const assertions = new Map<string, AssertionRecordV1>();
   const active = new Set<string>();
@@ -128,8 +129,12 @@ export function compileAuthoringProject(input: unknown): CompiledAuthoringProjec
   const factIds = new Set<string>();
   for (const fact of project.facts) {
     requireEntity(fact.subjectId); requireEntity(fact.objectId); checkContext(fact.context); checkCitations(fact.citations);
-    if (fact.predicate === "located_in" && !fact.objectId.startsWith("place:")) throw new AuthoringError("located_in requires a place target");
-    if (fact.predicate === "member_of" && !fact.objectId.startsWith("faction:")) throw new AuthoringError("member_of requires a faction target");
+    try {
+      assertAuthoringRelationReferences(fact.subjectId, digest(fact.predicate), { kind: "ref", id: fact.objectId }, descriptorsById);
+    } catch (error) {
+      if (error instanceof WorldValidationError) throw new AuthoringError(error.message);
+      throw error;
+    }
     const record = claim(fact.subjectId, fact.predicate, { kind: "ref", id: fact.objectId }, fact.context, fact.polarity);
     if (factIds.has(record.id)) throw new AuthoringError("Duplicate fact declaration");
     factIds.add(record.id);

@@ -1,6 +1,14 @@
 # Implementation status
 
-This is an implementation inventory against [RFC WMM-001 v0.3](../plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md), not a substitute for or a claim of full RFC conformance. Removing the `plans/` ignore rule revealed the existing original attachments; they were hidden from the earlier project listing, not absent from disk.
+This inventory compares the implementation with the draft WMM design milestones; it does not claim full RFC conformance. Original RFC and planning attachments are excluded from the versioned source and portable archive. The contracts and guides linked here describe the public implementation boundary.
+
+## Review remediation and DM harness
+
+Common semantic admission now validates intended reference types against actual descriptor birth digests and release-owned identities, including the office/person defect and the compiler's constrained place/faction relations. First-run SQLite creation now stages a committed closed database and publishes it without clobbering a competing target. Process interruption can leave ignored private staging directories, but not a newly published uninitialized main file; incompatible or historical unowned empty files remain rejected. These are bounded correctness repairs, not approval or canon recovery.
+
+The [DM harness](HARNESS.md) now connects a selected readable project, explicit source notes and task to an optional existing Hermes runtime with custom-only bounded WMM tools. It retains inputs/tool results, requires an explicit full-project proposal, validates/reloads a fresh DRAFT bundle and linked notes, and renders a complete source/change/deletion review. Fresh-attempt resume re-admits core-owned capture/submission artifacts; it does not trust opaque SDK history. The initial mode is DM import/worldbuilding, not actor roleplay or canon acceptance.
+
+The [authored-draft composition proposal](AUTHORING-COMPOSITION.md) still separates updated-project compilation from exact U3 candidate export. Exact U3 export, economic notes/context, dated authoring and safe canon acceptance remain **unimplemented** follow-ups, not prerequisites for this bounded full-project harness. Its optional runtime rejects unsupported isolation/configuration; a scripted offline responder is not evidence of real SDK/model delivery.
 
 ## Milestone gates
 
@@ -12,7 +20,7 @@ This is an implementation inventory against [RFC WMM-001 v0.3](../plans/WMM-PHAS
 | V3: steer alternatives | U1/U2 and a bounded U3 candidate-review subset: durable fixed-snapshot workspaces, explicit selections, deterministic candidate compilation, candidate-bound diffs/receipts, bounded semantic/reference and protection checks | Broader candidate-bound historical query/conflict/impact validation (full U3), trusted host approval (U4); full V3 is not complete |
 | V4: commit safely | Revision-envelope types/hashing only | Domain revision storage, expected-head acceptance, canonical idempotency, journal recovery, fault-injection matrix |
 | V5: alternate canon | Not implemented | Forks, retcons, comparison, fast-forward promotion |
-| V6: recover/exchange | Metadata export, bounded structured-project → WMM snapshot → linked DM-note projection, and cited entity dossiers | Coordinated backups/restore, portable assets, arbitrary vault import, two-way note sync, broader context, and actor-knowledge policies |
+| V6: recover/exchange | Metadata export, bounded structured-project → WMM snapshot → linked DM-note projection, cited entity dossiers, and selected-input/full-project DM harness drafts | Coordinated backups/restore, portable assets, arbitrary vault import, two-way note sync, broader context, and actor-knowledge policies |
 
 The source-code Git repository is not the planned Git-backed domain revision store. Durable draft mutations now exist; accepted canonical-world writes do not. A workspace pins `{worldId, snapshotDigest}`, not a domain revision ID. The editor labels that identity as the base snapshot; it is not a Git revision.
 
@@ -44,7 +52,7 @@ The first increment has no dated political projection, candidate-map simulation,
 
 ## Workspace slices
 
-The [workspace implementation brief](../plans/WMM-V3-WORKSPACE-IMPLEMENTATION-BRIEF.md) divides V3 into executable slices:
+The implemented workspace services separate V3 into these bounded slices:
 
 | Slice | Current boundary |
 | --- | --- |
@@ -75,7 +83,7 @@ The host-owned directory contains `authoring.sqlite` in WAL mode, the immutable 
 - Terminal-safe Unicode presentation without executing imported controls; grapheme-aware forms, retained failed-save buffers, explicit retries, and host-owned external editing without a shell.
 - Strict source/test typechecking, adversarial regression fixtures, and an existing macOS/Linux engine CI workflow.
 
-These are implemented bounds, not general security or accessibility certification. Local `pnpm check` passed 1,565 tests across 87 files under Node 26.12.1; the fixture gate covered all 105 JSON inputs with 64 passing checks. All seven real-PTY scenarios and isolated release verification passed. Terminal acceptance includes colour modes, captured atlas/economic reads after source loss, feature/category/detail navigation, resize, blocked economic mutation shortcuts, and unchanged decisions/history/review; archive checks exercise atlas, actor and grain examples. No hosted CI result for this economy branch, Linux PTY execution, or screen-reader certification is claimed here. Use the declared Node >=24.3.0 runtime. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
+These are implemented bounds, not general security or accessibility certification. The verification paths include strict source/test typechecks, the complete fixture gate, seven real-PTY scenarios and isolated release checks. Terminal acceptance covers colour modes, captured atlas/economic reads after source loss, feature/category/detail navigation, resize, blocked economic mutation shortcuts, and unchanged decisions/history/review. Harness acceptance additionally separates scripted offline tool-loop tests from actual installed-SDK/model execution; neither proves truth, actor awareness or canon approval. Use the declared Node >=24.3.0 runtime and the actual current CI/test reports rather than a historical test count. No Linux PTY execution or screen-reader certification is implied. [WORKSPACE.md](WORKSPACE.md#validation) lists focused and broader validation commands. See [STABILIZATION.md](STABILIZATION.md) for exact contracts, compatibility changes, and remaining limitations.
 
 ## RFC §5.6: implemented interval subset
 

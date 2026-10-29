@@ -52,6 +52,8 @@ function helpText(): string {
       "  wmm authoring check <project.json>",
       "  wmm authoring build <project.json> --out <new-directory>",
       "  wmm notes render <bundle-directory> --out <new-directory>",
+      "  wmm harness run <request.json> --out <fresh-run-directory> [--model <model>] [--provider <provider>]",
+      "  wmm harness resume <run-directory> [--model <model>] [--provider <provider>]",
       "  wmm context schema",
       "  wmm actor schema",
       "  wmm actor prepare <bundle-directory> <brief.json>",
@@ -131,6 +133,11 @@ async function main(): Promise<void> {
     }
     return;
   }
+  if (args[0] === "harness") {
+    const { runHarnessCommand } = await import("./harness-command.js");
+    writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: await runHarnessCommand(args.slice(1)) });
+    return;
+  }
   if (args[0] === "actor") {
     const { runActorCommand } = await import("./actor-command.js");
     writeJson({ apiVersion: "wmm/dev/1", outcome: "success", execution: "completed", data: runActorCommand(args.slice(1)) });
@@ -192,6 +199,15 @@ void main().catch(async (error: unknown) => {
     writeJsonTransport(
       jsonTransportError("INTERNAL_ERROR", "Unable to read or process the JSON request"),
     );
+  } else if (process.argv[2] === "harness") {
+    const { HarnessCommandError, HarnessInputError } = await import("./harness-command.js");
+    writeJson({
+      apiVersion: "wmm/dev/1", outcome: "error", execution: "completed",
+      error: error instanceof HarnessCommandError || error instanceof HarnessInputError
+        ? { code: error.code, message: error.message }
+        : { code: "HARNESS_INTERNAL_ERROR", message: "Unable to complete the DM harness command" },
+    });
+    process.exitCode = 1;
   } else if (process.argv[2] === "economy" && !process.argv.includes("--json")) {
     const { terminalText } = await import("./workspace/text.js");
     process.stderr.write(`WMM: ${terminalText(error instanceof Error ? error.message : String(error))}\n`);

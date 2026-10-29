@@ -55,7 +55,7 @@ From a source checkout after the initial build, open the included example bundle
 node apps/cli/dist/main.js workspace open fixtures/v1/complete-world --workspace-dir ./wmm-workspaces/my-world
 ```
 
-For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring, grain-economy, atlas, and actor inputs, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
+For a packaged release, use `./world-master-manual-0.1.0-alpha.1/bin/wmm` instead of `node apps/cli/dist/main.js` and supply your own verified bundle path; the archive includes the succession demo and synthetic authoring, grain-economy, atlas, actor and DM-harness inputs, not every engine fixture. Replace `fixtures/v1/complete-world` with the path to another verified WMM bundle to inspect it. Keep the workspace directory separate from the source bundle, with neither directory inside the other.
 
 Resume that workspace later:
 
@@ -83,9 +83,15 @@ Start with the synthetic `fixtures/authoring/faction-project.json` and the [stru
 
 `context entity <bundle-directory> <entity-id> [--campaign <campaign-id>]` prepares a bounded, cited DM-side dossier for a harness from the verified authored snapshot. It includes direct relationships, selected narrative/explicit incoming references, and current campaign tracks, with byte/item limits and explicit omission counts. It does not call a model or decide what an actor knows. See [entity context](docs/AUTHORING.md#entity-context-for-an-agent-harness) for commands and contracts.
 
+## Use the DM worldbuilding harness
+
+`harness run <request.json> --out <fresh-run-directory>` connects an explicitly selected project, source notes and task to an optional existing Hermes runtime with only five bounded WMM tools. An explicit full-project proposal is compiled into a fresh verified **DRAFT** bundle, linked Markdown and a source/change/deletion review. `harness resume <run-directory>` uses retained inputs and a fresh attempt; it does not replay arbitrary model history or approve anything.
+
+Start with [the harness guide](docs/HARNESS.md) and its shipped synthetic request. Hermes is a separate optional runtime; unsupported isolation/configuration fails closed. Keep private use cases outside this repository. This is DM import/worldbuilding, not actor knowledge, whole-vault migration, U3 candidate export or canon acceptance.
+
 ## Rehearse an actor's decision
 
-Create an explicit actor brief, use `actor prepare` to disclose only its curated statements to an external agent, then use `actor review` to check the proposed response and render a DM review. Beliefs can be mistaken, source metadata stays on the host, and messages remain undelivered drafts. WMM does not call a provider or apply the decision. Follow the [actor workflow](docs/ACTOR-WORKFLOW.md), including a runnable synthetic example shipped in the archive.
+Create an explicit actor brief, use `actor prepare` to disclose only its curated statements to an external agent, then use `actor review` to check the proposed response and render a DM review. Beliefs can be mistaken, source metadata stays on the host, and messages remain undelivered drafts. These actor commands do not call a provider or apply the decision; the DM harness is a different mode. Follow the [actor workflow](docs/ACTOR-WORKFLOW.md), including a runnable synthetic example shipped in the archive.
 
 ## Inspect economic declarations
 
@@ -97,6 +103,7 @@ Start with `fixtures/authoring/grain-project.json` and the [economy guide](docs/
 
 - [Workspace guide](docs/WORKSPACE.md) — controls, prose proposals, storage, recovery, and the machine API.
 - [Structured authoring](docs/AUTHORING.md) — agent-editable data, snapshot builds, provenance, and generated DM notes.
+- [DM harness](docs/HARNESS.md) — selected-source agent tool loop, full-project DRAFT proposals, linked review and fresh-attempt resume.
 - [Actor workflow](docs/ACTOR-WORKFLOW.md) — curated actor context, proposed decisions, and private DM review artifacts.
 - [ASCII reference atlas](docs/ATLAS.md) — runnable map example, World → Map controls, physical coverage, and the opt-in wire operation.
 - [Economy inspection](docs/ECONOMY.md) — synthetic grain example, quantities, source-bound declarations, World → Economy and the opt-in read operation.
@@ -104,8 +111,10 @@ Start with `fixtures/authoring/grain-project.json` and the [economy guide](docs/
 - [Release notes](docs/RELEASE-NOTES.md) — prerelease changes, technical details, and validation commands.
 - [Release guide](docs/RELEASING.md) — build and verify a portable archive.
 - [Implementation status](docs/STATUS.md) — what works today and what remains planned.
+- [Proposed draft-composition milestone](docs/AUTHORING-COMPOSITION.md) — project/candidate/presentation authority, economic notes/context and an end-to-end acceptance test; not implemented functionality.
 - [Contracts and limitations](docs/STABILIZATION.md) — supported semantics and safety boundaries.
-- [Engineering plan](plans/WMM-PHASE-1-ENGINEERING-PLAN-v0.3.md) — the underlying RFC; its version is separate from a WMM package release.
+
+The original RFC and planning attachments are not part of the versioned source or portable archive. The guides above describe the implemented contracts and limitations; design-document versions are separate from WMM package and API versions.
 
 ## Development
 

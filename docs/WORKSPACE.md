@@ -65,6 +65,14 @@ The base identity is `{worldId, snapshotDigest}`: a **pinned snapshot**, not a d
 
 SQLite mutations are transactional, use expected workspace versions, and retain immutable state rows and outcomes. This is durable draft storage, not V4 canonical acceptance or a general backup/restore protocol. Use a private, stable authoring directory; filesystem/symlink guards do not make hostile concurrent directory changes safe. Do not treat a copy of a live WAL database's main file alone as a coordinated backup.
 
+### First creation and interrupted startup
+
+For a new database, the store exclusively allocates a private `.wmm-authoring-init-*` directory beside the configured target, commits the existing SQLite schema/identity into its private file, and closes SQLite before publishing. Publication uses a same-filesystem hard link that cannot overwrite an existing target. A concurrent creator's winning database is validated and reopened normally; empty, foreign, corrupt, symlink and nonregular targets remain rejected without replacement. An absent main file does not establish ownership of existing WAL/SHM/journal sidecars, so these are rejected rather than adopted.
+
+If the first process is interrupted before publication, retry the original `open`/`demo` creation command: a new valid database can be initialized. If interrupted after publication, the main file is already compatible and ordinary retry/reopen works. `resume` still requires an existing database and saved workspace; initialization alone does not create a saved world.
+
+Handled failures remove only that invocation's private staging allocation. SIGKILL can leave abandoned hidden staging directories, including a hard-link alias to the published main file; they are ignored, not automatically scanned or removed. Historical zero-byte files with no WMM ownership proof remain rejected. Unsupported hard-link publication fails closed. These process-interruption checks do not establish power-loss durability, backup/restore, or safety against hostile concurrent namespace changes.
+
 There is no workspace-list/fork command, linked rebase, or separate proposal-history endpoint. `workspace.read` with `atVersion` reads a complete historical workspace state; prior proposal contents remain in those states. A new independent workspace is not alternate canon or a linked fork.
 
 ## Five views, no chat panel
@@ -241,7 +249,7 @@ Admission fails before storing an over-limit state rather than pruning history o
 
 ## Validation
 
-Local `pnpm run check` passed **1,010 tests across 47 files**, seed vectors, and strict source/test typechecks under Node 26.12.1. `pnpm verify:workspace` passed all **four real-PTY scenarios on macOS**. These are local results, not hosted CI results. The default Node 22.14.0 on this host is below the declared Node >=24.3.0 engine requirement. Linux PTY execution has not yet been verified. There is no screen-reader certification.
+The unit/process suite and native-PTY smoke exercise different boundaries; both should pass for workspace changes. Run them with the declared Node >=24.3.0 engine and use the actual output for the checkout being tested rather than a historical test count. There is no screen-reader certification or general filesystem power-loss certification.
 
 For the focused component/domain/wire/application/SQLite and process/audit checks, build first because process tests use the compiled CLI:
 
@@ -271,6 +279,9 @@ pnpm verify:workspace
 2. SIGTERM cleanup without implicitly saving an unfinished form.
 3. SIGINT cleanup without implicitly saving an unfinished form.
 4. Non-TTY/`NO_COLOR`, real `TERM=dumb` TTY, and explicit `--plain` fallbacks with escape-free readable output.
+5. Captured-base reference atlas navigation after source loss, without mutating saved state/review.
+6. Dense colour atlas inspection at large terminal size.
+7. Captured-base Economy navigation, detail and resize after source loss, with unchanged workspace decisions/history/review.
 
 Component tests additionally cover Unicode/paste isolation, explicit dependency/pin/restoration choices, save failures/stale retries, and host-editor handoff using simulated interactive streams. Application/store/process tests cover immutable bases and versions, source-loss independence, idempotent replay, stale writers, path/hash/identity admission, storage guards, correlation, and unchanged source bytes. These checks are not a substitute for broader accessibility or fault-injection certification.
 
