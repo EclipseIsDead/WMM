@@ -94,6 +94,8 @@ try {
   for (const input of ['faction-project.json', 'lantern-actor-brief.json', 'lantern-decision-draft.json', 'atlas-project.json', 'grain-project.json']) {
     copy(join(root, 'fixtures/authoring', input), join(destination, 'fixtures/authoring', input));
   }
+  copy(join(root, 'examples/harness'), join(destination, 'examples/harness'));
+  copy(join(root, 'tools/harness/hermes_adapter.py'), join(destination, 'tools/harness/hermes_adapter.py'));
   copy(join(root, 'README.md'), join(destination, 'README.md'));
   copy(join(root, 'docs'), join(destination, 'docs'));
   writeFileSync(join(destination, 'package.json'), JSON.stringify({ name: 'world-master-manual-release', version: cli.version, private: true, type: 'module' }, null, 2) + '\n');

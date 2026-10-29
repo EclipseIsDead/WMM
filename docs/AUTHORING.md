@@ -1,6 +1,6 @@
 # Structured authoring and generated DM notes
 
-WMM's first agent-authoring slice is **structured project → verified WMM snapshot → generated DM notes**. It is not an Obsidian vault copier. An agent can read existing material, interpret it into the closed authoring format, and use WMM to check and render that interpretation. No LLM service or importer-specific world data is embedded in WMM.
+WMM's first agent-authoring slice is **structured project → verified WMM snapshot → generated DM notes**. It is not an Obsidian vault copier. An agent can read existing material, interpret it into the closed authoring format, and use WMM to check and render that interpretation. The compiler/renderer remain provider-free and contain no importer-specific world data. The optional [DM harness](HARNESS.md) connects selected inputs and these APIs to an existing Hermes agent runtime.
 
 ## The three representations
 
@@ -36,7 +36,7 @@ See the complete [synthetic example](../fixtures/authoring/faction-project.json)
 | Input | Meaning |
 | --- | --- |
 | `worldId`, `title` | Dataset identity and display name. A dataset is not an accepted canonical head. |
-| `sources` | Stable `source:` IDs, titles, and vault-relative source paths. Citations add a free-text locator such as a heading or line range. WMM does not open these paths or verify the interpretation. |
+| `sources` | Stable `source:` IDs, titles, and vault-relative source paths. Citations add a free-text locator such as a heading or line range. The compiler does not open these metadata paths or verify the interpretation; a harness separately captures explicitly selected operator inputs. |
 | `entities` | Explicit `person:`, `faction:`, `place:`, `item:`, `event:`, or `concept:` IDs, names, and narrative sections. IDs are chosen once, not regenerated from a name. |
 | `sections` | Stable section ID, heading, category, explicit context, Markdown text, explicit note references, and citations. |
 | `facts` | Explicit, invariant `related_to`, `located_in`, `member_of`, `allied_with`, or `opposed_to` relationships, with positive/negative polarity and exact setting/campaign context. No relationship is inferred from a mention or wikilink. |
@@ -81,7 +81,7 @@ Build and render destinations must not already exist, even as empty directories,
 
 Existing workspaces can inspect an authored snapshot and propose the supported prose/assertion operations. They cannot add descriptors/sources/supports or write changes back into an authoring project. **There is no workspace-to-project round trip or renderer for U3's hypothetical candidate.** A directly modified bundle fails rendering correspondence; make an explicit project edit and build a fresh snapshot instead. This does not introduce U4 approval, V4 commit, automatic canonical-head advancement, or a domain revision store.
 
-All generated notes are private DM views. Category/context labels are not access controls or a player-safe redaction mode. Narrative Markdown is emitted without evaluation by WMM; opening it in Obsidian with third-party plugins is outside that guarantee. Assets, plugin renderers, custom-calendar translation, two-way sync, whole-vault migration, and agent-provider orchestration remain out of scope.
+All generated notes are private DM views. Category/context labels are not access controls or a player-safe redaction mode. Narrative Markdown is emitted without evaluation by WMM; opening it in Obsidian with third-party plugins is outside that guarantee. Assets, plugin renderers, custom-calendar translation, two-way sync, whole-vault migration, and a general agent/provider framework remain out of scope. The separate [DM harness](HARNESS.md) adds only the bounded selected-input/full-project-proposal loop around an existing runtime.
 
 ## Using an agent with private material
 
