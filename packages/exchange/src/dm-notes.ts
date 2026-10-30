@@ -141,8 +141,9 @@ function verifyIndex(bundle: AuthoringPresentationBundle): AuthoringIndex {
 }
 
 /** Deterministic projection of verified bundle records, never of loose Markdown or world.export metadata. */
-export function renderDmNotes(bundle: LoadedWorldBundle): DmNotes {
+export function renderDmNotes(bundle: LoadedWorldBundle, options: { readonly annotationStyle?: "full" | "concise" } = {}): DmNotes {
   if (bundle.world.semanticProfileDigest === economySemantics().profileDigest) throw new AuthoringError("Economic-profile DM notes are unsupported; use the complete Economy view instead");
+  const concise = options.annotationStyle === "concise";
   const index = readAuthoringIndex(bundle);
   const byId = new Map(index.notes.map((note) => [note.id, note]));
   const assertions = new Map(bundle.assertions.map((record) => [record.id, record]));
@@ -184,13 +185,14 @@ export function renderDmNotes(bundle: LoadedWorldBundle): DmNotes {
     if (note.campaignId !== null && note.id !== note.campaignId) lines.push(`Campaign: ${link(note.campaignId)}`, "");
     if (note.track !== null) {
       lines.push(`Subject: ${link(subject(note))}`, "", `**Current: ${current(note)}** (range ${integer(note.track.minimumAssertionId)}–${integer(note.track.maximumAssertionId)})`, "",
-        "## State log", "", "Authored entry order; not dated historical validation. Only the last entry is current.", "");
+        "## State log", "", concise ? "Authored entry order; only the last entry is current." : "Authored entry order; not dated historical validation. Only the last entry is current.", "");
       note.track.entries.forEach((entry, position) => {
         lines.push(`### Entry ${position + 1}: ${integer(entry.assertionId)}${position === note.track!.entries.length - 1 ? " (current)" : ""}`, "", entry.note, "", ...citations(entry.citations), "");
       });
     }
     if (note.facts.length > 0) {
-      lines.push("## Declared relationships", "", "Explicit authoring declarations, not independently verified documentary facts.", "");
+      lines.push("## Declared relationships", "");
+      if (!concise) lines.push("Explicit authoring declarations, not independently verified documentary facts.", "");
       for (const fact of note.facts) {
         const record = assertions.get(fact.assertionId)!;
         const proposition = atom(fact.assertionId);
@@ -201,9 +203,11 @@ export function renderDmNotes(bundle: LoadedWorldBundle): DmNotes {
       }
     }
     for (const section of note.sections) {
-      const category = {
+      const category = (concise ? {
+        lore: "Lore", "dm-note": "DM note", possibility: "Possibility", session: "Session note",
+      } : {
         lore: "Lore — narrative, not extracted claims", "dm-note": "DM note", possibility: "Possibility — not an established event", session: "Session note — campaign record",
-      }[section.category];
+      })[section.category];
       lines.push(`## ${markdown(section.heading)}`, "", `*${category} · ${section.context.kind === "setting" ? "Setting" : `Campaign: ${link(section.context.campaignId)}`}*`, "",
         text(documents.get(section.path)!.bytes), "");
       if (section.references.length > 0) lines.push(`See also: ${section.references.map(link).join(", ")}`, "");
